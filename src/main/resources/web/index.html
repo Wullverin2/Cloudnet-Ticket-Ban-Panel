@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Control</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="background-grid"></div>
+  <div class="background-orb orb-a"></div>
+  <div class="background-orb orb-b"></div>
+
+  <main class="shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">CloudNet v4 Panel</p>
+        <h1 id="brand-name">Network Control</h1>
+        <p class="hero-text">
+          Zentrales Panel fuer CloudNet, Service-Konsolen, Tickets, Bans und Rechteverwaltung.
+        </p>
+      </div>
+
+      <form id="auth-form" class="auth-card">
+        <label for="login-username">Panel Login</label>
+        <div class="auth-stack">
+          <input id="login-username" name="username" type="text" autocomplete="username" placeholder="Benutzername">
+          <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Passwort">
+          <button type="submit">Einloggen</button>
+        </div>
+        <p id="auth-status" class="muted">Bitte mit einem Panel-Benutzer anmelden.</p>
+      </form>
+
+      <article id="user-card" class="auth-card hidden">
+        <p class="eyebrow">Angemeldet</p>
+        <h2 id="current-user">-</h2>
+        <p id="current-permissions" class="muted">Rechte werden geladen.</p>
+        <button id="logout-button" class="ghost-button" type="button">Abmelden</button>
+      </article>
+    </header>
+
+    <nav id="page-nav" class="page-nav hidden" aria-label="Panel Bereiche">
+      <button data-page-target="cloudnet" data-permission="cloudnet.view" type="button">CloudNet</button>
+      <button data-page-target="tickets" data-permission="tickets.view" type="button">Tickets</button>
+      <button data-page-target="bans" data-permission="bans.view" type="button">Bans</button>
+      <button data-page-target="security" data-permission="users.manage" type="button">Rechte</button>
+    </nav>
+
+    <section class="summary-grid hidden" id="summary-grid" data-permission="cloudnet.view">
+      <article class="metric-card">
+        <span class="metric-label">Tasks</span>
+        <strong id="metric-tasks">-</strong>
+      </article>
+      <article class="metric-card">
+        <span class="metric-label">Services</span>
+        <strong id="metric-services">-</strong>
+      </article>
+      <article class="metric-card">
+        <span class="metric-label">Laufend</span>
+        <strong id="metric-running">-</strong>
+      </article>
+      <article class="metric-card">
+        <span class="metric-label">Nodes online</span>
+        <strong id="metric-nodes">-</strong>
+      </article>
+    </section>
+
+    <section id="page-cloudnet" class="page-panel hidden" data-page="cloudnet" data-permission="cloudnet.view">
+      <div class="panel-grid">
+        <article class="panel-card panel-tall">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Tasks</p>
+              <h2>Task Verwaltung</h2>
+            </div>
+            <button id="task-reset" class="ghost-button" data-permission="cloudnet.manage" type="button">Formular leeren</button>
+          </div>
+
+          <form id="task-form" class="stack-form" data-permission="cloudnet.manage">
+            <div class="form-grid">
+              <label>
+                <span>Name</span>
+                <input name="name" type="text" placeholder="Lobby">
+              </label>
+              <label>
+                <span>Environment</span>
+                <select name="environment" id="environment-select"></select>
+              </label>
+              <label>
+                <span>Runtime</span>
+                <select name="runtime" id="runtime-select"></select>
+              </label>
+              <label>
+                <span>Start-Port</span>
+                <input name="startPort" type="number" min="1" max="65535" value="25565">
+              </label>
+              <label>
+                <span>Min. Services</span>
+                <input name="minServiceCount" type="number" min="0" value="1">
+              </label>
+              <label>
+                <span>Max. RAM (MB)</span>
+                <input name="maxHeapMemory" type="number" min="50" value="1024">
+              </label>
+              <label>
+                <span>Gruppen</span>
+                <input name="groups" type="text" placeholder="Lobby, Default">
+              </label>
+              <label>
+                <span>Nodes</span>
+                <input name="associatedNodes" type="text" placeholder="leer = alle">
+              </label>
+              <label>
+                <span>JVM Optionen</span>
+                <input name="jvmOptions" type="text" placeholder="-XX:+UseG1GC, -Dfile.encoding=UTF-8">
+              </label>
+              <label>
+                <span>Process Parameter</span>
+                <input name="processParameters" type="text" placeholder="nogui">
+              </label>
+            </div>
+
+            <div class="toggle-row">
+              <label><input name="maintenance" type="checkbox"> Maintenance</label>
+              <label><input name="staticServices" type="checkbox"> Statische Services</label>
+              <label><input name="autoDeleteOnStop" type="checkbox" checked> Auto Delete on Stop</label>
+            </div>
+
+            <div class="action-row">
+              <button type="submit" id="task-submit">Task speichern</button>
+              <span id="task-status" class="muted"></span>
+            </div>
+          </form>
+
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Environment</th>
+                  <th>RAM</th>
+                  <th>Min.</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="task-table"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel-card" data-permission="cloudnet.manage">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Services</p>
+              <h2>Service Starten</h2>
+            </div>
+          </div>
+
+          <form id="service-create-form" class="stack-form slim-form">
+            <label>
+              <span>Task</span>
+              <select name="taskName" id="service-task-select"></select>
+            </label>
+            <label>
+              <span>Anzahl</span>
+              <input name="amount" type="number" min="1" max="20" value="1">
+            </label>
+            <label>
+              <span>Node Override</span>
+              <input name="node" type="text" placeholder="optional">
+            </label>
+            <label class="inline-label">
+              <input name="startImmediately" type="checkbox" checked>
+              <span>Sofort starten</span>
+            </label>
+            <button type="submit">Services erstellen</button>
+            <p id="service-create-status" class="muted"></p>
+          </form>
+        </article>
+
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Services</p>
+              <h2>Aktive Service Liste</h2>
+            </div>
+            <button id="service-refresh" class="ghost-button" type="button">Aktualisieren</button>
+          </div>
+
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Task</th>
+                  <th>Status</th>
+                  <th>Node</th>
+                  <th>Adresse</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="service-table"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel-card panel-wide" data-permission="cloudnet.console">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Konsole</p>
+              <h2>Service Konsole</h2>
+            </div>
+            <div class="inline-controls">
+              <select id="console-service-select"></select>
+              <label class="inline-label">
+                <input id="console-auto-refresh" type="checkbox" checked>
+                <span>Auto-Refresh</span>
+              </label>
+              <button id="console-refresh" class="ghost-button" type="button">Logs laden</button>
+            </div>
+          </div>
+
+          <form id="console-command-form" class="console-form" data-permission="cloudnet.command">
+            <input id="console-command-input" name="command" type="text" placeholder="say Panel verbunden">
+            <button type="submit">Senden</button>
+          </form>
+
+          <pre id="console-output" class="console-output">Noch keine Logs geladen.</pre>
+        </article>
+
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Nodes</p>
+              <h2>Cluster Uebersicht</h2>
+            </div>
+          </div>
+          <div id="node-grid" class="node-grid"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="page-tickets" class="page-panel hidden" data-page="tickets" data-permission="tickets.view">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Tickets</p>
+              <h2>Support- und Team-Tickets</h2>
+            </div>
+          </div>
+
+          <form id="ticket-form" class="stack-form" data-permission="tickets.create">
+            <div class="form-grid">
+              <label>
+                <span>Ersteller</span>
+                <input name="creatorName" type="text" placeholder="Spielername oder Teamname">
+              </label>
+              <label>
+                <span>UUID optional</span>
+                <input name="creatorUniqueId" type="text" placeholder="optional">
+              </label>
+              <label>
+                <span>Kategorie</span>
+                <select name="category" id="ticket-category-select"></select>
+              </label>
+              <label>
+                <span>Prioritaet</span>
+                <select name="priority" id="ticket-priority-select"></select>
+              </label>
+              <label>
+                <span>Betreff</span>
+                <input name="subject" type="text" placeholder="Spieler meldet Proxy-Disconnects">
+              </label>
+              <label>
+                <span>Unterserver / Service</span>
+                <input name="sourceServer" list="service-name-list" type="text" placeholder="Lobby-1 oder Proxy-1">
+                <datalist id="service-name-list"></datalist>
+              </label>
+            </div>
+            <label>
+              <span>Beschreibung</span>
+              <textarea name="content" rows="4" placeholder="Vollstaendige Beschreibung des Problems oder Anliegens"></textarea>
+            </label>
+            <div class="action-row">
+              <button type="submit">Ticket erstellen</button>
+              <span id="ticket-status" class="muted"></span>
+            </div>
+          </form>
+
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Betreff</th>
+                  <th>Ersteller</th>
+                  <th>Unterserver</th>
+                  <th>Status</th>
+                  <th>Prioritaet</th>
+                  <th>Zustaendig</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="ticket-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="page-bans" class="page-panel hidden" data-page="bans" data-permission="bans.view">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Cloud Bans</p>
+              <h2>Zentrale Ban-Verwaltung</h2>
+            </div>
+          </div>
+
+          <form id="ban-form" class="stack-form" data-permission="bans.manage">
+            <div class="form-grid">
+              <label>
+                <span>Zielname</span>
+                <input name="targetName" type="text" placeholder="Spielername">
+              </label>
+              <label>
+                <span>Ziel-UUID optional</span>
+                <input name="targetUniqueId" type="text" placeholder="optional">
+              </label>
+              <label>
+                <span>IP optional</span>
+                <input name="targetAddress" type="text" placeholder="optional">
+              </label>
+              <label>
+                <span>Ausgefuehrt von</span>
+                <input name="issuedBy" type="text" placeholder="Konsole oder Teammitglied">
+              </label>
+              <label>
+                <span>Dauer in Minuten</span>
+                <input name="durationMinutes" type="number" min="0" value="0">
+              </label>
+            </div>
+            <label>
+              <span>Grund</span>
+              <textarea name="reason" rows="3" placeholder="z.B. Netzwerkweiter Cheat-Verdacht / Botting / schwere Stoerung"></textarea>
+            </label>
+            <div class="action-row">
+              <button type="submit">Ban erstellen</button>
+              <span id="ban-status" class="muted"></span>
+            </div>
+          </form>
+
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ziel</th>
+                  <th>Status</th>
+                  <th>Grund</th>
+                  <th>Ablauf</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="ban-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="page-security" class="page-panel hidden" data-page="security" data-permission="users.manage">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Rechte</p>
+              <h2>Gruppen und Berechtigungen</h2>
+            </div>
+            <button id="group-reset" class="ghost-button" type="button">Gruppe leeren</button>
+          </div>
+
+          <form id="group-form" class="stack-form">
+            <label>
+              <span>Gruppenname</span>
+              <input name="name" type="text" placeholder="moderator">
+            </label>
+            <div id="permission-grid" class="checkbox-grid"></div>
+            <div class="action-row">
+              <button id="group-submit" type="submit">Gruppe speichern</button>
+              <span id="group-status" class="muted"></span>
+            </div>
+          </form>
+
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Gruppe</th>
+                  <th>Rechte</th>
+                  <th>System</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="group-table"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Panel Login</p>
+              <h2>Benutzerverwaltung</h2>
+            </div>
+            <button id="user-reset" class="ghost-button" type="button">Benutzer leeren</button>
+          </div>
+
+          <form id="user-form" class="stack-form">
+            <div class="form-grid">
+              <label>
+                <span>Benutzername</span>
+                <input name="username" type="text" placeholder="teamler">
+              </label>
+              <label>
+                <span>Anzeigename</span>
+                <input name="displayName" type="text" placeholder="Teamler">
+              </label>
+              <label>
+                <span>Passwort</span>
+                <input name="password" type="password" autocomplete="new-password" placeholder="bei Bearbeitung leer lassen">
+              </label>
+              <label class="inline-label">
+                <input name="enabled" type="checkbox" checked>
+                <span>Aktiviert</span>
+              </label>
+            </div>
+            <div id="user-group-grid" class="checkbox-grid compact"></div>
+            <div class="action-row">
+              <button id="user-submit" type="submit">Benutzer speichern</button>
+              <span id="user-status" class="muted"></span>
+            </div>
+          </form>
+
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Benutzer</th>
+                  <th>Gruppen</th>
+                  <th>Status</th>
+                  <th>Letzter Login</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="user-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

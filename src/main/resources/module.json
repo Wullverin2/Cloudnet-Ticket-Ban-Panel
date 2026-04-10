@@ -1,0 +1,11 @@
+{
+  "runtimeModule": false,
+  "storesSensitiveData": true,
+  "group": "de.speed",
+  "name": "TicketConsoleCloudBan",
+  "version": "0.1.0-SNAPSHOT",
+  "main": "de.speed.ticketconsolecloudban.TicketConsoleCloudBanModule",
+  "description": "CloudNet v4 control panel with task management, service management and service console access.",
+  "author": "speed_pctca6b / Codex",
+  "minJavaVersionId": 21
+}
