@@ -256,7 +256,11 @@ public final class PanelHttpServer {
         if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_VIEW)) {
           return;
         }
-        HttpExchangeUtils.writeJson(exchange, 200, this.facade.listTickets());
+        var query = HttpExchangeUtils.queryParameters(exchange);
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.listTickets(
+          query.get("creatorUniqueId"),
+          query.get("creatorName"),
+          query.get("status")));
         return;
       }
       if (HttpExchangeUtils.matchesMethod(exchange, "POST")) {

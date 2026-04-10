@@ -267,6 +267,22 @@ public final class CloudNetFacade {
       .toList();
   }
 
+  public List<TicketView> listTickets(String creatorUniqueId, String creatorName, String status) {
+    var normalizedUniqueId = this.nullableText(creatorUniqueId);
+    var normalizedName = this.nullableText(creatorName);
+    var normalizedStatus = this.nullableText(status);
+
+    return this.ticketStore.list().stream()
+      .filter(ticket -> normalizedUniqueId == null
+        || (ticket.creatorUniqueId() != null && ticket.creatorUniqueId().equalsIgnoreCase(normalizedUniqueId)))
+      .filter(ticket -> normalizedName == null
+        || (ticket.creatorName() != null && ticket.creatorName().equalsIgnoreCase(normalizedName)))
+      .filter(ticket -> normalizedStatus == null
+        || (ticket.status() != null && ticket.status().equalsIgnoreCase(normalizedStatus)))
+      .map(this::ticketView)
+      .toList();
+  }
+
   public TicketView createTicket(Document request) {
     var creatorName = this.requiredText(request, "creatorName");
     var subject = this.requiredText(request, "subject");

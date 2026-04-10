@@ -8,7 +8,9 @@ import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class HttpExchangeUtils {
 
@@ -66,6 +68,29 @@ public final class HttpExchangeUtils {
       }
     }
     return segments;
+  }
+
+  public static Map<String, String> queryParameters(HttpExchange exchange) {
+    var query = exchange.getRequestURI().getRawQuery();
+    var parameters = new LinkedHashMap<String, String>();
+    if (query == null || query.isBlank()) {
+      return parameters;
+    }
+
+    for (var pair : query.split("&")) {
+      if (pair.isBlank()) {
+        continue;
+      }
+
+      var separator = pair.indexOf('=');
+      var key = separator >= 0 ? pair.substring(0, separator) : pair;
+      var value = separator >= 0 ? pair.substring(separator + 1) : "";
+      parameters.put(
+        URLDecoder.decode(key, StandardCharsets.UTF_8),
+        URLDecoder.decode(value, StandardCharsets.UTF_8));
+    }
+
+    return parameters;
   }
 
   public static boolean matchesMethod(HttpExchange exchange, String method) {
