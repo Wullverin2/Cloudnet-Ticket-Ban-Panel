@@ -1,6 +1,7 @@
 package de.speed.ticketconsolecloudban.store;
 
 import de.speed.ticketconsolecloudban.ticket.TicketComment;
+import de.speed.ticketconsolecloudban.ticket.TicketAuditEntry;
 import de.speed.ticketconsolecloudban.ticket.TicketEntry;
 import de.speed.ticketconsolecloudban.ticket.TicketStoreData;
 import eu.cloudnetservice.driver.document.DocumentFactory;
@@ -16,6 +17,7 @@ public final class TicketStore {
 
   private final Path storagePath;
   private final List<TicketEntry> tickets = new ArrayList<>();
+  private final List<TicketAuditEntry> auditLog = new ArrayList<>();
 
   public TicketStore(Path dataDirectory) {
     this.storagePath = dataDirectory.resolve("tickets.json");
@@ -25,6 +27,12 @@ public final class TicketStore {
   public synchronized List<TicketEntry> list() {
     return this.tickets.stream()
       .sorted(Comparator.comparing(TicketEntry::updatedAt).reversed())
+      .toList();
+  }
+
+  public synchronized List<TicketAuditEntry> auditLog() {
+    return this.auditLog.stream()
+      .sorted(Comparator.comparing(TicketAuditEntry::createdAt).reversed())
       .toList();
   }
 
@@ -53,12 +61,14 @@ public final class TicketStore {
       now,
       List.of());
     this.tickets.add(ticket);
+    this.audit(ticket.id(), "CREATE", creatorName, "Ticket auf " + nullDash(serviceName) + " erstellt: " + subject);
     this.save();
     return ticket;
   }
 
   public synchronized TicketEntry updateStatus(String id, String status, String actor) {
     var ticket = this.require(id);
+    var now = Instant.now().toString();
     var updated = new TicketEntry(
       ticket.id(),
       ticket.creatorName(),
@@ -71,8 +81,9 @@ public final class TicketStore {
       ticket.assignedTo(),
       ticket.serviceName(),
       ticket.createdAt(),
-      Instant.now().toString(),
-      appendComment(ticket.comments(), new TicketComment(actor, "Status geaendert zu " + status, true, Instant.now().toString())));
+      now,
+      appendComment(ticket.comments(), new TicketComment(actor, "Status geaendert zu " + status, true, now)));
+    this.audit(ticket.id(), "STATUS", actor, "Status geaendert zu " + status);
     this.replace(updated);
     return updated;
   }
@@ -94,6 +105,7 @@ public final class TicketStore {
       ticket.createdAt(),
       now,
       appendComment(ticket.comments(), new TicketComment(actor, "Zugewiesen an " + assignedTo, true, now)));
+    this.audit(ticket.id(), "ASSIGN", actor, "Zugewiesen an " + assignedTo);
     this.replace(updated);
     return updated;
   }
@@ -115,6 +127,7 @@ public final class TicketStore {
       ticket.createdAt(),
       now,
       appendComment(ticket.comments(), new TicketComment(author, message, internal, now)));
+    this.audit(ticket.id(), internal ? "INTERNAL_COMMENT" : "COMMENT", author, message);
     this.replace(updated);
     return updated;
   }
@@ -150,6 +163,16 @@ public final class TicketStore {
     return List.copyOf(updated);
   }
 
+  private void audit(String ticketId, String action, String actor, String message) {
+    this.auditLog.add(new TicketAuditEntry(
+      UUID.randomUUID().toString(),
+      ticketId,
+      action,
+      actor,
+      message,
+      Instant.now().toString()));
+  }
+
   private void load() {
     try {
       Files.createDirectories(this.storagePath.getParent());
@@ -164,6 +187,10 @@ public final class TicketStore {
         this.tickets.clear();
         this.tickets.addAll(data.tickets());
       }
+      if (data != null && data.auditLog() != null) {
+        this.auditLog.clear();
+        this.auditLog.addAll(data.auditLog());
+      }
     } catch (Exception exception) {
       throw new IllegalStateException("Tickets konnten nicht geladen werden.", exception);
     }
@@ -174,11 +201,14 @@ public final class TicketStore {
       Files.createDirectories(this.storagePath.getParent());
       DocumentFactory.json()
         .newDocument()
-        .appendTree(new TicketStoreData(List.copyOf(this.tickets)))
+        .appendTree(new TicketStoreData(List.copyOf(this.tickets), List.copyOf(this.auditLog)))
         .writeTo(this.storagePath);
     } catch (Exception exception) {
       throw new IllegalStateException("Tickets konnten nicht gespeichert werden.", exception);
     }
   }
-}
 
+  private static String nullDash(String value) {
+    return value == null || value.isBlank() ? "-" : value;
+  }
+}

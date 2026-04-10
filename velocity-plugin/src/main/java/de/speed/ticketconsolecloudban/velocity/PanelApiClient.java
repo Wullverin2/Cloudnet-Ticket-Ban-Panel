@@ -12,6 +12,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -64,6 +65,25 @@ public final class PanelApiClient {
     request.addProperty("message", message);
     request.addProperty("internal", internal);
     return this.toTicket(this.send("POST", "/api/tickets/" + encode(id) + "/comments", request).getAsJsonObject());
+  }
+
+  public void syncLiteBans(List<LiteBanSnapshot> bans) {
+    var request = new JsonObject();
+    request.addProperty("actor", "velocity-sync");
+    request.add("bans", GSON.toJsonTree(bans));
+    this.send("POST", "/api/bans/litebans-sync", request);
+  }
+
+  public List<PanelBanAction> pendingBanActions() {
+    var response = this.send("GET", "/api/bans/actions", null);
+    return Arrays.asList(GSON.fromJson(response, PanelBanAction[].class));
+  }
+
+  public void completeBanAction(String actionId, boolean success, String message) {
+    var request = new JsonObject();
+    request.addProperty("success", success);
+    request.addProperty("message", message);
+    this.send("POST", "/api/bans/actions/" + encode(actionId) + "/complete", request);
   }
 
   private List<PanelTicket> tickets(String path) {

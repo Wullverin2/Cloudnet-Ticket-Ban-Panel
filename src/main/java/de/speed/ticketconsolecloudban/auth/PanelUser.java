@@ -5,6 +5,9 @@ import java.util.List;
 public record PanelUser(
   String username,
   String displayName,
+  String email,
+  String minecraftName,
+  String minecraftUniqueId,
   String passwordHash,
   String passwordSalt,
   int passwordIterations,

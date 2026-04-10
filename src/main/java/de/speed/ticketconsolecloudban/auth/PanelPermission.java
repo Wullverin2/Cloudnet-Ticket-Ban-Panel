@@ -15,6 +15,8 @@ public final class PanelPermission {
   public static final String BANS_VIEW = "bans.view";
   public static final String BANS_MANAGE = "bans.manage";
   public static final String USERS_MANAGE = "users.manage";
+  public static final String PROXY_PERMISSIONS_MANAGE = "permissions.proxy.manage";
+  public static final String SERVER_PERMISSIONS_MANAGE = "permissions.server.manage";
 
   private static final List<PermissionView> CATALOG = List.of(
     new PermissionView(ALL, "System", "Alle Rechte", "Vollzugriff auf alle Panel-Funktionen."),
@@ -27,7 +29,9 @@ public final class PanelPermission {
     new PermissionView(TICKETS_MANAGE, "Tickets", "Tickets verwalten", "Tickets zuweisen, kommentieren und Status aendern."),
     new PermissionView(BANS_VIEW, "Bans", "Bans ansehen", "Cloud-Bans im Panel anzeigen."),
     new PermissionView(BANS_MANAGE, "Bans", "Bans verwalten", "Cloud-Bans erstellen und deaktivieren."),
-    new PermissionView(USERS_MANAGE, "Rechte", "Benutzer und Gruppen", "Panel-Benutzer, Gruppen und Rechte verwalten."));
+    new PermissionView(USERS_MANAGE, "Rechte", "Benutzer und Gruppen", "Panel-Benutzer, Gruppen und Rechte verwalten."),
+    new PermissionView(PROXY_PERMISSIONS_MANAGE, "Rechte", "Proxy-Rechte vorbereiten", "Reserviertes Recht fuer spaetere Proxy-/LuckPerms-Verwaltung."),
+    new PermissionView(SERVER_PERMISSIONS_MANAGE, "Rechte", "Unterserver-Rechte vorbereiten", "Reserviertes Recht fuer spaetere Unterserver-/LuckPerms-Verwaltung."));
 
   private PanelPermission() {
   }

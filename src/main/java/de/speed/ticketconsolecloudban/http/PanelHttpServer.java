@@ -117,6 +117,14 @@ public final class PanelHttpServer {
         HttpExchangeUtils.sendNoContent(exchange);
         return;
       }
+      if ("profile".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "PUT")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.security.updateOwnProfile(principal, HttpExchangeUtils.readJson(exchange)));
+        return;
+      }
+      if ("password".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.security.changeOwnPassword(principal, HttpExchangeUtils.readJson(exchange)));
+        return;
+      }
     }
 
     if (segments.size() >= 2 && "security".equals(segments.get(1))) {
@@ -272,6 +280,17 @@ public final class PanelHttpServer {
       }
     }
 
+    if (segments.size() == 3
+      && "tickets".equals(segments.get(1))
+      && "audit".equals(segments.get(2))
+      && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_VIEW)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.ticketAuditLog());
+      return;
+    }
+
     if (segments.size() == 4 && "tickets".equals(segments.get(1))) {
       var ticketId = segments.get(2);
       var action = segments.get(3);
@@ -314,6 +333,69 @@ public final class PanelHttpServer {
         HttpExchangeUtils.writeJson(exchange, 201, this.facade.createBan(HttpExchangeUtils.readJson(exchange)));
         return;
       }
+    }
+
+    if (segments.size() == 3 && "bans".equals(segments.get(1))) {
+      var action = segments.get(2);
+      if ("litebans".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_VIEW)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.listLiteBans());
+        return;
+      }
+      if ("litebans-sync".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.syncLiteBans(HttpExchangeUtils.readJson(exchange)));
+        return;
+      }
+      if ("actions".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.pendingBanActions());
+        return;
+      }
+      if ("audit".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_VIEW)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.banAuditLog());
+        return;
+      }
+    }
+
+    if (segments.size() == 5 && "bans".equals(segments.get(1)) && "litebans".equals(segments.get(2))) {
+      var banId = segments.get(3);
+      var action = segments.get(4);
+      if ("unban".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestLiteBanUnban(banId, HttpExchangeUtils.readJson(exchange)));
+        return;
+      }
+      if ("extend".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestLiteBanExtend(banId, HttpExchangeUtils.readJson(exchange)));
+        return;
+      }
+    }
+
+    if (segments.size() == 5
+      && "bans".equals(segments.get(1))
+      && "actions".equals(segments.get(2))
+      && "complete".equals(segments.get(4))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.completeBanAction(segments.get(3), HttpExchangeUtils.readJson(exchange)));
+      return;
     }
 
     if (segments.size() == 4 && "bans".equals(segments.get(1))) {

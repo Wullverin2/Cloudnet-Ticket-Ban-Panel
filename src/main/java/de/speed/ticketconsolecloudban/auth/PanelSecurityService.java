@@ -75,6 +75,9 @@ public final class PanelSecurityService {
         ? new UserView(
           principal.username(),
           principal.displayName(),
+          null,
+          null,
+          null,
           List.of("api-token"),
           true,
           principal.permissions(),
@@ -109,6 +112,29 @@ public final class PanelSecurityService {
       this.textOrNull(request, "password"),
       request.contains("groups") ? this.stringValues(request, "groups", List.of()) : null,
       request.contains("enabled") ? request.getBoolean("enabled") : null);
+    return this.userView(user);
+  }
+
+  public UserView updateOwnProfile(PanelPrincipal principal, Document request) {
+    if (principal.apiToken()) {
+      throw new IllegalArgumentException("API-Token-Sessions haben kein Benutzerprofil.");
+    }
+    var user = this.userStore.updateProfile(
+      principal.username(),
+      this.textOrNull(request, "email"),
+      this.textOrNull(request, "minecraftName"),
+      this.textOrNull(request, "minecraftUniqueId"));
+    return this.userView(user);
+  }
+
+  public UserView changeOwnPassword(PanelPrincipal principal, Document request) {
+    if (principal.apiToken()) {
+      throw new IllegalArgumentException("API-Token-Sessions haben kein Passwort.");
+    }
+    var user = this.userStore.changePassword(
+      principal.username(),
+      this.requiredText(request, "currentPassword"),
+      this.requiredText(request, "newPassword"));
     return this.userView(user);
   }
 
@@ -154,6 +180,9 @@ public final class PanelSecurityService {
     return new UserView(
       user.username(),
       user.displayName(),
+      user.email(),
+      user.minecraftName(),
+      user.minecraftUniqueId(),
       user.groups() == null ? List.of() : user.groups(),
       user.enabled(),
       this.userStore.permissionsFor(user),
@@ -226,6 +255,9 @@ public final class PanelSecurityService {
   public record UserView(
     String username,
     String displayName,
+    String email,
+    String minecraftName,
+    String minecraftUniqueId,
     List<String> groups,
     boolean enabled,
     List<String> permissions,

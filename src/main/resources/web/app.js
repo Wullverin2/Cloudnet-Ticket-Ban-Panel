@@ -21,7 +21,10 @@ const state = {
   services: [],
   nodes: [],
   tickets: [],
+  ticketAudit: [],
   bans: [],
+  liteBans: [],
+  banAudit: [],
   securityUsers: [],
   securityGroups: [],
   selectedService: null,
@@ -50,6 +53,9 @@ function bindElements() {
   elements.currentUser = document.getElementById("current-user");
   elements.currentPermissions = document.getElementById("current-permissions");
   elements.logoutButton = document.getElementById("logout-button");
+  elements.profileForm = document.getElementById("profile-form");
+  elements.passwordForm = document.getElementById("password-form");
+  elements.profileStatus = document.getElementById("profile-status");
   elements.pageNav = document.getElementById("page-nav");
   elements.summaryGrid = document.getElementById("summary-grid");
 
@@ -84,6 +90,7 @@ function bindElements() {
   elements.ticketForm = document.getElementById("ticket-form");
   elements.ticketStatus = document.getElementById("ticket-status");
   elements.ticketTable = document.getElementById("ticket-table");
+  elements.ticketAuditTable = document.getElementById("ticket-audit-table");
   elements.ticketCategorySelect = document.getElementById("ticket-category-select");
   elements.ticketPrioritySelect = document.getElementById("ticket-priority-select");
   elements.serviceNameList = document.getElementById("service-name-list");
@@ -91,6 +98,8 @@ function bindElements() {
   elements.banForm = document.getElementById("ban-form");
   elements.banStatus = document.getElementById("ban-status");
   elements.banTable = document.getElementById("ban-table");
+  elements.liteBanTable = document.getElementById("liteban-table");
+  elements.banAuditTable = document.getElementById("ban-audit-table");
 
   elements.groupForm = document.getElementById("group-form");
   elements.groupReset = document.getElementById("group-reset");
@@ -110,6 +119,8 @@ function bindElements() {
 function bindEvents() {
   elements.authForm.addEventListener("submit", handleLoginSubmit);
   elements.logoutButton.addEventListener("click", handleLogout);
+  elements.profileForm.addEventListener("submit", handleProfileSubmit);
+  elements.passwordForm.addEventListener("submit", handlePasswordSubmit);
   elements.pageNav.addEventListener("click", handlePageNavClick);
 
   elements.taskForm.addEventListener("submit", handleTaskSubmit);
@@ -138,6 +149,10 @@ function bindEvents() {
 
   elements.banForm.addEventListener("submit", handleBanSubmit);
   elements.banTable.addEventListener("click", handleBanTableClick);
+  elements.liteBanTable.addEventListener("click", handleLiteBanTableClick);
+  document.querySelectorAll("button[data-ban-tab]").forEach(button => {
+    button.addEventListener("click", () => switchBanTab(button.dataset.banTab));
+  });
 
   elements.groupForm.addEventListener("submit", handleGroupSubmit);
   elements.groupReset.addEventListener("click", resetGroupForm);
@@ -223,12 +238,55 @@ async function handleLogout() {
   showLogin("Abgemeldet.", false);
 }
 
+async function handleProfileSubmit(event) {
+  event.preventDefault();
+  const form = new FormData(elements.profileForm);
+
+  try {
+    const user = await api("/api/auth/profile", {
+      method: "PUT",
+      body: {
+        email: String(form.get("email") || "").trim(),
+        minecraftName: String(form.get("minecraftName") || "").trim(),
+        minecraftUniqueId: String(form.get("minecraftUniqueId") || "").trim(),
+      },
+    });
+    applySession({ ...state.session, user });
+    setStatus(elements.profileStatus, "Profil gespeichert.", false);
+  } catch (error) {
+    handleApiError(error, elements.profileStatus);
+  }
+}
+
+async function handlePasswordSubmit(event) {
+  event.preventDefault();
+  const form = new FormData(elements.passwordForm);
+
+  try {
+    const user = await api("/api/auth/password", {
+      method: "POST",
+      body: {
+        currentPassword: String(form.get("currentPassword") || ""),
+        newPassword: String(form.get("newPassword") || ""),
+      },
+    });
+    elements.passwordForm.reset();
+    applySession({ ...state.session, user });
+    setStatus(elements.profileStatus, "Passwort geaendert.", false);
+  } catch (error) {
+    handleApiError(error, elements.profileStatus);
+  }
+}
+
 function applySession(session) {
   state.session = session;
   state.currentUser = session.user;
   state.meta.availablePermissions = session.availablePermissions || state.meta.availablePermissions || [];
   elements.currentUser.textContent = `${session.user.displayName || session.user.username} (${session.user.username})`;
   elements.currentPermissions.textContent = summarizePermissions(session.user.permissions || []);
+  elements.profileForm.elements.email.value = session.user.email || "";
+  elements.profileForm.elements.minecraftName.value = session.user.minecraftName || "";
+  elements.profileForm.elements.minecraftUniqueId.value = session.user.minecraftUniqueId || "";
 }
 
 function showLogin(message, isError) {
@@ -257,7 +315,10 @@ function clearSession() {
   state.services = [];
   state.nodes = [];
   state.tickets = [];
+  state.ticketAudit = [];
   state.bans = [];
+  state.liteBans = [];
+  state.banAudit = [];
   state.securityUsers = [];
   state.securityGroups = [];
   localStorage.removeItem("tccb-session");
@@ -333,13 +394,28 @@ async function refreshAll() {
   }
 
   if (hasPermission(PERMISSIONS.TICKETS_VIEW)) {
-    state.tickets = asArray(await api("/api/tickets"));
+    const [tickets, ticketAudit] = await Promise.all([
+      api("/api/tickets"),
+      api("/api/tickets/audit"),
+    ]);
+    state.tickets = asArray(tickets);
+    state.ticketAudit = asArray(ticketAudit);
     renderTickets();
+    renderTicketAudit();
   }
 
   if (hasPermission(PERMISSIONS.BANS_VIEW)) {
-    state.bans = asArray(await api("/api/bans"));
+    const [bans, liteBans, banAudit] = await Promise.all([
+      api("/api/bans"),
+      api("/api/bans/litebans"),
+      api("/api/bans/audit"),
+    ]);
+    state.bans = asArray(bans);
+    state.liteBans = asArray(liteBans);
+    state.banAudit = asArray(banAudit);
     renderBans();
+    renderLiteBans();
+    renderBanAudit();
   }
 
   if (hasPermission(PERMISSIONS.USERS_MANAGE)) {
@@ -499,6 +575,23 @@ function ticketActions(ticket) {
   `;
 }
 
+function renderTicketAudit() {
+  if (!state.ticketAudit.length) {
+    elements.ticketAuditTable.innerHTML = `<tr><td colspan="5" class="muted">Noch kein Ticket-Audit vorhanden.</td></tr>`;
+    return;
+  }
+
+  elements.ticketAuditTable.innerHTML = state.ticketAudit.slice(0, 80).map(entry => `
+    <tr>
+      <td>${escapeHtml(entry.createdAt || "-")}</td>
+      <td>${escapeHtml(shortId(entry.ticketId))}</td>
+      <td>${escapeHtml(entry.action)}</td>
+      <td>${escapeHtml(entry.actor || "-")}</td>
+      <td>${escapeHtml(entry.message || "-")}</td>
+    </tr>
+  `).join("");
+}
+
 function renderBans() {
   if (!state.bans.length) {
     elements.banTable.innerHTML = `<tr><td colspan="5" class="muted">Keine Bans vorhanden.</td></tr>`;
@@ -528,6 +621,62 @@ function banActions(ban) {
     return `<span class="muted">-</span>`;
   }
   return `<button data-ban-action="deactivate" data-ban-id="${escapeAttr(ban.id)}" type="button">Deaktivieren</button>`;
+}
+
+function renderLiteBans() {
+  if (!state.liteBans.length) {
+    elements.liteBanTable.innerHTML = `<tr><td colspan="6" class="muted">Noch keine LiteBans synchronisiert.</td></tr>`;
+    return;
+  }
+
+  elements.liteBanTable.innerHTML = state.liteBans.map(ban => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(ban.publicId || ban.id)}</strong><br>
+        <span class="muted">intern: ${escapeHtml(ban.id)}</span>
+      </td>
+      <td>
+        <strong>${escapeHtml(ban.targetName || "-")}</strong><br>
+        <span class="muted">${escapeHtml(ban.targetUniqueId || ban.targetAddress || "-")}</span>
+      </td>
+      <td>
+        <span class="badge ${ban.active ? "badge-danger" : "badge-success"}">
+          ${ban.active ? "aktiv" : "inaktiv"}
+        </span>
+      </td>
+      <td>${escapeHtml(ban.reason || "-")}</td>
+      <td>${escapeHtml(ban.expiresAt || "permanent")}</td>
+      <td>${liteBanActions(ban)}</td>
+    </tr>
+  `).join("");
+}
+
+function liteBanActions(ban) {
+  if (!hasPermission(PERMISSIONS.BANS_MANAGE) || !ban.active) {
+    return `<span class="muted">-</span>`;
+  }
+  return `
+    <button data-liteban-action="unban" data-ban-id="${escapeAttr(ban.id)}" type="button">Aufheben</button>
+    <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Verlaengern</button>
+  `;
+}
+
+function renderBanAudit() {
+  if (!state.banAudit.length) {
+    elements.banAuditTable.innerHTML = `<tr><td colspan="6" class="muted">Noch kein Ban-Audit vorhanden.</td></tr>`;
+    return;
+  }
+
+  elements.banAuditTable.innerHTML = state.banAudit.slice(0, 120).map(entry => `
+    <tr>
+      <td>${escapeHtml(entry.createdAt || "-")}</td>
+      <td>${escapeHtml(entry.source || "-")}</td>
+      <td>${escapeHtml(entry.publicId || entry.banId || "-")}</td>
+      <td>${escapeHtml(entry.action || "-")}</td>
+      <td>${escapeHtml(entry.actor || "-")}</td>
+      <td>${escapeHtml(entry.message || "-")}</td>
+    </tr>
+  `).join("");
 }
 
 function renderPermissionGrid() {
@@ -1033,6 +1182,61 @@ async function handleBanTableClick(event) {
   }
 }
 
+async function handleLiteBanTableClick(event) {
+  const button = event.target.closest("button[data-liteban-action]");
+  if (!button || !hasPermission(PERMISSIONS.BANS_MANAGE)) {
+    return;
+  }
+
+  const banId = button.dataset.banId;
+  const action = button.dataset.litebanAction;
+  const actor = state.currentUser?.displayName || state.currentUser?.username || "Panel";
+
+  try {
+    if (action === "unban") {
+      const reason = prompt("Grund fuer das Aufheben?", "Unban via Panel");
+      if (reason === null) {
+        return;
+      }
+      await api(`/api/bans/litebans/${encodeURIComponent(banId)}/unban`, {
+        method: "POST",
+        body: { actor, reason },
+      });
+      setStatus(elements.banStatus, "Unban wurde an Velocity uebergeben.", false);
+    }
+
+    if (action === "extend") {
+      const duration = prompt("Neue/weitere Dauer fuer LiteBans, z.B. 7d, 30d, 1mo");
+      if (!duration) {
+        return;
+      }
+      const reason = prompt("Grund fuer die Verlaengerung?", "Ban via Panel verlaengert");
+      if (reason === null) {
+        return;
+      }
+      await api(`/api/bans/litebans/${encodeURIComponent(banId)}/extend`, {
+        method: "POST",
+        body: { actor, duration, reason },
+      });
+      setStatus(elements.banStatus, "Verlaengerung wurde an Velocity uebergeben.", false);
+    }
+
+    await refreshAll();
+    switchBanTab("litebans");
+  } catch (error) {
+    handleApiError(error, elements.banStatus);
+  }
+}
+
+function switchBanTab(tab) {
+  document.querySelectorAll(".ban-tab-panel").forEach(panel => {
+    panel.classList.toggle("hidden", panel.dataset.banPanel !== tab);
+  });
+  document.querySelectorAll("button[data-ban-tab]").forEach(button => {
+    button.classList.toggle("active", button.dataset.banTab === tab);
+  });
+}
+
 async function handleGroupTableClick(event) {
   const button = event.target.closest("button[data-group-action]");
   if (!button) {
@@ -1289,6 +1493,11 @@ function summarizePermissions(permissions) {
     return "Keine Rechte";
   }
   return `${permissions.length} Rechte aktiv`;
+}
+
+function shortId(id) {
+  const value = String(id || "-");
+  return value.length <= 8 ? value : value.slice(0, 8);
 }
 
 function handleApiError(error, statusElement) {

@@ -73,6 +73,9 @@ public final class PanelUserStore {
     var updated = new PanelUser(
       user.username(),
       user.displayName(),
+      user.email(),
+      user.minecraftName(),
+      user.minecraftUniqueId(),
       user.passwordHash(),
       user.passwordSalt(),
       user.passwordIterations(),
@@ -108,6 +111,9 @@ public final class PanelUserStore {
     var user = new PanelUser(
       normalized,
       displayName == null || displayName.isBlank() ? normalized : displayName.trim(),
+      null,
+      null,
+      null,
       passwordMaterial.hash(),
       passwordMaterial.salt(),
       passwordMaterial.iterations(),
@@ -147,6 +153,9 @@ public final class PanelUserStore {
     var updated = new PanelUser(
       user.username(),
       displayName == null || displayName.isBlank() ? user.displayName() : displayName.trim(),
+      user.email(),
+      user.minecraftName(),
+      user.minecraftUniqueId(),
       passwordHash,
       passwordSalt,
       passwordIterations,
@@ -158,6 +167,54 @@ public final class PanelUserStore {
 
     var nextUsers = this.replacePreview(this.users, updated);
     this.ensureAdminAccess(nextUsers, this.groups);
+    this.replaceUser(updated);
+    return updated;
+  }
+
+  public synchronized PanelUser updateProfile(String username, String email, String minecraftName, String minecraftUniqueId) {
+    var user = this.requireUser(username);
+    var updated = new PanelUser(
+      user.username(),
+      user.displayName(),
+      this.nullableText(email),
+      this.nullableText(minecraftName),
+      this.nullableText(minecraftUniqueId),
+      user.passwordHash(),
+      user.passwordSalt(),
+      user.passwordIterations(),
+      user.groups(),
+      user.enabled(),
+      user.createdAt(),
+      Instant.now().toString(),
+      user.lastLoginAt());
+    this.replaceUser(updated);
+    return updated;
+  }
+
+  public synchronized PanelUser changePassword(String username, String currentPassword, String newPassword) {
+    var user = this.requireUser(username);
+    if (!this.verifyPassword(currentPassword, user)) {
+      throw new IllegalArgumentException("Aktuelles Passwort ist falsch.");
+    }
+    if (newPassword == null || newPassword.length() < 8) {
+      throw new IllegalArgumentException("Das neue Passwort muss mindestens 8 Zeichen haben.");
+    }
+
+    var material = this.hashPassword(newPassword);
+    var updated = new PanelUser(
+      user.username(),
+      user.displayName(),
+      user.email(),
+      user.minecraftName(),
+      user.minecraftUniqueId(),
+      material.hash(),
+      material.salt(),
+      material.iterations(),
+      user.groups(),
+      user.enabled(),
+      user.createdAt(),
+      Instant.now().toString(),
+      user.lastLoginAt());
     this.replaceUser(updated);
     return updated;
   }
@@ -218,6 +275,9 @@ public final class PanelUserStore {
     this.users.replaceAll(user -> new PanelUser(
       user.username(),
       user.displayName(),
+      user.email(),
+      user.minecraftName(),
+      user.minecraftUniqueId(),
       user.passwordHash(),
       user.passwordSalt(),
       user.passwordIterations(),
@@ -328,6 +388,10 @@ public final class PanelUserStore {
     return List.copyOf(normalized);
   }
 
+  private String nullableText(String value) {
+    return value == null || value.isBlank() ? null : value.trim();
+  }
+
   private boolean verifyPassword(String password, PanelUser user) {
     if (password == null) {
       return false;
@@ -398,6 +462,9 @@ public final class PanelUserStore {
     this.users.add(new PanelUser(
       "admin",
       "Administrator",
+      null,
+      null,
+      null,
       passwordMaterial.hash(),
       passwordMaterial.salt(),
       passwordMaterial.iterations(),

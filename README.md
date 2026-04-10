@@ -10,6 +10,9 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel fuer:
 - Tickets erstellen, kommentieren, zuweisen und abschliessen
 - Zentrale Cloud-Bans anlegen und deaktivieren
 - Panel-Login mit Benutzern, Gruppen und Rechteverwaltung
+- Benutzerprofil mit E-Mail fuer Passwort-vergessen-Prozesse und optionalem Minecraft-Account
+- Auditlogs fuer Tickets und Bans
+- LiteBans-Unterseite mit synchronisierten LiteBans-Bans
 
 Die UI ist direkt im Modul enthalten und wird ueber einen kleinen HTTP-Server ausgeliefert.
 
@@ -28,6 +31,8 @@ Das Panel ist bewusst als MVP gebaut:
 - Ticket-System ist vorhanden und speichert den Unterserver/Service, auf dem ein Ticket erstellt wurde
 - Cloud-Ban-Verwaltung ist vorhanden
 - Panel-Login mit Gruppenrechten ist vorhanden
+- LiteBans-Bans koennen ueber das Velocity-Plugin ins Panel synchronisiert werden
+- LiteBans-Unban und -Verlaengerung laufen ueber eine Panel-Aktionsqueue, die Velocity abarbeitet
 - Live-Konsole laeuft aktuell per Polling auf dem Log-Cache
 
 Noch nicht enthalten:
@@ -117,10 +122,16 @@ panel.url=http://127.0.0.1:8088
 panel.api-token=CHANGE_ME
 litebans.enabled=true
 litebans.join-check=true
+litebans.sync-enabled=true
+litebans.sync-interval-seconds=60
 litebans.server-scope=*
+litebans.public-id-column=id
 litebans.ban-command=ban {player} {duration} {reason}
 litebans.unban-command=unban {player} {reason}
+litebans.extend-command=ban {player} {duration} {reason}
 ```
+
+Hinweis zu LiteBans-IDs: LiteBans speichert intern eine numerische `id`. Wenn dein Server in Nachrichten eine zufaellige Buchstaben-/Zahlen-ID nutzt, kannst du spaeter `litebans.public-id-column` auf eine passende Datenbankspalte setzen. Falls diese Spalte nicht existiert, nutzt das Panel automatisch die interne `id`. Die Befehls-Templates koennen `{id}`, `{banId}`, `{player}`, `{uuid}`, `{ip}`, `{duration}`, `{reason}` und `{actor}` verwenden.
 
 Ingame-Befehle:
 
@@ -196,6 +207,7 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 - `GET /api/tickets?creatorUniqueId=<uuid>`
 - `GET /api/tickets?creatorName=<name>`
 - `GET /api/tickets?status=OPEN`
+- `GET /api/tickets/audit`
 - `POST /api/tickets` mit optional `sourceServer`/`serviceName`
 - `POST /api/tickets/{id}/status`
 - `POST /api/tickets/{id}/assign`
@@ -203,6 +215,15 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 - `GET /api/bans`
 - `POST /api/bans`
 - `POST /api/bans/{id}/deactivate`
+- `GET /api/bans/litebans`
+- `POST /api/bans/litebans-sync`
+- `POST /api/bans/litebans/{id}/unban`
+- `POST /api/bans/litebans/{id}/extend`
+- `GET /api/bans/actions`
+- `POST /api/bans/actions/{id}/complete`
+- `GET /api/bans/audit`
+- `PUT /api/auth/profile`
+- `POST /api/auth/password`
 - `GET /api/security/users`
 - `POST /api/security/users`
 - `PUT /api/security/users/{username}`
@@ -217,5 +238,5 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 Wenn du daraus noch naeher an ein komplettes "NetworkManager"-System willst, wuerde ich als naechstes diese drei Erweiterungen bauen:
 
 1. Velocity-Plugin fuer aktive Ban-Pruefung beim Join
-2. Offline-UUID-Lookups fuer `/baninfo <spieler>` ueber LiteBans-Datenbank
-3. Optionales Spiegeln von LiteBans-Bans in die Panel-Ban-Liste
+2. Vollstaendige LuckPerms-Schreibbruecke fuer Proxy- und Unterserver-Rechte
+3. Passwort-vergessen-Mailversand mit SMTP/Token statt nur gespeicherter E-Mail-Adresse

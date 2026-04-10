@@ -12,3 +12,37 @@ public record PanelTicket(
   String updatedAt
 ) {
 }
+
+record LiteBanSnapshot(
+  String id,
+  String publicId,
+  String targetName,
+  String targetUniqueId,
+  String targetAddress,
+  String reason,
+  String issuedBy,
+  String serverScope,
+  String createdAt,
+  String expiresAt,
+  boolean active,
+  String removedBy,
+  String removedAt,
+  String lastSyncedAt
+) {
+}
+
+record PanelBanAction(
+  String id,
+  String source,
+  String action,
+  String banId,
+  String publicId,
+  String targetName,
+  String targetUniqueId,
+  String targetAddress,
+  String duration,
+  String reason,
+  String actor,
+  String status
+) {
+}

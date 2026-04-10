@@ -1,11 +1,15 @@
 package de.speed.ticketconsolecloudban.service;
 
-import de.speed.ticketconsolecloudban.ban.CloudBanEntry;
 import de.speed.ticketconsolecloudban.auth.PanelPermission;
+import de.speed.ticketconsolecloudban.ban.BanActionRequest;
+import de.speed.ticketconsolecloudban.ban.BanAuditEntry;
+import de.speed.ticketconsolecloudban.ban.CloudBanEntry;
+import de.speed.ticketconsolecloudban.ban.LiteBanEntry;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.store.BanStore;
 import de.speed.ticketconsolecloudban.store.TicketStore;
 import de.speed.ticketconsolecloudban.ticket.TicketComment;
+import de.speed.ticketconsolecloudban.ticket.TicketAuditEntry;
 import de.speed.ticketconsolecloudban.ticket.TicketEntry;
 import eu.cloudnetservice.driver.cluster.NodeInfoSnapshot;
 import eu.cloudnetservice.driver.cluster.NetworkClusterNode;
@@ -283,6 +287,10 @@ public final class CloudNetFacade {
       .toList();
   }
 
+  public List<TicketAuditEntry> ticketAuditLog() {
+    return this.ticketStore.auditLog();
+  }
+
   public TicketView createTicket(Document request) {
     var creatorName = this.requiredText(request, "creatorName");
     var subject = this.requiredText(request, "subject");
@@ -353,6 +361,46 @@ public final class CloudNetFacade {
   public BanView deactivateBan(String id, Document request) {
     var removedBy = this.requiredText(request, "removedBy");
     return this.banView(this.banStore.deactivate(id, removedBy));
+  }
+
+  public List<LiteBanEntry> listLiteBans() {
+    return this.banStore.listLiteBans();
+  }
+
+  public List<LiteBanEntry> syncLiteBans(Document request) {
+    var entries = request.readObject("bans", LiteBanEntry[].class, new LiteBanEntry[0]);
+    var actor = this.textOrDefault(request, "actor", "velocity-sync");
+    return this.banStore.syncLiteBans(List.of(entries), actor);
+  }
+
+  public BanActionRequest requestLiteBanUnban(String banId, Document request) {
+    return this.banStore.requestLiteBanUnban(
+      banId,
+      this.textOrDefault(request, "actor", "Panel"),
+      this.textOrDefault(request, "reason", "Unban via Panel"));
+  }
+
+  public BanActionRequest requestLiteBanExtend(String banId, Document request) {
+    return this.banStore.requestLiteBanExtend(
+      banId,
+      this.textOrDefault(request, "actor", "Panel"),
+      this.requiredText(request, "duration"),
+      this.textOrDefault(request, "reason", "Ban via Panel verlaengert"));
+  }
+
+  public List<BanActionRequest> pendingBanActions() {
+    return this.banStore.pendingActionRequests();
+  }
+
+  public BanActionRequest completeBanAction(String actionId, Document request) {
+    return this.banStore.completeActionRequest(
+      actionId,
+      request.getBoolean("success", true),
+      this.textOrDefault(request, "message", "Aktion verarbeitet"));
+  }
+
+  public List<BanAuditEntry> banAuditLog() {
+    return this.banStore.auditLog();
   }
 
   private TaskView taskView(ServiceTask task) {

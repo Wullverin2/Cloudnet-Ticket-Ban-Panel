@@ -277,6 +277,17 @@ button:hover {
   gap: 10px;
 }
 
+.profile-details {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-details summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .page-nav {
   display: flex;
   flex-wrap: wrap;
@@ -297,6 +308,24 @@ button:hover {
 }
 
 .page-nav button.active {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: #1d1406;
+}
+
+.sub-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.sub-nav button {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.sub-nav button.active {
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
   color: #1d1406;
 }

@@ -35,6 +35,21 @@
         <p class="eyebrow">Angemeldet</p>
         <h2 id="current-user">-</h2>
         <p id="current-permissions" class="muted">Rechte werden geladen.</p>
+        <details class="profile-details">
+          <summary>Profil bearbeiten</summary>
+          <form id="profile-form" class="auth-stack">
+            <input name="email" type="email" placeholder="E-Mail fuer Passwort vergessen">
+            <input name="minecraftName" type="text" placeholder="Minecraft Name fuer spaeter">
+            <input name="minecraftUniqueId" type="text" placeholder="Minecraft UUID optional">
+            <button type="submit">Profil speichern</button>
+          </form>
+          <form id="password-form" class="auth-stack">
+            <input name="currentPassword" type="password" autocomplete="current-password" placeholder="Aktuelles Passwort">
+            <input name="newPassword" type="password" autocomplete="new-password" placeholder="Neues Passwort">
+            <button type="submit">Passwort aendern</button>
+          </form>
+          <p id="profile-status" class="muted"></p>
+        </details>
         <button id="logout-button" class="ghost-button" type="button">Abmelden</button>
       </article>
     </header>
@@ -305,6 +320,29 @@
             </table>
           </div>
         </article>
+
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Tickets</p>
+              <h2>Auditlog</h2>
+            </div>
+          </div>
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Zeit</th>
+                  <th>Ticket</th>
+                  <th>Aktion</th>
+                  <th>Akteur</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="ticket-audit-table"></tbody>
+            </table>
+          </div>
+        </article>
       </div>
     </section>
 
@@ -318,7 +356,13 @@
             </div>
           </div>
 
-          <form id="ban-form" class="stack-form" data-permission="bans.manage">
+          <div class="sub-nav" aria-label="Ban Unterseiten">
+            <button data-ban-tab="panel" class="active" type="button">Panel-Bans</button>
+            <button data-ban-tab="litebans" type="button">LiteBans</button>
+            <button data-ban-tab="audit" type="button">Auditlog</button>
+          </div>
+
+          <form id="ban-form" class="stack-form ban-tab-panel" data-ban-panel="panel" data-permission="bans.manage">
             <div class="form-grid">
               <label>
                 <span>Zielname</span>
@@ -351,7 +395,7 @@
             </div>
           </form>
 
-          <div class="table-shell">
+          <div class="table-shell ban-tab-panel" data-ban-panel="panel">
             <table>
               <thead>
                 <tr>
@@ -363,6 +407,38 @@
                 </tr>
               </thead>
               <tbody id="ban-table"></tbody>
+            </table>
+          </div>
+
+          <div class="table-shell ban-tab-panel hidden" data-ban-panel="litebans">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Ziel</th>
+                  <th>Status</th>
+                  <th>Grund</th>
+                  <th>Ablauf</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="liteban-table"></tbody>
+            </table>
+          </div>
+
+          <div class="table-shell ban-tab-panel hidden" data-ban-panel="audit">
+            <table>
+              <thead>
+                <tr>
+                  <th>Zeit</th>
+                  <th>Quelle</th>
+                  <th>Ban-ID</th>
+                  <th>Aktion</th>
+                  <th>Akteur</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="ban-audit-table"></tbody>
             </table>
           </div>
         </article>
@@ -456,6 +532,20 @@
               <tbody id="user-table"></tbody>
             </table>
           </div>
+        </article>
+
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Proxy & Unterserver</p>
+              <h2>Rechteverwaltung vorbereitet</h2>
+            </div>
+          </div>
+          <p class="muted">
+            Fuer die spaetere Bearbeitung von Proxy- und Unterserver-Rechten sind bereits die Rechte
+            <strong>permissions.proxy.manage</strong> und <strong>permissions.server.manage</strong> im Panel-Katalog angelegt.
+            Die eigentliche LuckPerms-Schreibbruecke bauen wir als naechsten Schritt ueber das Velocity-Plugin.
+          </p>
         </article>
       </div>
     </section>

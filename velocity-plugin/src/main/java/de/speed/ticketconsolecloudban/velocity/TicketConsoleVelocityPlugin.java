@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.slf4j.Logger;
@@ -58,6 +59,7 @@ public final class TicketConsoleVelocityPlugin {
   public void onInitialize(ProxyInitializeEvent event) {
     this.reload();
     this.registerCommands();
+    this.scheduleLiteBansBridge();
     this.logger.info("TicketConsoleCloudBan Velocity Plugin gestartet.");
   }
 
@@ -115,6 +117,54 @@ public final class TicketConsoleVelocityPlugin {
       metaBuilder.aliases(aliases.toArray(String[]::new));
     }
     this.server.getCommandManager().register(metaBuilder.build(), handler);
+  }
+
+  private void scheduleLiteBansBridge() {
+    this.server.getScheduler()
+      .buildTask(this, () -> this.executor.execute(this::syncLiteBansAndActions))
+      .repeat(this.config.liteBansSyncIntervalSeconds(), TimeUnit.SECONDS)
+      .schedule();
+    this.executor.execute(this::syncLiteBansAndActions);
+  }
+
+  private void syncLiteBansAndActions() {
+    if (!this.config.hasPanelToken() || !this.config.liteBansEnabled() || !this.config.liteBansSyncEnabled()) {
+      return;
+    }
+
+    if (this.liteBansBridge.available()) {
+      this.panelApi.syncLiteBans(this.liteBansBridge.activeBans(
+        this.config.liteBansServerScope(),
+        this.config.liteBansPublicIdColumn()));
+    }
+
+    for (var action : this.panelApi.pendingBanActions()) {
+      this.processBanAction(action);
+    }
+  }
+
+  private void processBanAction(PanelBanAction action) {
+    var command = switch (action.action()) {
+      case "UNBAN" -> applyBanActionTemplate(this.config.liteBansUnbanCommand(), action);
+      case "EXTEND" -> applyBanActionTemplate(this.config.liteBansExtendCommand(), action);
+      default -> null;
+    };
+
+    if (command == null || command.isBlank()) {
+      this.panelApi.completeBanAction(action.id(), false, "Unbekannte Ban-Aktion: " + action.action());
+      return;
+    }
+
+    this.server.getCommandManager()
+      .executeAsync(this.server.getConsoleCommandSource(), command)
+      .thenAccept(success -> this.panelApi.completeBanAction(
+        action.id(),
+        success,
+        success ? "Velocity hat ausgefuehrt: " + command : "Velocity konnte nicht ausfuehren: " + command))
+      .exceptionally(throwable -> {
+        this.panelApi.completeBanAction(action.id(), false, throwable.getMessage());
+        return null;
+      });
   }
 
   private final class TicketCommand implements SimpleCommand {
@@ -378,6 +428,19 @@ public final class TicketConsoleVelocityPlugin {
       .replace("{reason}", reason);
   }
 
+  private static String applyBanActionTemplate(String template, PanelBanAction action) {
+    var player = firstNonBlank(action.targetName(), action.publicId(), action.banId());
+    return template
+      .replace("{player}", nullDash(player))
+      .replace("{duration}", nullDash(action.duration()))
+      .replace("{reason}", nullDash(action.reason()))
+      .replace("{id}", nullDash(action.publicId()))
+      .replace("{banId}", nullDash(action.banId()))
+      .replace("{uuid}", nullDash(action.targetUniqueId()))
+      .replace("{ip}", nullDash(action.targetAddress()))
+      .replace("{actor}", nullDash(action.actor()));
+  }
+
   private static String shortId(String id) {
     if (id == null) {
       return "-";
@@ -387,5 +450,14 @@ public final class TicketConsoleVelocityPlugin {
 
   private static String nullDash(String value) {
     return value == null || value.isBlank() ? "-" : value;
+  }
+
+  private static String firstNonBlank(String... values) {
+    for (var value : values) {
+      if (value != null && !value.isBlank()) {
+        return value;
+      }
+    }
+    return null;
   }
 }
