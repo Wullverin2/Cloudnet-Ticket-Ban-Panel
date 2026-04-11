@@ -1,8 +1,8 @@
 # TicketConsoleCloudBan
 
-Ein CloudNet-v4-Modul mit eingebautem Webpanel fuer:
+Ein CloudNet-v4-Modul mit eingebautem Webpanel für:
 
-- Task erstellen, bearbeiten und loeschen
+- Task erstellen, bearbeiten und löschen
 - Services aus Tasks erstellen
 - Services starten, stoppen, neustarten und löschen
 - Konsolen-Logs pro Service ansehen und Befehle senden
@@ -10,25 +10,26 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel fuer:
 - Tickets erstellen, kommentieren, zuweisen, abschliessen und archivieren
 - Zentrale Cloud-Bans anlegen und deaktivieren
 - Panel-Login mit Benutzern, Gruppen und Rechteverwaltung
-- Benutzerprofil mit E-Mail fuer Passwort-vergessen-Prozesse und optionalem Minecraft-Account
-- Auditlogs und Archivansichten fuer Tickets und Entbannungsantraege
+- Benutzerprofil mit E-Mail für Passwort-vergessen-Prozesse und optionalem Minecraft-Account
+- Auditlogs und Archivansichten für Tickets und Entbannungsanträge
 - LiteBans-Unterseite mit synchronisierten LiteBans-Bans
-- Oeffentliches Entbannungsformular auf separatem Port mit Statusseite und HTML-Mail
+- Öffentliches Entbannungsformular auf separatem Port mit Statusseite und HTML-Mail
 - Passwort-vergessen-Flow mit Reset-Token und optionalem SMTP-Mailversand
 - LuckPerms-Unterseite mit Subject-Sync, Aktionsqueue und Auditlog
-- Panel-Teleport-Button fuer Ticket-Ersteller ueber die Velocity-Aktionsqueue
+- Panel-Teleport-Button für Ticket-Ersteller über die Velocity-Aktionsqueue
 
-Die UI ist direkt im Modul enthalten und wird ueber einen kleinen HTTP-Server ausgeliefert.
+Die UI ist direkt im Modul enthalten und wird über einen kleinen HTTP-Server ausgeliefert.
 
-Zusaetzlich enthaelt das Repository ein Velocity-Companion-Plugin fuer Ingame-Tickets, LiteBans-Pruefung, LiteBans-Sync und Proxy-LuckPerms sowie ein Purpur/Paper-Companion-Plugin fuer lokale Unterserver-LuckPerms-Datenbanken.
+Zusätzlich enthält das Repository ein Velocity-Companion-Plugin für Ingame-Tickets, LiteBans-Prüfung, LiteBans-Sync und Proxy-LuckPerms sowie ein Purpur/Paper-Companion-Plugin für lokale Unterserver-LuckPerms-Datenbanken.
 
 ## Architektur
 
-Das Modul ist für ein CloudNet-Cluster gedacht, in dem Velocity als Proxy und Purpur als Spielserver laufen. Du installierst das Modul auf einer CloudNet-Node, die den Cluster voll sehen kann. Ueber die CloudNet-v4-APIs werden dann clusterweit Tasks und Services verwaltet.
+Das Modul ist für ein CloudNet-Cluster gedacht, in dem Velocity als Proxy und Purpur als Spielserver laufen. Du installierst das Modul auf einer CloudNet-Node, die den Cluster voll sehen kann. Über die CloudNet-v4-APIs werden dann clusterweit Tasks und Services verwaltet.
 
 Das Panel ist bewusst als MVP gebaut:
 
 - CloudNet Task-CRUD ist vorhanden
+- Der CloudNet-Tab zeigt die CloudNet-Kennzahlen nur dort, bietet eine Task-Auswahl per Dropdown und öffnet separate Unterseiten zum Bearbeiten oder Anlegen von Tasks
 - Service-Management ist vorhanden
 - Service-Konsole ist vorhanden
 - Node-Übersicht ist vorhanden
@@ -36,26 +37,26 @@ Das Panel ist bewusst als MVP gebaut:
 - Geschlossene Tickets werden im Ticket-Archiv angezeigt
 - Cloud-Ban-Verwaltung ist vorhanden
 - Panel-Login mit Gruppenrechten ist vorhanden
-- LiteBans-Bans koennen ueber das Velocity-Plugin ins Panel synchronisiert werden
-- LiteBans-Unban und -Verlaengerung laufen ueber eine Panel-Aktionsqueue, die Velocity abarbeitet
-- Entbannungsantraege pruefen die Random-LiteBans-ID gegen den Spielernamen und erlauben nur einen Antrag je Ban-ID/Spieler
-- Angenommene, abgelehnte und geschlossene Entbannungsantraege werden im Ban-Archiv angezeigt
-- Beweise koennen lokal, per SFTP oder per OneDrive-Upload-URL gespeichert werden
-- LuckPerms-Gruppen und geladene Spieler koennen pro Proxy und pro Purpur-Unterserver ins Panel synchronisiert werden
-- LuckPerms-Permissions und Parent-Gruppen koennen im Panel als Queue-Aktion erstellt werden
-- Unterserver mit eigener LuckPerms-Datenbank werden ueber das Purpur-Companion-Plugin gezielt per `server.id` angesteuert
-- Das Panel kann Teamler per Teleport-Queue zum Ticket-Ersteller schicken, sofern der Teamler online ist und Velocity den Teleport-Befehl ausfuehren kann
-- Passwort-Reset laeuft mit gehashten Einmal-Tokens und optionaler SMTP-Mail
-- Live-Konsole laeuft aktuell per Polling auf dem Log-Cache
+- LiteBans-Bans können über das Velocity-Plugin ins Panel synchronisiert werden
+- LiteBans-Unban und -Verlängerung laufen über eine Panel-Aktionsqueue, die Velocity abarbeitet
+- Entbannungsanträge prüfen die Random-LiteBans-ID gegen den Spielernamen und erlauben nur einen Antrag je Ban-ID/Spieler
+- Angenommene, abgelehnte und geschlossene Entbannungsanträge werden im Ban-Archiv angezeigt
+- Beweise können lokal, per SFTP oder per OneDrive-Upload-URL gespeichert werden
+- LuckPerms-Gruppen und geladene Spieler können pro Proxy und pro Purpur-Unterserver ins Panel synchronisiert werden
+- LuckPerms-Permissions und Parent-Gruppen können im Panel als Queue-Aktion erstellt werden
+- Unterserver mit eigener LuckPerms-Datenbank werden über das Purpur-Companion-Plugin gezielt per `server.id` angesteuert
+- Das Panel kann Teamler per Teleport-Queue zum Ticket-Ersteller schicken, sofern der Teamler online ist und Velocity den Teleport-Befehl ausführen kann
+- Passwort-Reset läuft mit gehashten Einmal-Tokens und optionaler SMTP-Mail
+- Live-Konsole läuft aktuell per Polling auf dem Log-Cache
 
 Noch nicht enthalten:
 
 - Rootserver-SSH oder echte Root-Console
 - Eigene Purpur-Ban-Durchsetzung ohne LiteBans
-- Vollstaendiger LuckPerms-Webeditor mit allen Metadaten/Expiry/Context-Kombinationen
+- Vollständiger LuckPerms-Webeditor mit allen Metadaten/Expiry/Context-Kombinationen
 - Automatisches Unban nach angenommenem Entbannungsantrag
 
-Die Struktur ist aber so angelegt, dass diese Bausteine spaeter sauber angebunden werden koennen.
+Die Struktur ist aber so angelegt, dass diese Bausteine später sauber angebunden werden können.
 
 ## Build
 
@@ -103,11 +104,11 @@ Optional liegt auch ein `build.gradle.kts` bei, falls du lieber mit Gradle arbei
 
 1. Baue das Modul.
 2. Kopiere `target/TicketConsoleCloudBan.jar` in den `modules/`-Ordner der CloudNet-Node.
-3. Starte die Node neu oder lade das Modul ueber CloudNet neu.
+3. Starte die Node neu oder lade das Modul über CloudNet neu.
 4. Nach dem ersten Start erstellt das Modul seine `config.json` und `panel-users.json` im Modul-Datenordner.
-5. Das generierte API-Token wird beim Start ins Log geschrieben und ist fuer Integrationen gedacht.
+5. Das generierte API-Token wird beim Start ins Log geschrieben und ist für Integrationen gedacht.
 6. Beim ersten Start wird ein Panel-Admin erstellt. Benutzer `admin` und Passwort stehen einmalig im CloudNet-Log.
-7. Oeffne dann im Browser:
+7. Öffne dann im Browser:
 
 ```text
 http://DEINE-NODE-IP:8088
@@ -115,7 +116,7 @@ http://DEINE-NODE-IP:8088
 
 ## Konfiguration
 
-Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemaess so aus:
+Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemäß so aus:
 
 ```json
 {
@@ -161,11 +162,11 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemaess so aus:
 }
 ```
 
-Das Panel nutzt einen eigenen Login. Der alte API-Token-Zugang bleibt fuer externe Tools oder ein spaeteres Velocity-/Purpur-Companion-Plugin erhalten und hat Vollzugriff.
+Das Panel nutzt einen eigenen Login. Der alte API-Token-Zugang bleibt für externe Tools oder ein späteres Velocity-/Purpur-Companion-Plugin erhalten und hat Vollzugriff.
 
-Panel-Daten wie Tickets, Entbannungsantraege, Teampanel-Benutzer, Panelgruppen, Gruppenrechte, Ban-/LiteBans-Snapshots, Aktionsqueues und LuckPerms-Bridge-Daten werden bei `panelStorageBackend=SQL` in der Tabelle `panelSqlTable` gespeichert. `SQL` ist die Standard-Speicherart. Beim Wechsel von `LOCAL` auf `SQL` importiert das Modul vorhandene lokale JSON-Dateien automatisch in die MySQL-Tabelle.
+Panel-Daten wie Tickets, Entbannungsanträge, Teampanel-Benutzer, Panelgruppen, Gruppenrechte, Ban-/LiteBans-Snapshots, Aktionsqueues und LuckPerms-Bridge-Daten werden bei `panelStorageBackend=SQL` in der Tabelle `panelSqlTable` gespeichert. `SQL` ist die Standard-Speicherart. Beim Wechsel von `LOCAL` auf `SQL` importiert das Modul vorhandene lokale JSON-Dateien automatisch in die MySQL-Tabelle.
 
-Fuer MySQL-Speicherung im Panel muessen in der CloudNet-Modul-`config.json` diese Werte gesetzt sein:
+Für MySQL-Speicherung im Panel müssen in der CloudNet-Modul-`config.json` diese Werte gesetzt sein:
 
 ```json
 {
@@ -193,30 +194,30 @@ Migration von lokalem Speicher nach MySQL:
 3. In der Modul-`config.json` `panelStorageBackend` auf `SQL` setzen und JDBC-URL, Benutzer, Passwort und Tabelle eintragen.
 4. Modul/Node starten. Die SQL-Tabelle wird automatisch erstellt und lokale JSON-Dateien werden beim ersten Laden importiert.
 5. Im Log sollte pro Store eine Meldung wie `Lokaler Panel-Speicher tickets.json wurde nach SQL migriert.` erscheinen.
-6. Wenn in `panelSqlTable` bereits Daten fuer denselben `store_key` liegen, werden lokale JSON-Dateien nicht darueber geschrieben. Fuer einen erneuten Import die SQL-Zeilen oder die Tabelle vorher leeren.
+6. Wenn in `panelSqlTable` bereits Daten für denselben `store_key` liegen, werden lokale JSON-Dateien nicht darüber geschrieben. Für einen erneuten Import die SQL-Zeilen oder die Tabelle vorher leeren.
 
-Wenn die SQL-Verbindung fehlschlaegt, nutzt das Modul als Sicherheitsfallback weiter lokalen JSON-Speicher und schreibt eine Warnung ins Log. Fuer produktiven Betrieb solltest du nach dem Start pruefen, dass keine Fallback-Warnung geloggt wurde.
+Wenn die SQL-Verbindung fehlschlägt, nutzt das Modul als Sicherheitsfallback weiter lokalen JSON-Speicher und schreibt eine Warnung ins Log. Für produktiven Betrieb solltest du nach dem Start prüfen, dass keine Fallback-Warnung geloggt wurde.
 
-Wenn im CloudNet-Log `SQL Panel-Speicher ist nicht verfuegbar, nutze lokalen JSON-Speicher als Fallback` steht, ist das Panel nicht in MySQL, sondern wieder in JSON gestartet. Pruefe dann:
+Wenn im CloudNet-Log `SQL Panel-Speicher ist nicht verfügbar, nutze lokalen JSON-Speicher als Fallback` steht, ist das Panel nicht in MySQL, sondern wieder in JSON gestartet. Prüfe dann:
 
-- Kopiere wirklich `target/TicketConsoleCloudBan.jar` in CloudNet, nicht `target/original-TicketConsoleCloudBan.jar`. Nur das normale `TicketConsoleCloudBan.jar` enthaelt den MySQL-Treiber.
+- Kopiere wirklich `target/TicketConsoleCloudBan.jar` in CloudNet, nicht `target/original-TicketConsoleCloudBan.jar`. Nur das normale `TicketConsoleCloudBan.jar` enthält den MySQL-Treiber.
 - Die Datenbank aus `panelSqlJdbcUrl` muss existieren, z.B. `tccb_panel`.
-- `panelSqlUsername` und `panelSqlPassword` muessen fuer genau diesen Host erlaubt sein. Bei mehreren Rootservern ist `'tccb_panel'@'%'` oder die konkrete Rootserver-IP noetig, nicht nur `'tccb_panel'@'localhost'`.
-- MySQL muss von der CloudNet-Node erreichbar sein. Firewall, Docker/Rootserver-Bind-IP und MySQL `bind-address` pruefen.
+- `panelSqlUsername` und `panelSqlPassword` müssen für genau diesen Host erlaubt sein. Bei mehreren Rootservern ist `'tccb_panel'@'%'` oder die konkrete Rootserver-IP nötig, nicht nur `'tccb_panel'@'localhost'`.
+- MySQL muss von der CloudNet-Node erreichbar sein. Firewall, Docker/Rootserver-Bind-IP und MySQL `bind-address` prüfen.
 - Bei MySQL 8/9 sollte die JDBC-URL `allowPublicKeyRetrieval=true` enthalten, wenn kein SSL genutzt wird.
-- Nach Aenderungen Modul/Node neu starten, weil die Panel-Speicherart nur beim Modulstart geladen wird.
+- Nach Änderungen Modul/Node neu starten, weil die Panel-Speicherart nur beim Modulstart geladen wird.
 
 Ab neueren Builds schreibt das Modul die echte Ursache mit Stacktrace ins CloudNet-Log, z.B. `Access denied`, `Unknown database`, `Communications link failure` oder `ClassNotFoundException`.
 
-Mailserver- und LiteBans-Datenbankwerte koennen im Webpanel unter `Einstellungen` geaendert werden. Dort gibt es auch eine Testmail-Funktion. Die Panel-Speicherart selbst wird beim Modulstart geladen und bleibt deshalb in der Modul-Konfiguration.
+Mailserver- und LiteBans-Datenbankwerte können im Webpanel unter `Einstellungen` geändert werden. Dort gibt es auch eine Testmail-Funktion. Die Panel-Speicherart selbst wird beim Modulstart geladen und bleibt deshalb in der Modul-Konfiguration.
 
-Panel-Titel, Logo-URL und die Statustexte fuer Entbannungsantraege koennen ebenfalls im Einstellungstab geaendert werden. Das Logo wird als externe URL hinterlegt und direkt im Panel, auf der Entbannungsseite und in HTML-Mails verwendet.
+Panel-Titel, Logo-URL und die Statustexte für Entbannungsanträge können ebenfalls im Einstellungstab geändert werden. Das Logo wird als externe URL hinterlegt und direkt im Panel, auf der Entbannungsseite und in HTML-Mails verwendet.
 
-Wenn `smtpEnabled=false` ist, werden Passwort-Reset-Links nicht per Mail versendet, sondern sicherheitshalber im CloudNet-Log ausgegeben. Fuer produktiven Betrieb solltest du `publicBaseUrl` auf deine Panel-Domain setzen und SMTP aktivieren.
+Wenn `smtpEnabled=false` ist, werden Passwort-Reset-Links nicht per Mail versendet, sondern sicherheitshalber im CloudNet-Log ausgegeben. Für produktiven Betrieb solltest du `publicBaseUrl` auf deine Panel-Domain setzen und SMTP aktivieren.
 
 ## Entbannungsformular
 
-Das Entbannungsformular laeuft bewusst auf einem eigenen HTTP-Port, damit du es getrennt vom Admin-Panel per Reverse Proxy auf eine eigene Subdomain legen kannst, zum Beispiel:
+Das Entbannungsformular läuft bewusst auf einem eigenen HTTP-Port, damit du es getrennt vom Admin-Panel per Reverse Proxy auf eine eigene Subdomain legen kannst, zum Beispiel:
 
 ```text
 https://unban.deinserver.de -> http://DEINE-NODE-IP:8090
@@ -227,16 +228,16 @@ Spieler geben dort ein:
 - Random Ban-ID aus der Ban-Nachricht
 - Spielername
 - E-Mail-Adresse
-- Begruendung
+- Begründung
 - optionalen Video-Link
 - optionale Beweisdateien
 
-Das Formular akzeptiert einen Antrag nur, wenn die Random Ban-ID (`publicId`) und der Spielername zu einem aktiven LiteBans-Ban passen. Numerische LiteBans-Datenbank-IDs werden dabei bewusst nicht als Random-ID akzeptiert. Pro Random Ban-ID und Spielername ist maximal ein Antrag moeglich. Nach dem Absenden bekommt der Spieler eine HTML-Bestaetigungsmail mit einem persoenlichen Statuslink.
+Das Formular akzeptiert einen Antrag nur, wenn die Random Ban-ID (`publicId`) und der Spielername zu einem aktiven LiteBans-Ban passen. Numerische LiteBans-Datenbank-IDs werden dabei bewusst nicht als Random-ID akzeptiert. Pro Random Ban-ID und Spielername ist maximal ein Antrag möglich. Nach dem Absenden bekommt der Spieler eine HTML-Bestätigungsmail mit einem persönlichen Statuslink.
 
 Evidence-Speicher:
 
 - `LOCAL` speichert Dateien im Modul-Datenordner unter `appeal-evidence`.
-- `SFTP` speichert Dateien auf einem externen SFTP-Server. Dafuer muessen Host, Benutzer und Passwort oder Private-Key-Pfad gesetzt sein.
+- `SFTP` speichert Dateien auf einem externen SFTP-Server. Dafür müssen Host, Benutzer und Passwort oder Private-Key-Pfad gesetzt sein.
 - `ONEDRIVE` nutzt eine konfigurierte Microsoft-Graph-Upload-URL-Vorlage. Die Vorlage muss `{filename}` enthalten und ein gueltiger Bearer Token muss gesetzt sein.
 
 Beispiel OneDrive-URL-Vorlage:
@@ -247,7 +248,7 @@ https://graph.microsoft.com/v1.0/me/drive/root:/BanAppeals/{filename}:/content
 
 ### LiteBans MySQL + Random Punishment-ID Bridge
 
-Das Panel kann LiteBans-Bans direkt aus der LiteBans-MySQL-Datenbank lesen. Die zufaellige Buchstaben-/Zahlen-ID, die LiteBans Spielern in der Ban-Nachricht zeigt, liegt nicht verlaesslich als eigene DB-Spalte vor. Deshalb fragt das Panel fuer diese Anzeige-ID die Velocity-Bridge, weil dort LiteBans geladen ist und die ID ueber LiteBans `RandomID`/API aus der internen Datenbank-ID aufgeloest werden kann.
+Das Panel kann LiteBans-Bans direkt aus der LiteBans-MySQL-Datenbank lesen. Die zufällige Buchstaben-/Zahlen-ID, die LiteBans Spielern in der Ban-Nachricht zeigt, liegt nicht verlässlich als eigene DB-Spalte vor. Deshalb fragt das Panel für diese Anzeige-ID die Velocity-Bridge, weil dort LiteBans geladen ist und die ID über LiteBans `RandomID`/API aus der internen Datenbank-ID aufgelöst werden kann.
 
 Wichtige Panel-Config:
 
@@ -266,11 +267,11 @@ Wichtige Panel-Config:
 
 Wenn `liteBansBridgeSecret` leer ist, nutzt das Panel automatisch den ersten `apiTokens`-Eintrag als Bridge-Secret. Trage denselben Token im Velocity-Plugin als `panel.api-token` ein oder setze explizit auf beiden Seiten dasselbe `litebans.bridge-secret`.
 
-Wenn Panel und Velocity nicht auf demselben Rootserver laufen, muss `liteBansBridgeBaseUrl` auf die erreichbare Proxy-IP zeigen, z.B. `http://PROXY-IP:9095`. Oeffne den Bridge-Port nur fuer die Panel-/CloudNet-IP.
+Wenn Panel und Velocity nicht auf demselben Rootserver laufen, muss `liteBansBridgeBaseUrl` auf die erreichbare Proxy-IP zeigen, z.B. `http://PROXY-IP:9095`. Öffne den Bridge-Port nur für die Panel-/CloudNet-IP.
 
 ## Velocity-Plugin
 
-Das Velocity-Plugin wird auf dem Velocity-Proxy installiert. Es nutzt das Panel per API fuer Tickets und nutzt LiteBans direkt auf dem Proxy fuer Ban-Pruefung und Ban-Befehle.
+Das Velocity-Plugin wird auf dem Velocity-Proxy installiert. Es nutzt das Panel per API für Tickets und nutzt LiteBans direkt auf dem Proxy für Ban-Prüfung und Ban-Befehle.
 
 Installation:
 
@@ -305,32 +306,32 @@ luckperms.server-id=proxy
 luckperms.sync-interval-seconds=60
 ```
 
-Hinweis zu LiteBans-IDs: LiteBans speichert intern eine numerische `id`, zeigt Spielern aber je nach LiteBans-Version eine zufaellige Punishment-ID an. Das Velocity-Plugin loest diese Random-ID beim Sync automatisch ueber LiteBans `RandomID`/API aus der Datenbank-ID auf und sendet sie als `publicId` ans Panel. Zusaetzlich stellt es die geschuetzte Bridge-Route `GET /api/punishment-id/from-db` bereit, damit das Panel bei direktem MySQL-Lesen dieselbe Random-ID anzeigen kann. `litebans.public-id-column` ist nur noch ein Fallback, falls der API-Resolver auf einer LiteBans-Version nicht verfuegbar ist. Die Befehls-Templates koennen `{id}` fuer die Random-ID, `{banId}` fuer die interne Datenbank-ID sowie `{player}`, `{uuid}`, `{ip}`, `{duration}`, `{reason}` und `{actor}` verwenden.
+Hinweis zu LiteBans-IDs: LiteBans speichert intern eine numerische `id`, zeigt Spielern aber je nach LiteBans-Version eine zufällige Punishment-ID an. Das Velocity-Plugin löst diese Random-ID beim Sync automatisch über LiteBans `RandomID`/API aus der Datenbank-ID auf und sendet sie als `publicId` ans Panel. Zusätzlich stellt es die geschützte Bridge-Route `GET /api/punishment-id/from-db` bereit, damit das Panel bei direktem MySQL-Lesen dieselbe Random-ID anzeigen kann. `litebans.public-id-column` ist nur noch ein Fallback, falls der API-Resolver auf einer LiteBans-Version nicht verfügbar ist. Die Befehls-Templates können `{id}` für die Random-ID, `{banId}` für die interne Datenbank-ID sowie `{player}`, `{uuid}`, `{ip}`, `{duration}`, `{reason}` und `{actor}` verwenden.
 
 Ingame-Befehle:
 
 - `/ticket create <grund> [Support|Bug|Melden|Sonstiges]` erstellt ein Ticket mit Spielername, UUID und aktuellem Unterserver.
-- `/ticket <nachricht>` bleibt als Kurzform fuer ein Support-Ticket erhalten.
+- `/ticket <nachricht>` bleibt als Kurzform für ein Support-Ticket erhalten.
 - `/ticket list` oder `/tickets` zeigt eigene Tickets.
 - `/ticket view <id>` zeigt Status, Beschreibung und Antworten des eigenen Tickets.
-- `/teamtickets` zeigt offene und in Bearbeitung befindliche Tickets fuer Teamler.
+- `/teamtickets` zeigt offene und in Bearbeitung befindliche Tickets für Teamler.
 - `/teamticket list` zeigt offene und in Bearbeitung befindliche Tickets.
 - `/teamticket view <id>` zeigt ein Ticket inklusive interner Kommentare.
-- `/teamticket open <id>`, `/teamticket progress <id>` und `/teamticket close <id>` aendern den Ticketstatus.
+- `/teamticket open <id>`, `/teamticket progress <id>` und `/teamticket close <id>` ändern den Ticketstatus.
 - `/teamticket assign <id> <teamler>` weist ein Ticket zu.
 - `/teamticket comment <id> <nachricht>` schreibt eine Antwort ins Ticket.
 - `/ticketclose <id>` schliesst ein Ticket als alte Kurzform.
 - `/ticketcomment <id> <nachricht>` kommentiert ein Ticket als alte Kurzform.
-- `/cloudban <spieler> <dauer> <grund>` fuehrt den konfigurierten LiteBans-Befehl aus.
-- `/cloudunban <spieler> [grund]` fuehrt den konfigurierten LiteBans-Unban aus.
-- `/baninfo <spieler>` prueft aktive LiteBans-Bans fuer online Spieler.
-- `/tccbvelocity reload` laedt die Velocity-Config neu.
+- `/cloudban <spieler> <dauer> <grund>` führt den konfigurierten LiteBans-Befehl aus.
+- `/cloudunban <spieler> [grund]` führt den konfigurierten LiteBans-Unban aus.
+- `/baninfo <spieler>` prueft aktive LiteBans-Bans für online Spieler.
+- `/tccbvelocity reload` lädt die Velocity-Config neu.
 
 Teleport aus dem Panel:
 
 - Der Button im Ticket-Panel erstellt eine Spieler-Aktion in der Panel-Datenbank.
 - Velocity holt diese Aktion alle `panel.action-interval-seconds` Sekunden ab.
-- Velocity verbindet den Teamler auf den Server des Spielers und fuehrt anschliessend `teleport.command` aus.
+- Velocity verbindet den Teamler auf den Server des Spielers und führt anschliessend `teleport.command` aus.
 - Standard ist `tp {staff} {target}`. Platzhalter: `{staff}`, `{target}`, `{server}`, `{ticketId}`.
 - Das Kommando muss auf deinem Proxy-Setup ausfuehrbar sein. Wenn dein `/tp` nur serverseitig existiert, brauchst du ein Proxy-kompatibles Teleport-Command oder einen Server-Command-Forwarder.
 
@@ -343,19 +344,19 @@ LuckPerms-Rechte:
 - `tccb.ban.manage`
 - `tccb.reload`
 
-Wenn LuckPerms auf Velocity installiert ist, werden diese Rechte ueber LuckPerms ausgewertet. Ohne LuckPerms nutzt das Plugin Velocitys normales `hasPermission`.
+Wenn LuckPerms auf Velocity installiert ist, werden diese Rechte über LuckPerms ausgewertet. Ohne LuckPerms nutzt das Plugin Velocitys normales `hasPermission`.
 
-LuckPerms-Panel-Bridge fuer Velocity:
+LuckPerms-Panel-Bridge für Velocity:
 
 - Das Velocity-Plugin synchronisiert geladene LuckPerms-Gruppen und geladene User als Server `proxy` ins Panel.
-- Im Panel unter `LuckPerms` kannst du Permissions hinzufuegen/entfernen und Parent-Gruppen zuweisen/entfernen.
-- Die Aenderungen werden als Queue-Aktion gespeichert und vom Velocity-Plugin verarbeitet, wenn `serverId=proxy` ist.
-- Das Panel schreibt ein Auditlog fuer angeforderte und abgeschlossene Permission-Aktionen.
-- Fuer Unterserver mit eigenen LuckPerms-Datenbanken brauchst du das Purpur/Paper-Plugin auf jedem Unterserver.
+- Im Panel unter `LuckPerms` kannst du Permissions hinzufügen/entfernen und Parent-Gruppen zuweisen/entfernen.
+- Die Änderungen werden als Queue-Aktion gespeichert und vom Velocity-Plugin verarbeitet, wenn `serverId=proxy` ist.
+- Das Panel schreibt ein Auditlog für angeforderte und abgeschlossene Permission-Aktionen.
+- Für Unterserver mit eigenen LuckPerms-Datenbanken brauchst du das Purpur/Paper-Plugin auf jedem Unterserver.
 
 ## Purpur/Paper-Plugin
 
-Das Purpur/Paper-Plugin wird auf jedem Minecraft-Unterserver installiert, der eine eigene LuckPerms-Datenbank nutzt. Es verbindet sich mit dem Panel, synchronisiert die lokale LuckPerms-Instanz und verarbeitet nur Aktionen fuer seine eigene `server.id`.
+Das Purpur/Paper-Plugin wird auf jedem Minecraft-Unterserver installiert, der eine eigene LuckPerms-Datenbank nutzt. Es verbindet sich mit dem Panel, synchronisiert die lokale LuckPerms-Instanz und verarbeitet nur Aktionen für seine eigene `server.id`.
 
 Installation:
 
@@ -385,7 +386,7 @@ Wichtig: Bei getrennten LuckPerms-Datenbanken muss jeder Unterserver, dessen Rec
 
 Im Panel gibt es die Unterseite `Rechte`. Dort kannst du Gruppen erstellen, Rechte zuweisen und Panel-Benutzer diesen Gruppen zuordnen.
 
-Verfuegbare Rechte:
+Verfügbare Rechte:
 
 - `cloudnet.view`
 - `cloudnet.manage`
@@ -399,14 +400,14 @@ Verfuegbare Rechte:
 - `users.manage`
 - `permissions.proxy.manage`
 - `permissions.server.manage`
-- `*` fuer Vollzugriff
+- `*` für Vollzugriff
 
 ## Einsatz im Cluster
 
-Fuer dein Setup mit mehreren Rootservern gilt:
+Für dein Setup mit mehreren Rootservern gilt:
 
 - Installiere das Modul auf einer CloudNet-Node, die sauber mit dem Cluster verbunden ist.
-- Wenn du ein einzelnes zentrales Panel willst, sollte genau diese Node der Einstiegspunkt fuer das Webpanel sein.
+- Wenn du ein einzelnes zentrales Panel willst, sollte genau diese Node der Einstiegspunkt für das Webpanel sein.
 - Packe idealerweise einen Reverse Proxy davor, z.B. Nginx.
 - Schuetze den Port per Firewall oder Reverse-Proxy-Auth, auch wenn bereits API-Tokens verwendet werden.
 
@@ -477,10 +478,10 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 - `PUT /api/security/groups/{name}`
 - `DELETE /api/security/groups/{name}`
 
-## Sinnvolle naechste Schritte
+## Sinnvolle nächste Schritte
 
-Wenn du daraus noch naeher an ein komplettes "NetworkManager"-System willst, wuerde ich als naechstes diese drei Erweiterungen bauen:
+Wenn du daraus noch näher an ein komplettes "NetworkManager"-System willst, wuerde ich als nächstes diese drei Erweiterungen bauen:
 
 1. LuckPerms-Expiry, Meta-Nodes und Context-Kombinationen im Editor
-2. Rootserver-Agent oder SSH-Anbindung fuer echte Rootserver-Konsole
-3. Serverlokale Purpur-Befehle und Statusdaten ueber das Purpur-Companion-Plugin
+2. Rootserver-Agent oder SSH-Anbindung für echte Rootserver-Konsole
+3. Serverlokale Purpur-Befehle und Statusdaten über das Purpur-Companion-Plugin

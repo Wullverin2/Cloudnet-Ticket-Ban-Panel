@@ -20,7 +20,7 @@
           <h1 id="brand-name">Network Control</h1>
         </div>
         <p class="hero-text">
-          Zentrales Panel fuer CloudNet, Service-Konsolen, Tickets, Bans und Rechteverwaltung.
+          Zentrales Panel für CloudNet, Service-Konsolen, Tickets, Bans und Rechteverwaltung.
         </p>
       </div>
 
@@ -54,15 +54,15 @@
         <details class="profile-details">
           <summary>Profil bearbeiten</summary>
           <form id="profile-form" class="auth-stack">
-            <input name="email" type="email" placeholder="E-Mail fuer Passwort vergessen">
-            <input name="minecraftName" type="text" placeholder="Minecraft Name fuer spaeter">
+            <input name="email" type="email" placeholder="E-Mail für Passwort vergessen">
+            <input name="minecraftName" type="text" placeholder="Minecraft Name für später">
             <input name="minecraftUniqueId" type="text" placeholder="Minecraft UUID optional">
             <button type="submit">Profil speichern</button>
           </form>
           <form id="password-form" class="auth-stack">
             <input name="currentPassword" type="password" autocomplete="current-password" placeholder="Aktuelles Passwort">
             <input name="newPassword" type="password" autocomplete="new-password" placeholder="Neues Passwort">
-            <button type="submit">Passwort aendern</button>
+            <button type="submit">Passwort ändern</button>
           </form>
           <p id="profile-status" class="muted"></p>
         </details>
@@ -80,25 +80,6 @@
       <button data-page-target="settings" data-permission="settings.manage" type="button">Einstellungen</button>
     </nav>
 
-    <section class="summary-grid hidden" id="summary-grid" data-permission="cloudnet.view">
-      <article class="metric-card">
-        <span class="metric-label">Tasks</span>
-        <strong id="metric-tasks">-</strong>
-      </article>
-      <article class="metric-card">
-        <span class="metric-label">Services</span>
-        <strong id="metric-services">-</strong>
-      </article>
-      <article class="metric-card">
-        <span class="metric-label">Laufend</span>
-        <strong id="metric-running">-</strong>
-      </article>
-      <article class="metric-card">
-        <span class="metric-label">Nodes online</span>
-        <strong id="metric-nodes">-</strong>
-      </article>
-    </section>
-
     <section id="page-home" class="page-panel hidden" data-page="home">
       <div class="panel-grid">
         <article id="home-panel" class="panel-card panel-wide">
@@ -114,42 +95,36 @@
             <article class="team-start-card">
               <span class="metric-label">Willkommen</span>
               <strong>Panel</strong>
-              <p class="muted">Deine zentrale Startseite fuer Tickets, Bans, CloudNet und Rechte. Sichtbar sind nur die Bereiche, fuer die dein Panel-Account Rechte hat.</p>
+              <p class="muted">Deine zentrale Startseite für Tickets, Bans, CloudNet und Rechte. Sichtbar sind nur die Bereiche, für die dein Panel-Account Rechte hat.</p>
             </article>
             <article class="team-start-card" data-permission="tickets.view">
               <span class="metric-label">Offene Tickets</span>
               <strong id="home-open-tickets">-</strong>
-              <p class="muted">Aktive Anliegen, die noch bearbeitet werden muessen.</p>
-              <button data-home-page="tickets" type="button">Tickets oeffnen</button>
+              <p class="muted">Aktive Anliegen, die noch bearbeitet werden müssen.</p>
+              <button data-home-page="tickets" type="button">Tickets öffnen</button>
             </article>
             <article class="team-start-card" data-permission="tickets.view">
               <span class="metric-label">Ticket Archiv</span>
               <strong id="home-closed-tickets">-</strong>
-              <p class="muted">Geschlossene Tickets fuer Nachverfolgung und Teamuebersicht.</p>
+              <p class="muted">Geschlossene Tickets für Nachverfolgung und Teamübersicht.</p>
               <button data-home-page="tickets" data-ticket-tab-target="archive" type="button">Archiv ansehen</button>
             </article>
             <article class="team-start-card" data-permission="bans.view">
-              <span class="metric-label">Entbannungsantraege</span>
+              <span class="metric-label">Entbannungsanträge</span>
               <strong id="home-open-appeals">-</strong>
-              <p class="muted">Neue oder laufende Antraege, die eine Entscheidung brauchen.</p>
-              <button data-home-page="bans" data-ban-tab-target="appeals" type="button">Antraege oeffnen</button>
+              <p class="muted">Neue oder laufende Anträge, die eine Entscheidung brauchen.</p>
+              <button data-home-page="bans" data-ban-tab-target="appeals" type="button">Anträge öffnen</button>
             </article>
             <article class="team-start-card" data-permission="bans.view">
               <span class="metric-label">Aktive LiteBans</span>
               <strong id="home-active-litebans">-</strong>
-              <p class="muted">Aktive LiteBans-Eintraege mit Random-ID aus der Bridge.</p>
+              <p class="muted">Aktive LiteBans-Einträge mit Random-ID aus der Bridge.</p>
               <button data-home-page="bans" data-ban-tab-target="litebans" type="button">LiteBans ansehen</button>
-            </article>
-            <article class="team-start-card" data-permission="cloudnet.view">
-              <span class="metric-label">Laufende Services</span>
-              <strong id="home-running-services">-</strong>
-              <p class="muted">CloudNet-Services, die gerade im Netzwerk laufen.</p>
-              <button data-home-page="cloudnet" type="button">CloudNet oeffnen</button>
             </article>
             <article class="team-start-card" data-permission="bans.view">
               <span class="metric-label">Ban Archiv</span>
               <strong id="home-archived-appeals">-</strong>
-              <p class="muted">Angenommene, abgelehnte und geschlossene Entbannungsantraege.</p>
+              <p class="muted">Angenommene, abgelehnte und geschlossene Entbannungsanträge.</p>
               <button data-home-page="bans" data-ban-tab-target="appeal-archive" type="button">Archiv ansehen</button>
             </article>
           </div>
@@ -158,17 +133,59 @@
     </section>
 
     <section id="page-cloudnet" class="page-panel hidden" data-page="cloudnet" data-permission="cloudnet.view">
+      <section class="summary-grid hidden cloudnet-view" id="summary-grid" data-cloudnet-view="overview" data-permission="cloudnet.view">
+        <article class="metric-card">
+          <span class="metric-label">Tasks</span>
+          <strong id="metric-tasks">-</strong>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">Services</span>
+          <strong id="metric-services">-</strong>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">Laufend</span>
+          <strong id="metric-running">-</strong>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">Nodes online</span>
+          <strong id="metric-nodes">-</strong>
+        </article>
+      </section>
+
       <div class="panel-grid">
-        <article class="panel-card panel-tall">
+        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-view="overview">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Tasks</p>
-              <h2>Task Verwaltung</h2>
+              <h2>Task-Auswahl</h2>
             </div>
-            <button id="task-reset" class="ghost-button" data-permission="cloudnet.manage" type="button">Formular leeren</button>
+            <button id="task-create-open" data-permission="cloudnet.manage" type="button">Neuen Task anlegen</button>
           </div>
 
-          <form id="task-form" class="stack-form" data-permission="cloudnet.manage">
+          <div class="task-picker">
+            <label>
+              <span>Task auswählen</span>
+              <select id="task-select"></select>
+            </label>
+            <div class="action-row">
+              <button id="task-edit-open" data-permission="cloudnet.manage" type="button">Task bearbeiten</button>
+              <button id="task-spawn-selected" data-permission="cloudnet.manage" type="button">Service starten</button>
+              <button id="task-delete-selected" class="ghost-button" data-permission="cloudnet.manage" type="button">Task löschen</button>
+            </div>
+          </div>
+          <div id="task-selected-summary" class="task-summary-card muted">Noch kein Task ausgewählt.</div>
+        </article>
+
+        <article class="panel-card panel-wide cloudnet-view hidden" data-cloudnet-view="task-form" data-permission="cloudnet.manage">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Tasks</p>
+              <h2 id="task-form-title">Task anlegen</h2>
+            </div>
+            <button class="ghost-button" data-cloudnet-view-target="overview" type="button">Zurück zur Übersicht</button>
+          </div>
+
+          <form id="task-form" class="stack-form">
             <div class="form-grid">
               <label>
                 <span>Name</span>
@@ -183,6 +200,10 @@
                 <select name="runtime" id="runtime-select"></select>
               </label>
               <label>
+                <span>Name-Splitter</span>
+                <input name="nameSplitter" type="text" placeholder="-">
+              </label>
+              <label>
                 <span>Start-Port</span>
                 <input name="startPort" type="number" min="1" max="65535" value="25565">
               </label>
@@ -193,6 +214,14 @@
               <label>
                 <span>Max. RAM (MB)</span>
                 <input name="maxHeapMemory" type="number" min="50" value="1024">
+              </label>
+              <label>
+                <span>Host-Adresse</span>
+                <input name="hostAddress" type="text" placeholder="optional">
+              </label>
+              <label>
+                <span>Java-Befehl</span>
+                <input name="javaCommand" type="text" placeholder="optional, z.B. java">
               </label>
               <label>
                 <span>Gruppen</span>
@@ -210,6 +239,10 @@
                 <span>Process Parameter</span>
                 <input name="processParameters" type="text" placeholder="nogui">
               </label>
+              <label>
+                <span>Dateien nach Stop löschen</span>
+                <input name="deletedFilesAfterStop" type="text" placeholder="logs/latest.log, cache">
+              </label>
             </div>
 
             <div class="toggle-row">
@@ -220,27 +253,13 @@
 
             <div class="action-row">
               <button type="submit" id="task-submit">Task speichern</button>
+              <button id="task-reset" class="ghost-button" type="button">Formular zurücksetzen</button>
               <span id="task-status" class="muted"></span>
             </div>
           </form>
-
-          <div class="table-shell">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Environment</th>
-                  <th>RAM</th>
-                  <th>Min.</th>
-                  <th>Aktionen</th>
-                </tr>
-              </thead>
-              <tbody id="task-table"></tbody>
-            </table>
-          </div>
         </article>
 
-        <article class="panel-card" data-permission="cloudnet.manage">
+        <article class="panel-card cloudnet-view" data-cloudnet-view="overview" data-permission="cloudnet.manage">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Services</p>
@@ -270,7 +289,7 @@
           </form>
         </article>
 
-        <article class="panel-card panel-wide">
+        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-view="overview">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Services</p>
@@ -296,7 +315,7 @@
           </div>
         </article>
 
-        <article class="panel-card panel-wide" data-permission="cloudnet.console">
+        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-view="overview" data-permission="cloudnet.console">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Konsole</p>
@@ -320,11 +339,11 @@
           <pre id="console-output" class="console-output">Noch keine Logs geladen.</pre>
         </article>
 
-        <article class="panel-card panel-wide">
+        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-view="overview">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Nodes</p>
-              <h2>Cluster Uebersicht</h2>
+              <h2>Cluster Übersicht</h2>
             </div>
           </div>
           <div id="node-grid" class="node-grid"></div>
@@ -362,7 +381,7 @@
                 <select name="category" id="ticket-category-select"></select>
               </label>
               <label>
-                <span>Prioritaet</span>
+                <span>Priorität</span>
                 <select name="priority" id="ticket-priority-select"></select>
               </label>
               <label>
@@ -377,7 +396,7 @@
             </div>
             <label>
               <span>Beschreibung</span>
-              <textarea name="content" rows="4" placeholder="Vollstaendige Beschreibung des Problems oder Anliegens"></textarea>
+              <textarea name="content" rows="4" placeholder="Vollständige Beschreibung des Problems oder Anliegens"></textarea>
             </label>
             <div class="action-row">
               <button type="submit">Ticket erstellen</button>
@@ -393,8 +412,8 @@
                   <th>Ersteller</th>
                   <th>Unterserver</th>
                   <th>Status</th>
-                  <th>Prioritaet</th>
-                  <th>Zustaendig</th>
+                  <th>Priorität</th>
+                  <th>Zuständig</th>
                   <th>Aktionen</th>
                 </tr>
               </thead>
@@ -410,8 +429,8 @@
                   <th>Ersteller</th>
                   <th>Unterserver</th>
                   <th>Status</th>
-                  <th>Prioritaet</th>
-                  <th>Zustaendig</th>
+                  <th>Priorität</th>
+                  <th>Zuständig</th>
                   <th>Geschlossen</th>
                 </tr>
               </thead>
@@ -458,7 +477,7 @@
           <div class="sub-nav" aria-label="Ban Unterseiten">
             <button data-ban-tab="panel" class="active" type="button">Panel-Bans</button>
             <button data-ban-tab="litebans" type="button">LiteBans</button>
-            <button data-ban-tab="appeals" type="button">Entbannungsantraege</button>
+            <button data-ban-tab="appeals" type="button">Entbannungsanträge</button>
             <button data-ban-tab="appeal-archive" type="button">Archiv</button>
             <button data-ban-tab="audit" type="button">Auditlog</button>
           </div>
@@ -478,7 +497,7 @@
                 <input name="targetAddress" type="text" placeholder="optional">
               </label>
               <label>
-                <span>Ausgefuehrt von</span>
+                <span>Ausgeführt von</span>
                 <input name="issuedBy" type="text" placeholder="Konsole oder Teammitglied">
               </label>
               <label>
@@ -551,7 +570,7 @@
                   <th>Random-ID</th>
                   <th>Spieler</th>
                   <th>E-Mail</th>
-                  <th>Begruendung</th>
+                  <th>Begründung</th>
                   <th>Beweise</th>
                   <th>Erstellt</th>
                   <th>Aktionen</th>
@@ -569,7 +588,7 @@
                   <th>Random-ID</th>
                   <th>Spieler</th>
                   <th>E-Mail</th>
-                  <th>Begruendung</th>
+                  <th>Begründung</th>
                   <th>Beweise</th>
                   <th>Aktualisiert</th>
                 </tr>
@@ -708,7 +727,7 @@
 
             <section class="luckperms-workspace">
               <div id="permission-selected-summary" class="selected-subject muted">
-                Waehle links eine Gruppe oder einen Spieler aus.
+                Wähle links eine Gruppe oder einen Spieler aus.
               </div>
 
               <form id="permission-action-form" class="stack-form luckperms-add-form">
@@ -733,7 +752,7 @@
                   </label>
                 </div>
                 <div class="action-row">
-                  <button type="submit">Node hinzufuegen</button>
+                  <button type="submit">Node hinzufügen</button>
                   <span id="permission-status" class="muted"></span>
                 </div>
               </form>
@@ -741,7 +760,7 @@
               <div class="node-section">
                 <div>
                   <p class="eyebrow">Nodes</p>
-                  <h2>Aktive Eintraege</h2>
+                  <h2>Aktive Einträge</h2>
                 </div>
                 <div id="permission-node-list" class="node-list"></div>
               </div>
@@ -799,7 +818,7 @@
                   <textarea name="appealStatusOpenText" rows="2"></textarea>
                 </label>
                 <label>
-                  <span>In Pruefung</span>
+                  <span>In Prüfung</span>
                   <textarea name="appealStatusInReviewText" rows="2"></textarea>
                 </label>
                 <label>
@@ -814,7 +833,7 @@
                   <span>Geschlossen</span>
                   <textarea name="appealStatusClosedText" rows="2"></textarea>
                 </label>
-                <p class="muted">Diese Texte erscheinen auf der Statusseite und in Status-Mails fuer Entbannungsantraege.</p>
+                <p class="muted">Diese Texte erscheinen auf der Statusseite und in Status-Mails für Entbannungsanträge.</p>
               </fieldset>
 
               <fieldset>
@@ -835,7 +854,7 @@
                   <span>Panel SQL Tabelle</span>
                   <input name="panelSqlTable" type="text" readonly>
                 </label>
-                <p class="muted">Die Panel-Speicherart wird beim Start geladen. Wechsel zwischen LOCAL und SQL erfolgt ueber die CloudNet-Modul-Konfiguration; lokale Daten werden beim SQL-Start automatisch migriert.</p>
+                <p class="muted">Die Panel-Speicherart wird beim Start geladen. Wechsel zwischen LOCAL und SQL erfolgt über die CloudNet-Modul-Konfiguration; lokale Daten werden beim SQL-Start automatisch migriert.</p>
               </fieldset>
 
               <fieldset>
@@ -933,7 +952,7 @@
           </div>
           <form id="test-mail-form" class="stack-form slim-form">
             <label>
-              <span>Empfaenger</span>
+                  <span>Empfänger</span>
               <input name="recipient" type="email" placeholder="team@example.com">
             </label>
             <button type="submit">Testmail senden</button>

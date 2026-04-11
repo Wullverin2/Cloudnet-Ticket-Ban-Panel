@@ -36,6 +36,7 @@ const state = {
   settings: null,
   selectedPermissionServer: localStorage.getItem("tccb-lp-server") || "proxy",
   selectedPermissionSubject: localStorage.getItem("tccb-lp-subject") || "",
+  selectedTaskName: localStorage.getItem("tccb-task") || "",
   selectedService: null,
   activePage: localStorage.getItem("tccb-page") || "home",
   consoleTimer: null,
@@ -84,15 +85,20 @@ function bindElements() {
   elements.homeOpenAppeals = document.getElementById("home-open-appeals");
   elements.homeArchivedAppeals = document.getElementById("home-archived-appeals");
   elements.homeActiveLiteBans = document.getElementById("home-active-litebans");
-  elements.homeRunningServices = document.getElementById("home-running-services");
 
   elements.environmentSelect = document.getElementById("environment-select");
   elements.runtimeSelect = document.getElementById("runtime-select");
   elements.taskForm = document.getElementById("task-form");
   elements.taskStatus = document.getElementById("task-status");
-  elements.taskTable = document.getElementById("task-table");
   elements.taskReset = document.getElementById("task-reset");
   elements.taskSubmit = document.getElementById("task-submit");
+  elements.taskFormTitle = document.getElementById("task-form-title");
+  elements.taskSelect = document.getElementById("task-select");
+  elements.taskSelectedSummary = document.getElementById("task-selected-summary");
+  elements.taskEditOpen = document.getElementById("task-edit-open");
+  elements.taskCreateOpen = document.getElementById("task-create-open");
+  elements.taskSpawnSelected = document.getElementById("task-spawn-selected");
+  elements.taskDeleteSelected = document.getElementById("task-delete-selected");
 
   elements.serviceCreateForm = document.getElementById("service-create-form");
   elements.serviceCreateStatus = document.getElementById("service-create-status");
@@ -167,8 +173,15 @@ function bindEvents() {
   elements.homeRefresh.addEventListener("click", refreshAll);
 
   elements.taskForm.addEventListener("submit", handleTaskSubmit);
-  elements.taskReset.addEventListener("click", resetTaskForm);
-  elements.taskTable.addEventListener("click", handleTaskTableClick);
+  elements.taskReset.addEventListener("click", handleTaskResetClick);
+  elements.taskSelect.addEventListener("change", handleTaskSelectChange);
+  elements.taskEditOpen.addEventListener("click", openSelectedTaskEditor);
+  elements.taskCreateOpen.addEventListener("click", openTaskCreate);
+  elements.taskSpawnSelected.addEventListener("click", spawnSelectedTask);
+  elements.taskDeleteSelected.addEventListener("click", deleteSelectedTask);
+  document.querySelectorAll("button[data-cloudnet-view-target]").forEach(button => {
+    button.addEventListener("click", () => switchCloudNetView(button.dataset.cloudnetViewTarget));
+  });
 
   elements.serviceCreateForm.addEventListener("submit", handleServiceCreateSubmit);
   elements.serviceRefresh.addEventListener("click", refreshAll);
@@ -377,7 +390,7 @@ async function handlePasswordSubmit(event) {
     });
     elements.passwordForm.reset();
     applySession({ ...state.session, user });
-    setStatus(elements.profileStatus, "Passwort geaendert.", false);
+    setStatus(elements.profileStatus, "Passwort geändert.", false);
   } catch (error) {
     handleApiError(error, elements.profileStatus);
   }
@@ -450,6 +463,9 @@ function handlePageNavClick(event) {
     return;
   }
   switchPage(button.dataset.pageTarget);
+  if (button.dataset.pageTarget === "cloudnet") {
+    switchCloudNetView("overview");
+  }
   if (button.dataset.banTabTarget) {
     switchBanTab(button.dataset.banTabTarget);
     elements.pageNav.querySelectorAll("button[data-page-target]").forEach(entry => entry.classList.remove("active"));
@@ -474,6 +490,16 @@ function switchPage(page) {
   });
 }
 
+function switchCloudNetView(view) {
+  const target = view || "overview";
+  document.querySelectorAll(".cloudnet-view").forEach(panel => {
+    panel.classList.toggle("hidden", panel.dataset.cloudnetView !== target);
+  });
+  if (target === "overview") {
+    setStatus(elements.taskStatus, "", false);
+  }
+}
+
 function firstAllowedPage() {
   const button = [...elements.pageNav.querySelectorAll("button[data-page-target]")]
     .find(entry => !entry.dataset.permission || hasPermission(entry.dataset.permission));
@@ -483,6 +509,10 @@ function firstAllowedPage() {
 function allowedPage(page) {
   const button = elements.pageNav.querySelector(`button[data-page-target="${cssEscape(page)}"]`);
   return Boolean(button && (!button.dataset.permission || hasPermission(button.dataset.permission)));
+}
+
+function selectedTask() {
+  return state.tasks.find(task => task.name === state.selectedTaskName) || null;
 }
 
 async function refreshAll() {
@@ -607,10 +637,6 @@ function renderHome() {
     elements.homeActiveLiteBans,
     hasPermission(PERMISSIONS.BANS_VIEW),
     state.liteBans.filter(ban => ban.active).length);
-  setHomeMetric(
-    elements.homeRunningServices,
-    hasPermission(PERMISSIONS.CLOUDNET_VIEW),
-    state.overview?.runningServiceCount ?? 0);
 }
 
 function setHomeMetric(element, allowed, value) {
@@ -630,30 +656,47 @@ function renderOverview() {
 
 function renderTasks() {
   if (!state.tasks.length) {
-    elements.taskTable.innerHTML = `<tr><td colspan="5" class="muted">Keine Tasks vorhanden.</td></tr>`;
+    elements.taskSelect.innerHTML = `<option value="">Keine Tasks vorhanden</option>`;
+    state.selectedTaskName = "";
+    localStorage.removeItem("tccb-task");
+    renderSelectedTaskSummary();
     return;
   }
 
-  elements.taskTable.innerHTML = state.tasks.map(task => `
-    <tr>
-      <td>${escapeHtml(task.name)}</td>
-      <td>${escapeHtml(task.environment)}</td>
-      <td>${task.maxHeapMemory} MB</td>
-      <td>${task.minServiceCount}</td>
-      <td>${taskActions(task)}</td>
-    </tr>
-  `).join("");
-}
-
-function taskActions(task) {
-  if (!hasPermission(PERMISSIONS.CLOUDNET_MANAGE)) {
-    return `<span class="muted">Nur Ansicht</span>`;
+  if (!state.tasks.some(task => task.name === state.selectedTaskName)) {
+    state.selectedTaskName = state.tasks[0].name;
+    localStorage.setItem("tccb-task", state.selectedTaskName);
   }
 
-  return `
-    <button data-task-action="edit" data-task-name="${escapeAttr(task.name)}" type="button">Bearbeiten</button>
-    <button data-task-action="spawn" data-task-name="${escapeAttr(task.name)}" type="button">Service +1</button>
-    <button data-task-action="delete" data-task-name="${escapeAttr(task.name)}" type="button">Loeschen</button>
+  elements.taskSelect.innerHTML = state.tasks.map(task => `
+    <option value="${escapeAttr(task.name)}">${escapeHtml(task.name)} (${escapeHtml(task.environment)})</option>
+  `).join("");
+  elements.taskSelect.value = state.selectedTaskName;
+  renderSelectedTaskSummary();
+}
+
+function renderSelectedTaskSummary() {
+  const task = selectedTask();
+  if (!task) {
+    elements.taskSelectedSummary.innerHTML = "Noch kein Task ausgewählt.";
+    return;
+  }
+
+  elements.taskSelectedSummary.innerHTML = `
+    <div>
+      <strong>${escapeHtml(task.name)}</strong>
+      <span>${escapeHtml(task.environment)} | Runtime ${escapeHtml(task.runtime || "-")} | RAM ${task.maxHeapMemory} MB</span>
+    </div>
+    <div class="task-summary-grid">
+      <span>Min. Services: <strong>${escapeHtml(task.minServiceCount)}</strong></span>
+      <span>Start-Port: <strong>${escapeHtml(task.startPort)}</strong></span>
+      <span>Gruppen: <strong>${escapeHtml((task.groups || []).join(", ") || "-")}</strong></span>
+      <span>Nodes: <strong>${escapeHtml((task.associatedNodes || []).join(", ") || "alle")}</strong></span>
+      <span>Maintenance: <strong>${task.maintenance ? "Ja" : "Nein"}</strong></span>
+      <span>Statisch: <strong>${task.staticServices ? "Ja" : "Nein"}</strong></span>
+      <span>Auto-Löschen: <strong>${task.autoDeleteOnStop ? "Ja" : "Nein"}</strong></span>
+      <span>Host: <strong>${escapeHtml(task.hostAddress || "-")}</strong></span>
+    </div>
   `;
 }
 
@@ -681,7 +724,7 @@ function serviceActions(service) {
     actions.push(`<button data-service-action="start" data-service-name="${escapeAttr(service.name)}" type="button">Start</button>`);
     actions.push(`<button data-service-action="stop" data-service-name="${escapeAttr(service.name)}" type="button">Stop</button>`);
     actions.push(`<button data-service-action="restart" data-service-name="${escapeAttr(service.name)}" type="button">Restart</button>`);
-    actions.push(`<button data-service-action="delete" data-service-name="${escapeAttr(service.name)}" type="button">Loeschen</button>`);
+    actions.push(`<button data-service-action="delete" data-service-name="${escapeAttr(service.name)}" type="button">Löschen</button>`);
   }
   if (hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)) {
     actions.push(`<button data-service-action="console" data-service-name="${escapeAttr(service.name)}" type="button">Konsole</button>`);
@@ -858,7 +901,7 @@ function liteBanIdCell(ban) {
   }
   return `
     <strong class="danger-text">Random-ID fehlt</strong><br>
-    <span class="muted">Bridge pruefen, intern: ${escapeHtml(internalId || "-")}</span>
+    <span class="muted">Bridge prüfen, intern: ${escapeHtml(internalId || "-")}</span>
   `;
 }
 
@@ -882,7 +925,7 @@ function liteBanActions(ban) {
   return `
     <div class="action-buttons">
       <button data-liteban-action="unban" data-ban-id="${escapeAttr(ban.id)}" type="button">Aufheben</button>
-      <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Verlaengern</button>
+      <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Verlängern</button>
     </div>
   `;
 }
@@ -890,7 +933,7 @@ function liteBanActions(ban) {
 function renderBanAppeals() {
   const activeAppeals = state.banAppeals.filter(appeal => !isArchivedAppeal(appeal));
   if (!activeAppeals.length) {
-    elements.banAppealTable.innerHTML = `<tr><td colspan="8" class="muted">Keine offenen Entbannungsantraege vorhanden.</td></tr>`;
+    elements.banAppealTable.innerHTML = `<tr><td colspan="8" class="muted">Keine offenen Entbannungsanträge vorhanden.</td></tr>`;
     return;
   }
 
@@ -917,7 +960,7 @@ function renderBanAppeals() {
 function renderBanAppealArchive() {
   const archivedAppeals = state.banAppeals.filter(isArchivedAppeal);
   if (!archivedAppeals.length) {
-    elements.banAppealArchiveTable.innerHTML = `<tr><td colspan="7" class="muted">Noch keine abgeschlossenen Entbannungsantraege im Archiv.</td></tr>`;
+    elements.banAppealArchiveTable.innerHTML = `<tr><td colspan="7" class="muted">Noch keine abgeschlossenen Entbannungsanträge im Archiv.</td></tr>`;
     return;
   }
 
@@ -980,7 +1023,7 @@ function banAppealActions(appeal) {
     return `<span class="muted">Nur Ansicht</span>`;
   }
   return `
-    <button data-appeal-action="IN_REVIEW" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Pruefung</button>
+    <button data-appeal-action="IN_REVIEW" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Prüfung</button>
     <button data-appeal-action="ACCEPTED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Annehmen</button>
     <button data-appeal-action="REJECTED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Ablehnen</button>
     <button data-appeal-action="CLOSED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Schliessen</button>
@@ -1044,7 +1087,7 @@ function renderGroups() {
       <td>${group.system ? "Ja" : "Nein"}</td>
       <td>
         <button data-group-action="edit" data-group-name="${escapeAttr(group.name)}" type="button">Bearbeiten</button>
-        ${group.system ? "" : `<button data-group-action="delete" data-group-name="${escapeAttr(group.name)}" type="button">Loeschen</button>`}
+        ${group.system ? "" : `<button data-group-action="delete" data-group-name="${escapeAttr(group.name)}" type="button">Löschen</button>`}
       </td>
     </tr>
   `).join("");
@@ -1071,7 +1114,7 @@ function renderUsers() {
       <td>${escapeHtml(user.lastLoginAt || "-")}</td>
       <td>
         <button data-user-action="edit" data-user-name="${escapeAttr(user.username)}" type="button">Bearbeiten</button>
-        <button data-user-action="delete" data-user-name="${escapeAttr(user.username)}" type="button">Loeschen</button>
+        <button data-user-action="delete" data-user-name="${escapeAttr(user.username)}" type="button">Löschen</button>
       </td>
     </tr>
   `).join("");
@@ -1080,8 +1123,8 @@ function renderUsers() {
 function renderPermissionSubjects() {
   const subjects = filteredPermissionSubjects();
   if (!subjects.length) {
-    elements.permissionSubjectList.innerHTML = `<p class="muted">Noch keine Subjects fuer diesen Server synchronisiert.</p>`;
-    elements.permissionSelectedSummary.textContent = "Waehle einen Server mit synchronisierten LuckPerms-Daten aus.";
+    elements.permissionSubjectList.innerHTML = `<p class="muted">Noch keine Subjects für diesen Server synchronisiert.</p>`;
+    elements.permissionSelectedSummary.textContent = "Wähle einen Server mit synchronisierten LuckPerms-Daten aus.";
     elements.permissionNodeList.innerHTML = "";
     return;
   }
@@ -1197,7 +1240,7 @@ function setFormChecked(form, name, value) {
 function renderSelectedPermissionSubject() {
   const subject = selectedPermissionSubject();
   if (!subject) {
-    elements.permissionSelectedSummary.textContent = "Waehle links eine Gruppe oder einen Spieler aus.";
+    elements.permissionSelectedSummary.textContent = "Wähle links eine Gruppe oder einen Spieler aus.";
     elements.permissionNodeList.innerHTML = "";
     return;
   }
@@ -1218,7 +1261,7 @@ function renderSelectedPermissionSubject() {
   const nodes = [...parents, ...permissions];
   elements.permissionNodeList.innerHTML = nodes.length
     ? nodes.join("")
-    : `<p class="muted">Noch keine Nodes fuer dieses Subject synchronisiert.</p>`;
+    : `<p class="muted">Noch keine Nodes für dieses Subject synchronisiert.</p>`;
 }
 
 function nodeCard(type, value, enabled) {
@@ -1247,7 +1290,7 @@ async function loadConsole() {
   }
 
   if (!state.selectedService) {
-    state.lastConsoleText = "Kein Service ausgewaehlt.";
+    state.lastConsoleText = "Kein Service ausgewählt.";
     elements.consoleOutput.textContent = state.lastConsoleText;
     return;
   }
@@ -1261,7 +1304,7 @@ async function loadConsole() {
     const consoleData = await api(`/api/services/${encodeURIComponent(state.selectedService)}/console?limit=120`);
     const nextText = consoleData.lines.length
       ? consoleData.lines.join("\n")
-      : "Noch keine Log-Ausgabe fuer diesen Service.";
+      : "Noch keine Log-Ausgabe für diesen Service.";
 
     if (nextText !== state.lastConsoleText) {
       state.lastConsoleText = nextText;
@@ -1287,13 +1330,17 @@ async function handleTaskSubmit(event) {
     name: String(form.get("name") || "").trim(),
     environment: String(form.get("environment") || "").trim(),
     runtime: String(form.get("runtime") || "").trim(),
+    nameSplitter: String(form.get("nameSplitter") || "-").trim() || "-",
     startPort: Number(form.get("startPort") || 25565),
     minServiceCount: Number(form.get("minServiceCount") || 0),
     maxHeapMemory: Number(form.get("maxHeapMemory") || 1024),
+    hostAddress: String(form.get("hostAddress") || "").trim(),
+    javaCommand: String(form.get("javaCommand") || "").trim(),
     groups: splitCsv(form.get("groups")),
     associatedNodes: splitCsv(form.get("associatedNodes")),
     jvmOptions: splitCsv(form.get("jvmOptions")),
     processParameters: splitCsv(form.get("processParameters")),
+    deletedFilesAfterStop: splitCsv(form.get("deletedFilesAfterStop")),
     maintenance: form.get("maintenance") === "on",
     staticServices: form.get("staticServices") === "on",
     autoDeleteOnStop: form.get("autoDeleteOnStop") === "on",
@@ -1306,8 +1353,95 @@ async function handleTaskSubmit(event) {
     } else {
       await api("/api/tasks", { method: "POST", body: payload });
       setStatus(elements.taskStatus, `Task ${payload.name} erstellt.`, false);
+      state.selectedTaskName = payload.name;
+      localStorage.setItem("tccb-task", state.selectedTaskName);
     }
     resetTaskForm();
+    await refreshAll();
+    switchCloudNetView("overview");
+  } catch (error) {
+    handleApiError(error, elements.taskStatus);
+  }
+}
+
+function handleTaskSelectChange() {
+  state.selectedTaskName = elements.taskSelect.value || "";
+  if (state.selectedTaskName) {
+    localStorage.setItem("tccb-task", state.selectedTaskName);
+  } else {
+    localStorage.removeItem("tccb-task");
+  }
+  renderSelectedTaskSummary();
+}
+
+function handleTaskResetClick(event) {
+  event.preventDefault();
+  const editingTask = elements.taskForm.dataset.editingTask || "";
+  const task = state.tasks.find(entry => entry.name === editingTask);
+  if (task) {
+    fillTaskForm(task);
+  } else {
+    resetTaskForm();
+  }
+}
+
+function openTaskCreate() {
+  if (!hasPermission(PERMISSIONS.CLOUDNET_MANAGE)) {
+    return;
+  }
+  resetTaskForm();
+  switchCloudNetView("task-form");
+}
+
+function openSelectedTaskEditor() {
+  if (!hasPermission(PERMISSIONS.CLOUDNET_MANAGE)) {
+    return;
+  }
+  const task = selectedTask();
+  if (!task) {
+    setStatus(elements.taskStatus, "Bitte zuerst einen Task auswählen.", true);
+    return;
+  }
+  fillTaskForm(task);
+  switchCloudNetView("task-form");
+}
+
+async function spawnSelectedTask() {
+  if (!hasPermission(PERMISSIONS.CLOUDNET_MANAGE)) {
+    return;
+  }
+  const task = selectedTask();
+  if (!task) {
+    return;
+  }
+
+  try {
+    await api("/api/services", {
+      method: "POST",
+      body: { taskName: task.name, amount: 1, startImmediately: true },
+    });
+    await refreshAll();
+    setStatus(elements.serviceCreateStatus, `Service für ${task.name} erstellt.`, false);
+  } catch (error) {
+    handleApiError(error, elements.serviceCreateStatus);
+  }
+}
+
+async function deleteSelectedTask() {
+  if (!hasPermission(PERMISSIONS.CLOUDNET_MANAGE)) {
+    return;
+  }
+  const task = selectedTask();
+  if (!task || !confirm(`Task ${task.name} wirklich löschen?`)) {
+    return;
+  }
+
+  try {
+    await api(`/api/tasks/${encodeURIComponent(task.name)}`, { method: "DELETE" });
+    if (state.selectedTaskName === task.name) {
+      state.selectedTaskName = "";
+      localStorage.removeItem("tccb-task");
+    }
     await refreshAll();
   } catch (error) {
     handleApiError(error, elements.taskStatus);
@@ -1349,7 +1483,7 @@ async function handleConsoleCommandSubmit(event) {
   }
 
   if (!state.selectedService) {
-    elements.consoleOutput.textContent = "Bitte zuerst einen Service auswaehlen.";
+    elements.consoleOutput.textContent = "Bitte zuerst einen Service auswählen.";
     return;
   }
 
@@ -1437,7 +1571,7 @@ async function handleBanSubmit(event) {
     const created = await api("/api/bans", { method: "POST", body: payload });
     elements.banForm.reset();
     elements.banForm.elements.durationMinutes.value = 0;
-    setStatus(elements.banStatus, `Ban fuer ${created.targetName} angelegt.`, false);
+    setStatus(elements.banStatus, `Ban für ${created.targetName} angelegt.`, false);
     await refreshAll();
   } catch (error) {
     handleApiError(error, elements.banStatus);
@@ -1526,7 +1660,7 @@ async function handlePermissionActionSubmit(event) {
   };
 
   if (!subject) {
-    setStatus(elements.permissionStatus, "Bitte zuerst links ein Subject auswaehlen.", true);
+    setStatus(elements.permissionStatus, "Bitte zuerst links ein Subject auswählen.", true);
     return;
   }
 
@@ -1613,7 +1747,7 @@ async function handleTestMailSubmit(event) {
 
   const recipient = String(new FormData(elements.testMailForm).get("recipient") || "").trim();
   if (!recipient) {
-    setStatus(elements.testMailStatus, "Bitte Empfaenger eintragen.", true);
+    setStatus(elements.testMailStatus, "Bitte Empfänger eintragen.", true);
     return;
   }
 
@@ -1646,7 +1780,7 @@ async function handlePermissionNodeClick(event) {
 
   const subject = selectedPermissionSubject();
   if (!subject) {
-    setStatus(elements.permissionStatus, "Bitte zuerst ein Subject auswaehlen.", true);
+    setStatus(elements.permissionStatus, "Bitte zuerst ein Subject auswählen.", true);
     return;
   }
   if (!canManagePermissionServer(subject.serverId)) {
@@ -1683,51 +1817,6 @@ async function reloadSessionAndData() {
   await refreshAll();
 }
 
-async function handleTaskTableClick(event) {
-  const button = event.target.closest("button[data-task-action]");
-  if (!button || !hasPermission(PERMISSIONS.CLOUDNET_MANAGE)) {
-    return;
-  }
-
-  const action = button.dataset.taskAction;
-  const taskName = button.dataset.taskName;
-  const task = state.tasks.find(entry => entry.name === taskName);
-  if (!task) {
-    return;
-  }
-
-  if (action === "edit") {
-    fillTaskForm(task);
-    return;
-  }
-
-  if (action === "spawn") {
-    try {
-      await api("/api/services", {
-        method: "POST",
-        body: { taskName, amount: 1, startImmediately: true },
-      });
-      await refreshAll();
-      setStatus(elements.serviceCreateStatus, `Service fuer ${taskName} erstellt.`, false);
-    } catch (error) {
-      handleApiError(error, elements.serviceCreateStatus);
-    }
-    return;
-  }
-
-  if (action === "delete" && confirm(`Task ${taskName} wirklich loeschen?`)) {
-    try {
-      await api(`/api/tasks/${encodeURIComponent(taskName)}`, { method: "DELETE" });
-      if (elements.taskForm.dataset.editingTask === taskName) {
-        resetTaskForm();
-      }
-      await refreshAll();
-    } catch (error) {
-      handleApiError(error, elements.taskStatus);
-    }
-  }
-}
-
 async function handleServiceTableClick(event) {
   const button = event.target.closest("button[data-service-action]");
   if (!button) {
@@ -1754,7 +1843,7 @@ async function handleServiceTableClick(event) {
     }
 
     if (action === "delete") {
-      if (!confirm(`Service ${serviceName} wirklich loeschen?`)) {
+      if (!confirm(`Service ${serviceName} wirklich löschen?`)) {
         return;
       }
       await api(`/api/services/${encodeURIComponent(serviceName)}`, { method: "DELETE" });
@@ -1780,7 +1869,7 @@ async function handleTicketTableClick(event) {
   try {
     if (action === "assign") {
       const assignedTo = prompt("An wen soll das Ticket zugewiesen werden?");
-      const actor = prompt("Wer fuehrt die Zuweisung aus?", state.currentUser?.displayName || state.currentUser?.username || "");
+      const actor = prompt("Wer führt die Zuweisung aus?", state.currentUser?.displayName || state.currentUser?.username || "");
       if (!assignedTo || !actor) {
         return;
       }
@@ -1818,9 +1907,9 @@ async function handleTicketTableClick(event) {
           actor: state.currentUser?.displayName || state.currentUser?.username || staffName,
         },
       });
-      setStatus(elements.ticketStatus, "Teleport wurde an Velocity uebergeben.", false);
+      setStatus(elements.ticketStatus, "Teleport wurde an Velocity übergeben.", false);
     } else {
-      const actor = prompt("Wer aendert den Ticket-Status?", state.currentUser?.displayName || state.currentUser?.username || "");
+      const actor = prompt("Wer ändert den Ticket-Status?", state.currentUser?.displayName || state.currentUser?.username || "");
       if (!actor) {
         return;
       }
@@ -1853,6 +1942,9 @@ function handleHomePanelClick(event) {
   }
 
   switchPage(button.dataset.homePage);
+  if (button.dataset.homePage === "cloudnet") {
+    switchCloudNetView("overview");
+  }
   if (button.dataset.ticketTabTarget) {
     switchTicketTab(button.dataset.ticketTabTarget);
   }
@@ -1900,7 +1992,7 @@ async function handleLiteBanTableClick(event) {
 
   try {
     if (action === "unban") {
-      const reason = prompt("Grund fuer das Aufheben?", "Unban via Panel");
+      const reason = prompt("Grund für das Aufheben?", "Unban via Panel");
       if (reason === null) {
         return;
       }
@@ -1908,15 +2000,15 @@ async function handleLiteBanTableClick(event) {
         method: "POST",
         body: { actor, reason },
       });
-      setStatus(elements.banStatus, "Unban wurde an Velocity uebergeben.", false);
+      setStatus(elements.banStatus, "Unban wurde an Velocity übergeben.", false);
     }
 
     if (action === "extend") {
-      const duration = prompt("Neue/weitere Dauer fuer LiteBans, z.B. 7d, 30d, 1mo");
+      const duration = prompt("Neue/weitere Dauer für LiteBans, z.B. 7d, 30d, 1mo");
       if (!duration) {
         return;
       }
-      const reason = prompt("Grund fuer die Verlaengerung?", "Ban via Panel verlaengert");
+      const reason = prompt("Grund für die Verlängerung?", "Ban via Panel verlängert");
       if (reason === null) {
         return;
       }
@@ -1924,7 +2016,7 @@ async function handleLiteBanTableClick(event) {
         method: "POST",
         body: { actor, duration, reason },
       });
-      setStatus(elements.banStatus, "Verlaengerung wurde an Velocity uebergeben.", false);
+      setStatus(elements.banStatus, "Verlängerung wurde an Velocity übergeben.", false);
     }
 
     await refreshAll();
@@ -1940,7 +2032,7 @@ async function handleBanAppealTableClick(event) {
     return;
   }
 
-  const teamNote = prompt("Team-Notiz fuer die Statusseite? Leer lassen, wenn keine Notiz gesetzt werden soll.", "");
+  const teamNote = prompt("Team-Notiz für die Statusseite? Leer lassen, wenn keine Notiz gesetzt werden soll.", "");
   if (teamNote === null) {
     return;
   }
@@ -1986,7 +2078,7 @@ async function handleGroupTableClick(event) {
     return;
   }
 
-  if (button.dataset.groupAction === "delete" && confirm(`Gruppe ${groupName} wirklich loeschen?`)) {
+  if (button.dataset.groupAction === "delete" && confirm(`Gruppe ${groupName} wirklich löschen?`)) {
     try {
       await api(`/api/security/groups/${encodeURIComponent(groupName)}`, { method: "DELETE" });
       resetGroupForm();
@@ -2014,7 +2106,7 @@ async function handleUserTableClick(event) {
     return;
   }
 
-  if (button.dataset.userAction === "delete" && confirm(`Benutzer ${username} wirklich loeschen?`)) {
+  if (button.dataset.userAction === "delete" && confirm(`Benutzer ${username} wirklich löschen?`)) {
     try {
       await api(`/api/security/users/${encodeURIComponent(username)}`, { method: "DELETE" });
       resetUserForm();
@@ -2028,28 +2120,35 @@ async function handleUserTableClick(event) {
 function fillTaskForm(task) {
   elements.taskForm.dataset.editingTask = task.name;
   elements.taskSubmit.textContent = `Task ${task.name} aktualisieren`;
+  elements.taskFormTitle.textContent = `Task ${task.name} bearbeiten`;
 
   const form = elements.taskForm.elements;
   form.name.value = task.name;
   form.name.readOnly = true;
   form.environment.value = task.environment;
   form.runtime.value = task.runtime;
+  form.nameSplitter.value = task.nameSplitter || "-";
   form.startPort.value = task.startPort;
   form.minServiceCount.value = task.minServiceCount;
   form.maxHeapMemory.value = task.maxHeapMemory;
+  form.hostAddress.value = task.hostAddress || "";
+  form.javaCommand.value = task.javaCommand || "";
   form.groups.value = (task.groups || []).join(", ");
   form.associatedNodes.value = (task.associatedNodes || []).join(", ");
   form.jvmOptions.value = (task.jvmOptions || []).join(", ");
   form.processParameters.value = (task.processParameters || []).join(", ");
+  form.deletedFilesAfterStop.value = (task.deletedFilesAfterStop || []).join(", ");
   form.maintenance.checked = Boolean(task.maintenance);
   form.staticServices.checked = Boolean(task.staticServices);
   form.autoDeleteOnStop.checked = Boolean(task.autoDeleteOnStop);
+  setStatus(elements.taskStatus, "", false);
 }
 
 function resetTaskForm() {
   elements.taskForm.reset();
   elements.taskForm.dataset.editingTask = "";
   elements.taskSubmit.textContent = "Task speichern";
+  elements.taskFormTitle.textContent = "Neuen Task anlegen";
   elements.taskForm.elements.name.readOnly = false;
 
   if (state.meta) {
@@ -2057,9 +2156,13 @@ function resetTaskForm() {
     elements.taskForm.elements.runtime.value = state.meta.runtimes[0] || "";
   }
 
+  elements.taskForm.elements.nameSplitter.value = "-";
   elements.taskForm.elements.startPort.value = 25565;
   elements.taskForm.elements.minServiceCount.value = 1;
   elements.taskForm.elements.maxHeapMemory.value = 1024;
+  elements.taskForm.elements.hostAddress.value = "";
+  elements.taskForm.elements.javaCommand.value = "";
+  elements.taskForm.elements.deletedFilesAfterStop.value = "";
   elements.taskForm.elements.autoDeleteOnStop.checked = true;
   setStatus(elements.taskStatus, "", false);
 }

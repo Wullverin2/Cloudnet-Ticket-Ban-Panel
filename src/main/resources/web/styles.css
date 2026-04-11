@@ -233,6 +233,38 @@ button {
   justify-self: start;
 }
 
+.task-picker {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.task-summary-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(6, 12, 18, 0.58);
+}
+
+.task-summary-card strong {
+  color: var(--text);
+}
+
+.task-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 8px 14px;
+}
+
+.task-summary-card span {
+  overflow-wrap: anywhere;
+}
+
 .metric-card {
   border-radius: 20px;
   padding: 20px;
@@ -787,10 +819,29 @@ tbody button {
     padding-top: 12px;
   }
 
+  .hero {
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
   .hero-copy,
   .auth-card,
   .panel-card {
     padding: 18px;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card {
+    padding: 16px;
+  }
+
+  .metric-card strong,
+  .team-start-card strong {
+    font-size: 1.65rem;
   }
 
   .form-grid {
@@ -809,9 +860,79 @@ tbody button {
   .action-row,
   .inline-controls,
   .console-form,
+  .task-picker,
   .node-card-editor {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .task-picker {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .page-nav,
+  .sub-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .page-nav::before {
+    grid-column: 1 / -1;
+    padding: 4px 2px;
+  }
+
+  .page-nav button,
+  .sub-nav button,
+  .action-row button,
+  .inline-controls button,
+  .team-start-card button {
+    width: 100%;
+  }
+
+  .table-shell {
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  table,
+  thead,
+  tbody,
+  tr,
+  th,
+  td {
+    display: block;
+    width: 100%;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tbody tr {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    background: rgba(6, 12, 18, 0.72);
+  }
+
+  tbody tr + tr {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  td {
+    padding: 0;
+  }
+
+  tbody button {
+    width: 100%;
+    margin: 0 0 6px;
   }
 
   .luckperms-toolbar,
