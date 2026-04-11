@@ -8,6 +8,8 @@ public record PanelUser(
   String email,
   String minecraftName,
   String minecraftUniqueId,
+  String twoFactorMethod,
+  String twoFactorSecret,
   String passwordHash,
   String passwordSalt,
   int passwordIterations,

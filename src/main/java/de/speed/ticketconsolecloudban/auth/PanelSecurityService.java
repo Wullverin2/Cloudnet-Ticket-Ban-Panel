@@ -4,8 +4,11 @@ import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
 import de.speed.ticketconsolecloudban.store.PanelUserStore;
 import eu.cloudnetservice.driver.document.Document;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
@@ -24,6 +27,8 @@ public final class PanelSecurityService {
   private final PanelConfiguration configuration;
   private final SmtpMailService mailService;
   private final Map<String, String> sessions = new ConcurrentHashMap<>();
+  private final Map<String, TwoFactorChallenge> twoFactorChallenges = new ConcurrentHashMap<>();
+  private final Map<String, PendingTotpSetup> pendingTotpSetups = new ConcurrentHashMap<>();
 
   public PanelSecurityService(PanelUserStore userStore, PanelConfiguration configuration) {
     this(userStore, configuration, null);
@@ -68,12 +73,62 @@ public final class PanelSecurityService {
   }
 
   public LoginView login(Document request) {
-    var user = this.userStore.authenticate(
+    var user = this.userStore.verifyCredentials(
       this.requiredText(request, "username"),
       this.requiredText(request, "password"));
-    var token = this.newToken();
-    this.sessions.put(token, user.username());
-    return new LoginView(token, this.userView(user), PanelPermission.catalog());
+    var method = TwoFactorMethod.parse(user.twoFactorMethod());
+    if (method.enabled()) {
+      return this.beginTwoFactorLogin(user, method);
+    }
+    return this.createSessionLoginView(this.userStore.recordLogin(user.username()));
+  }
+
+  public LoginView verifyTwoFactor(Document request) {
+    var challengeId = this.requiredText(request, "challengeId");
+    var code = this.requiredText(request, "code").replace(" ", "");
+    var challenge = this.twoFactorChallenges.get(challengeId);
+    if (challenge == null) {
+      throw new IllegalArgumentException("2FA-Anfrage ist ungültig oder abgelaufen.");
+    }
+    if (Instant.parse(challenge.expiresAt()).isBefore(Instant.now())) {
+      this.twoFactorChallenges.remove(challengeId);
+      throw new IllegalArgumentException("2FA-Code ist abgelaufen. Bitte melde dich erneut an.");
+    }
+    if (challenge.attempts() >= 5) {
+      this.twoFactorChallenges.remove(challengeId);
+      throw new IllegalArgumentException("Zu viele falsche 2FA-Versuche. Bitte melde dich erneut an.");
+    }
+
+    var user = this.userStore.findUser(challenge.username())
+      .filter(PanelUser::enabled)
+      .orElseThrow(() -> new IllegalArgumentException("Benutzer wurde nicht gefunden."));
+    var valid = switch (challenge.method()) {
+      case EMAIL -> secureEquals(challenge.codeHash(), sha256(code));
+      case TOTP -> TotpService.verify(code, user.twoFactorSecret());
+      case NONE -> false;
+    };
+    if (!valid) {
+      this.twoFactorChallenges.put(challengeId, challenge.incrementAttempts());
+      throw new IllegalArgumentException("2FA-Code ist falsch.");
+    }
+
+    this.twoFactorChallenges.remove(challengeId);
+    return this.createSessionLoginView(this.userStore.recordLogin(user.username()));
+  }
+
+  public TotpSetupView prepareTotpSetup(PanelPrincipal principal) {
+    if (principal.apiToken()) {
+      throw new IllegalArgumentException("API-Token-Sessions können keine 2FA einrichten.");
+    }
+
+    var user = this.userStore.findUser(principal.username()).orElseThrow();
+    var secret = TotpService.newSecret();
+    var expiresAt = Instant.now().plus(10, ChronoUnit.MINUTES).toString();
+    this.pendingTotpSetups.put(user.username(), new PendingTotpSetup(user.username(), secret, expiresAt));
+    return new TotpSetupView(
+      secret,
+      TotpService.otpauthUri(this.configuration.brandName(), user.username(), secret),
+      expiresAt);
   }
 
   public PasswordResetRequestView requestPasswordReset(Document request) {
@@ -116,6 +171,8 @@ public final class PanelSecurityService {
           null,
           null,
           null,
+          TwoFactorMethod.NONE.name(),
+          false,
           List.of("api-token"),
           true,
           principal.permissions(),
@@ -161,7 +218,9 @@ public final class PanelSecurityService {
       principal.username(),
       this.textOrNull(request, "email"),
       this.textOrNull(request, "minecraftName"),
-      this.textOrNull(request, "minecraftUniqueId"));
+      this.textOrNull(request, "minecraftUniqueId"),
+      this.textOrNull(request, "twoFactorMethod"),
+      this.resolveTwoFactorSecret(principal.username(), request));
     return this.userView(user);
   }
 
@@ -179,6 +238,98 @@ public final class PanelSecurityService {
   public void deleteUser(String username) {
     this.userStore.deleteUser(username);
     this.sessions.entrySet().removeIf(entry -> entry.getValue().equalsIgnoreCase(username));
+    this.pendingTotpSetups.remove(username.toLowerCase());
+    this.twoFactorChallenges.entrySet().removeIf(entry -> entry.getValue().username().equalsIgnoreCase(username));
+  }
+
+  private LoginView beginTwoFactorLogin(PanelUser user, TwoFactorMethod method) {
+    this.cleanupTwoFactorChallenges();
+    var challengeId = this.newToken();
+    var expiresAt = Instant.now().plus(10, ChronoUnit.MINUTES).toString();
+    var destination = "";
+    var message = method == TwoFactorMethod.TOTP
+      ? "Bitte gib den Code aus deiner Authenticator-App ein."
+      : "Bitte gib den Code ein, den wir dir per E-Mail gesendet haben.";
+    var codeHash = "";
+
+    if (method == TwoFactorMethod.EMAIL) {
+      if (user.email() == null || user.email().isBlank()) {
+        throw new IllegalArgumentException("E-Mail-2FA ist aktiv, aber für diesen Benutzer ist keine E-Mail hinterlegt.");
+      }
+      if (!this.mailService.enabled()) {
+        throw new IllegalArgumentException("E-Mail-2FA ist aktiv, aber der Mailserver ist nicht verfügbar. Bitte kontaktiere das Team.");
+      }
+      var code = this.randomSixDigitCode();
+      codeHash = sha256(code);
+      destination = maskedEmail(user.email());
+      this.mailService.sendTwoFactorCode(user.email(), code, expiresAt);
+    } else if (method == TwoFactorMethod.TOTP) {
+      if (user.twoFactorSecret() == null || user.twoFactorSecret().isBlank()) {
+        throw new IllegalArgumentException("Authenticator-2FA ist aktiv, aber nicht vollständig eingerichtet.");
+      }
+      destination = "Authenticator-App";
+    }
+
+    this.twoFactorChallenges.put(challengeId, new TwoFactorChallenge(
+      challengeId,
+      user.username(),
+      method,
+      codeHash,
+      expiresAt,
+      0));
+    return new LoginView(
+      null,
+      null,
+      PanelPermission.catalog(),
+      true,
+      challengeId,
+      method.name(),
+      destination,
+      message);
+  }
+
+  private LoginView createSessionLoginView(PanelUser user) {
+    var token = this.newToken();
+    this.sessions.put(token, user.username());
+    return new LoginView(
+      token,
+      this.userView(user),
+      PanelPermission.catalog(),
+      false,
+      null,
+      TwoFactorMethod.NONE.name(),
+      null,
+      null);
+  }
+
+  private String resolveTwoFactorSecret(String username, Document request) {
+    var method = request.containsNonNull("twoFactorMethod")
+      ? TwoFactorMethod.parse(request.getString("twoFactorMethod"))
+      : null;
+    if (method != TwoFactorMethod.TOTP) {
+      return null;
+    }
+
+    var current = this.userStore.findUser(username).orElseThrow();
+    var setup = this.pendingTotpSetups.get(username.toLowerCase());
+    var hasExistingTotp = TwoFactorMethod.parse(current.twoFactorMethod()) == TwoFactorMethod.TOTP
+      && current.twoFactorSecret() != null
+      && !current.twoFactorSecret().isBlank();
+    var code = this.textOrNull(request, "twoFactorTotpCode");
+    if ((setup == null || Instant.parse(setup.expiresAt()).isBefore(Instant.now()) || code == null) && hasExistingTotp) {
+      return current.twoFactorSecret();
+    }
+    if (setup == null || Instant.parse(setup.expiresAt()).isBefore(Instant.now())) {
+      this.pendingTotpSetups.remove(username.toLowerCase());
+      throw new IllegalArgumentException("Bitte bereite zuerst die Authenticator-App vor.");
+    }
+
+    if (!TotpService.verify(code, setup.secret())) {
+      throw new IllegalArgumentException("Authenticator-Code ist falsch.");
+    }
+
+    this.pendingTotpSetups.remove(username.toLowerCase());
+    return setup.secret();
   }
 
   public List<GroupView> listGroups() {
@@ -221,6 +372,8 @@ public final class PanelSecurityService {
       user.email(),
       user.minecraftName(),
       user.minecraftUniqueId(),
+      TwoFactorMethod.parse(user.twoFactorMethod()).name(),
+      TwoFactorMethod.parse(user.twoFactorMethod()).enabled(),
       user.groups() == null ? List.of() : user.groups(),
       user.enabled(),
       this.userStore.permissionsFor(user),
@@ -269,6 +422,48 @@ public final class PanelSecurityService {
     return value == null || value.isBlank() ? null : value.trim();
   }
 
+  private void cleanupTwoFactorChallenges() {
+    var now = Instant.now();
+    this.twoFactorChallenges.entrySet().removeIf(entry -> Instant.parse(entry.getValue().expiresAt()).isBefore(now));
+  }
+
+  private String randomSixDigitCode() {
+    return String.format("%06d", RANDOM.nextInt(1_000_000));
+  }
+
+  private static String maskedEmail(String email) {
+    if (email == null || !email.contains("@")) {
+      return "hinterlegte E-Mail";
+    }
+    var parts = email.split("@", 2);
+    var local = parts[0];
+    if (local.isBlank()) {
+      return "***@" + parts[1];
+    }
+    var maskedLocal = local.length() <= 2
+      ? local.charAt(0) + "*"
+      : local.substring(0, 2) + "*".repeat(Math.min(6, local.length() - 2));
+    return maskedLocal + "@" + parts[1];
+  }
+
+  private static String sha256(String value) {
+    try {
+      var digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+      return HexFormat.of().formatHex(digest);
+    } catch (Exception exception) {
+      throw new IllegalStateException("Code konnte nicht verarbeitet werden.", exception);
+    }
+  }
+
+  private static boolean secureEquals(String left, String right) {
+    if (left == null || right == null) {
+      return false;
+    }
+    return MessageDigest.isEqual(
+      left.getBytes(StandardCharsets.UTF_8),
+      right.getBytes(StandardCharsets.UTF_8));
+  }
+
   private String newToken() {
     var bytes = new byte[32];
     RANDOM.nextBytes(bytes);
@@ -278,7 +473,12 @@ public final class PanelSecurityService {
   public record LoginView(
     String token,
     UserView user,
-    List<PanelPermission.PermissionView> availablePermissions
+    List<PanelPermission.PermissionView> availablePermissions,
+    boolean twoFactorRequired,
+    String twoFactorChallengeId,
+    String twoFactorMethod,
+    String twoFactorDestination,
+    String message
   ) {
   }
 
@@ -302,6 +502,8 @@ public final class PanelSecurityService {
     String email,
     String minecraftName,
     String minecraftUniqueId,
+    String twoFactorMethod,
+    boolean twoFactorEnabled,
     List<String> groups,
     boolean enabled,
     List<String> permissions,
@@ -317,6 +519,34 @@ public final class PanelSecurityService {
     boolean system,
     String createdAt,
     String updatedAt
+  ) {
+  }
+
+  public record TotpSetupView(
+    String secret,
+    String otpauthUri,
+    String expiresAt
+  ) {
+  }
+
+  private record TwoFactorChallenge(
+    String id,
+    String username,
+    TwoFactorMethod method,
+    String codeHash,
+    String expiresAt,
+    int attempts
+  ) {
+
+    private TwoFactorChallenge incrementAttempts() {
+      return new TwoFactorChallenge(this.id, this.username, this.method, this.codeHash, this.expiresAt, this.attempts + 1);
+    }
+  }
+
+  private record PendingTotpSetup(
+    String username,
+    String secret,
+    String expiresAt
   ) {
   }
 }

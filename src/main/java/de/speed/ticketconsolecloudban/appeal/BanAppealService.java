@@ -65,7 +65,7 @@ public final class BanAppealService {
     var videoLink = nullable(form.field("videoLink"));
 
     if (!EMAIL_PATTERN.matcher(email).matches()) {
-      throw new IllegalArgumentException("Bitte gib eine gueltige E-Mail-Adresse an.");
+      throw new IllegalArgumentException("Bitte gib eine gültige E-Mail-Adresse an.");
     }
 
     this.liteBansDatabaseSyncService.syncIfStale("litebans-mysql-appeal", Duration.ofSeconds(30));
@@ -75,7 +75,7 @@ public final class BanAppealService {
 
     this.appealStore.findByBanAndPlayer(publicBanId, playerName)
       .ifPresent(existing -> {
-        throw new IllegalArgumentException("Fuer diese Random Ban-ID und diesen Spielernamen existiert bereits ein Antrag.");
+        throw new IllegalArgumentException("Für diese Random Ban-ID und diesen Spielernamen existiert bereits ein Antrag.");
       });
 
     var files = form.files().stream()
@@ -123,7 +123,7 @@ public final class BanAppealService {
 
   public AppealStatusView status(String token) {
     var appeal = this.appealStore.findByToken(token)
-      .orElseThrow(() -> new IllegalArgumentException("Statuslink ist ungueltig."));
+      .orElseThrow(() -> new IllegalArgumentException("Statuslink ist ungültig."));
     return new AppealStatusView(
       appeal.id(),
       appeal.statusToken(),

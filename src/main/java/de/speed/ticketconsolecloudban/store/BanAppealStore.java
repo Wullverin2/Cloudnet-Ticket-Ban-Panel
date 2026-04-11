@@ -65,7 +65,7 @@ public final class BanAppealStore {
   ) {
     this.findByBanAndPlayer(publicBanId, playerName)
       .ifPresent(existing -> {
-        throw new IllegalArgumentException("Fuer diese Ban-ID und diesen Spielernamen existiert bereits ein Entbannungsantrag.");
+        throw new IllegalArgumentException("Für diese Ban-ID und diesen Spielernamen existiert bereits ein Entbannungsantrag.");
       });
 
     var now = Instant.now().toString();

@@ -7,9 +7,10 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel für:
 - Services starten, stoppen, neustarten und löschen
 - Konsolen-Logs pro Service ansehen und Befehle senden
 - Cluster-Nodes im Panel anzeigen
-- Tickets erstellen, kommentieren, zuweisen, abschliessen und archivieren
+- Tickets erstellen, kommentieren, zuweisen, abschließen und archivieren
 - Zentrale Cloud-Bans anlegen und deaktivieren
 - Panel-Login mit Benutzern, Gruppen und Rechteverwaltung
+- Optionale 2-Faktor-Authentifikation pro Panel-Benutzer per E-Mail-Code oder Google Authenticator App
 - Benutzerprofil mit E-Mail für Passwort-vergessen-Prozesse und optionalem Minecraft-Account
 - Auditlogs und Archivansichten für Tickets und Entbannungsanträge
 - LiteBans-Unterseite mit synchronisierten LiteBans-Bans
@@ -37,6 +38,7 @@ Das Panel ist bewusst als MVP gebaut:
 - Geschlossene Tickets werden im Ticket-Archiv angezeigt
 - Cloud-Ban-Verwaltung ist vorhanden
 - Panel-Login mit Gruppenrechten ist vorhanden
+- Benutzer können 2FA im eigenen Profil aktivieren und zwischen E-Mail-Code oder Google Authenticator App wählen
 - LiteBans-Bans können über das Velocity-Plugin ins Panel synchronisiert werden
 - LiteBans-Unban und -Verlängerung laufen über eine Panel-Aktionsqueue, die Velocity abarbeitet
 - Entbannungsanträge prüfen die Random-LiteBans-ID gegen den Spielernamen und erlauben nur einen Antrag je Ban-ID/Spieler
@@ -213,7 +215,7 @@ Mailserver- und LiteBans-Datenbankwerte können im Webpanel unter `Einstellungen
 
 Panel-Titel, Logo-URL sowie Statusnamen und Statustexte für Entbannungsanträge können ebenfalls im Einstellungstab geändert werden. Das Logo wird als externe URL hinterlegt und direkt im Panel, auf der Entbannungsseite und in HTML-Mails verwendet.
 
-Wenn `smtpEnabled=false` ist, werden Passwort-Reset-Links nicht per Mail versendet, sondern sicherheitshalber im CloudNet-Log ausgegeben. Für produktiven Betrieb solltest du `publicBaseUrl` auf deine Panel-Domain setzen und SMTP aktivieren.
+Wenn `smtpEnabled=false` ist, werden Passwort-Reset-Links nicht per Mail versendet, sondern sicherheitshalber im CloudNet-Log ausgegeben. Für produktiven Betrieb solltest du `publicBaseUrl` auf deine Panel-Domain setzen und SMTP aktivieren. E-Mail-2FA nutzt dieselben SMTP-Einstellungen und sollte nur aktiviert werden, wenn der Mailversand funktioniert.
 
 ## Entbannungsformular
 
@@ -238,7 +240,7 @@ Evidence-Speicher:
 
 - `LOCAL` speichert Dateien im Modul-Datenordner unter `appeal-evidence`.
 - `SFTP` speichert Dateien auf einem externen SFTP-Server. Dafür müssen Host, Benutzer und Passwort oder Private-Key-Pfad gesetzt sein.
-- `ONEDRIVE` nutzt eine konfigurierte Microsoft-Graph-Upload-URL-Vorlage. Die Vorlage muss `{filename}` enthalten und ein gueltiger Bearer Token muss gesetzt sein.
+- `ONEDRIVE` nutzt eine konfigurierte Microsoft-Graph-Upload-URL-Vorlage. Die Vorlage muss `{filename}` enthalten und ein gültiger Bearer Token muss gesetzt sein.
 
 Beispiel OneDrive-URL-Vorlage:
 
@@ -469,6 +471,8 @@ Für dein Setup mit mehreren Rootservern gilt:
 - `GET /api/permissions/audit`
 - `PUT /api/auth/profile`
 - `POST /api/auth/password`
+- `POST /api/auth/2fa/setup`
+- `POST /api/auth/2fa/verify`
 - `GET /api/security/users`
 - `POST /api/security/users`
 - `PUT /api/security/users/{username}`

@@ -102,6 +102,15 @@ public final class PanelHttpServer {
 
     if (segments.size() == 4
       && "auth".equals(segments.get(1))
+      && "2fa".equals(segments.get(2))
+      && "verify".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.security.verifyTwoFactor(HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
+    if (segments.size() == 4
+      && "auth".equals(segments.get(1))
       && "password-reset".equals(segments.get(2))
       && "request".equals(segments.get(3))
       && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
@@ -143,6 +152,15 @@ public final class PanelHttpServer {
         HttpExchangeUtils.writeJson(exchange, 200, this.security.changeOwnPassword(principal, HttpExchangeUtils.readJson(exchange)));
         return;
       }
+    }
+
+    if (segments.size() == 4
+      && "auth".equals(segments.get(1))
+      && "2fa".equals(segments.get(2))
+      && "setup".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.security.prepareTotpSetup(principal));
+      return;
     }
 
     if (segments.size() >= 2 && "security".equals(segments.get(1))) {

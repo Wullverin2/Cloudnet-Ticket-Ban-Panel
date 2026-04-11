@@ -37,20 +37,20 @@ public final class SmtpMailService {
       return;
     }
 
-    var subject = this.brandName() + " Passwort zuruecksetzen";
+    var subject = this.brandName() + " Passwort zurücksetzen";
     var body = "Hallo,\r\n\r\n"
       + "für dein " + this.brandName() + " Panel wurde ein Passwort-Reset angefordert.\r\n"
-      + "Oeffne diesen Link, um ein neues Passwort zu setzen:\r\n\r\n"
+      + "Öffne diesen Link, um ein neues Passwort zu setzen:\r\n\r\n"
       + resetUrl + "\r\n\r\n"
-      + "Gueltig bis: " + expiresAt + "\r\n"
+      + "Gültig bis: " + expiresAt + "\r\n"
       + "Wenn du das nicht warst, kannst du diese Mail ignorieren.\r\n";
     var html = this.mailHtml(
       "Panel Sicherheit",
-      "Passwort zuruecksetzen",
-      "<p style=\"margin:0 0 14px;color:#d7e2ea;line-height:1.55;\">Fuer dein <strong>"
+      "Passwort zurücksetzen",
+      "<p style=\"margin:0 0 14px;color:#d7e2ea;line-height:1.55;\">Für dein <strong>"
         + escapeHtml(this.brandName())
         + "</strong> Panel wurde ein Passwort-Reset angefordert.</p>"
-        + "<p style=\"margin:0;color:#9eb0bc;line-height:1.55;\">Der Link ist gueltig bis <strong style=\"color:#f5f0e7;\">"
+        + "<p style=\"margin:0;color:#9eb0bc;line-height:1.55;\">Der Link ist gültig bis <strong style=\"color:#f5f0e7;\">"
         + escapeHtml(expiresAt)
         + "</strong>. Wenn du das nicht warst, kannst du diese Mail ignorieren.</p>",
       resetUrl,
@@ -61,6 +61,39 @@ public final class SmtpMailService {
       this.send(recipient, subject, body, html);
     } catch (IOException exception) {
       throw new IllegalStateException("Reset-Mail konnte nicht gesendet werden: " + exception.getMessage(), exception);
+    }
+  }
+
+  public void sendTwoFactorCode(String recipient, String code, String expiresAt) {
+    if (!this.enabled()) {
+      return;
+    }
+
+    var subject = this.brandName() + " 2FA-Code";
+    var body = "Hallo,\r\n\r\n"
+      + "dein Login-Code lautet: " + code + "\r\n"
+      + "Gültig bis: " + expiresAt + "\r\n\r\n"
+      + "Wenn du dich nicht gerade angemeldet hast, ändere bitte dein Passwort.\r\n";
+    var html = this.mailHtml(
+      "Panel Sicherheit",
+      "Dein 2FA-Code",
+      "<p style=\"margin:0 0 14px;color:#d7e2ea;line-height:1.55;\">Mit diesem Code schließt du den Login in dein <strong>"
+        + escapeHtml(this.brandName())
+        + "</strong> Panel ab.</p>"
+        + "<p style=\"margin:18px 0;padding:16px 18px;border-radius:18px;background:rgba(244,188,70,.12);border:1px solid rgba(244,188,70,.35);color:#f4bc46;font-size:30px;font-weight:900;letter-spacing:.22em;text-align:center;\">"
+        + escapeHtml(code)
+        + "</p>"
+        + "<p style=\"margin:0;color:#9eb0bc;line-height:1.55;\">Der Code ist gültig bis <strong style=\"color:#f5f0e7;\">"
+        + escapeHtml(expiresAt)
+        + "</strong>. Wenn du das nicht warst, ändere bitte dein Passwort.</p>",
+      null,
+      null,
+      "Craftplay Panel");
+
+    try {
+      this.send(recipient, subject, body, html);
+    } catch (IOException exception) {
+      throw new IllegalStateException("2FA-Mail konnte nicht gesendet werden: " + exception.getMessage(), exception);
     }
   }
 

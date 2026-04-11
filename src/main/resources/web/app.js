@@ -38,6 +38,7 @@ const state = {
   selectedPermissionSubject: localStorage.getItem("tccb-lp-subject") || "",
   selectedTaskName: localStorage.getItem("tccb-task") || "",
   selectedService: null,
+  twoFactorChallengeId: "",
   activePage: localStorage.getItem("tccb-page") || "home",
   consoleTimer: null,
   consoleRequestInFlight: false,
@@ -61,6 +62,10 @@ function bindElements() {
   elements.authStatus = document.getElementById("auth-status");
   elements.loginUsername = document.getElementById("login-username");
   elements.loginPassword = document.getElementById("login-password");
+  elements.twoFactorForm = document.getElementById("two-factor-form");
+  elements.twoFactorCode = document.getElementById("two-factor-code");
+  elements.twoFactorHint = document.getElementById("two-factor-hint");
+  elements.twoFactorCancel = document.getElementById("two-factor-cancel");
   elements.resetRequestForm = document.getElementById("reset-request-form");
   elements.resetCompleteForm = document.getElementById("reset-complete-form");
   elements.resetStatus = document.getElementById("reset-status");
@@ -71,6 +76,11 @@ function bindElements() {
   elements.profileForm = document.getElementById("profile-form");
   elements.passwordForm = document.getElementById("password-form");
   elements.profileStatus = document.getElementById("profile-status");
+  elements.twoFactorMethod = document.getElementById("two-factor-method");
+  elements.totpSetupButton = document.getElementById("totp-setup-button");
+  elements.totpSetupCard = document.getElementById("totp-setup-card");
+  elements.totpSecret = document.getElementById("totp-secret");
+  elements.totpUri = document.getElementById("totp-uri");
   elements.pageNav = document.getElementById("page-nav");
   elements.summaryGrid = document.getElementById("summary-grid");
 
@@ -163,11 +173,15 @@ function bindElements() {
 
 function bindEvents() {
   elements.loginForm.addEventListener("submit", handleLoginSubmit);
+  elements.twoFactorForm.addEventListener("submit", handleTwoFactorSubmit);
+  elements.twoFactorCancel.addEventListener("click", cancelTwoFactorLogin);
   elements.resetRequestForm.addEventListener("submit", handleResetRequestSubmit);
   elements.resetCompleteForm.addEventListener("submit", handleResetCompleteSubmit);
   elements.logoutButton.addEventListener("click", handleLogout);
   elements.profileForm.addEventListener("submit", handleProfileSubmit);
   elements.passwordForm.addEventListener("submit", handlePasswordSubmit);
+  elements.twoFactorMethod.addEventListener("change", updateTwoFactorProfileControls);
+  elements.totpSetupButton.addEventListener("click", prepareTotpSetup);
   elements.pageNav.addEventListener("click", handlePageNavClick);
   elements.homePanel.addEventListener("click", handleHomePanelClick);
   elements.homeRefresh.addEventListener("click", refreshAll);
@@ -287,18 +301,70 @@ async function handleLoginSubmit(event) {
         password: elements.loginPassword.value,
       },
     });
-    state.token = result.token;
-    localStorage.setItem("tccb-session", state.token);
     elements.loginPassword.value = "";
-    applySession({ apiToken: false, user: result.user, availablePermissions: result.availablePermissions });
-    showPanel();
-    await refreshAll();
-    startConsolePolling();
-    setStatus(elements.authStatus, "Login erfolgreich. Panel ist verbunden.", false);
+    if (result.twoFactorRequired) {
+      showTwoFactorPrompt(result);
+      return;
+    }
+    await completeLogin(result);
   } catch (error) {
     clearSession();
     showLogin(error.message, true);
   }
+}
+
+async function handleTwoFactorSubmit(event) {
+  event.preventDefault();
+  if (!state.twoFactorChallengeId) {
+    showLogin("Bitte melde dich erneut an.", true);
+    return;
+  }
+
+  try {
+    const result = await api("/api/auth/2fa/verify", {
+      method: "POST",
+      auth: false,
+      body: {
+        challengeId: state.twoFactorChallengeId,
+        code: elements.twoFactorCode.value.trim(),
+      },
+    });
+    elements.twoFactorCode.value = "";
+    state.twoFactorChallengeId = "";
+    await completeLogin(result);
+  } catch (error) {
+    setStatus(elements.authStatus, error.message, true);
+  }
+}
+
+async function completeLogin(result) {
+  state.token = result.token;
+  localStorage.setItem("tccb-session", state.token);
+  applySession({ apiToken: false, user: result.user, availablePermissions: result.availablePermissions });
+  showPanel();
+  await refreshAll();
+  startConsolePolling();
+  setStatus(elements.authStatus, "Login erfolgreich. Panel ist verbunden.", false);
+}
+
+function showTwoFactorPrompt(result) {
+  state.twoFactorChallengeId = result.twoFactorChallengeId || "";
+  elements.loginForm.classList.add("hidden");
+  elements.twoFactorForm.classList.remove("hidden");
+  elements.twoFactorCode.value = "";
+  elements.twoFactorCode.focus();
+  const method = result.twoFactorMethod === "EMAIL" ? "E-Mail" : "Authenticator-App";
+  const destination = result.twoFactorDestination ? ` (${result.twoFactorDestination})` : "";
+  elements.twoFactorHint.textContent = `${result.message || "Bitte gib deinen 2FA-Code ein."} Methode: ${method}${destination}.`;
+  setStatus(elements.authStatus, "2FA-Code erforderlich.", false);
+}
+
+function cancelTwoFactorLogin() {
+  state.twoFactorChallengeId = "";
+  elements.twoFactorCode.value = "";
+  elements.twoFactorForm.classList.add("hidden");
+  elements.loginForm.classList.remove("hidden");
+  setStatus(elements.authStatus, "Bitte mit einem Panel-Benutzer anmelden.", false);
 }
 
 async function handleLogout() {
@@ -367,10 +433,29 @@ async function handleProfileSubmit(event) {
         email: String(form.get("email") || "").trim(),
         minecraftName: String(form.get("minecraftName") || "").trim(),
         minecraftUniqueId: String(form.get("minecraftUniqueId") || "").trim(),
+        twoFactorMethod: String(form.get("twoFactorMethod") || "NONE").trim(),
+        twoFactorTotpCode: String(form.get("twoFactorTotpCode") || "").trim(),
       },
     });
     applySession({ ...state.session, user });
+    elements.totpSetupCard.classList.add("hidden");
+    elements.totpSecret.value = "";
+    elements.totpUri.value = "";
+    elements.profileForm.elements.twoFactorTotpCode.value = "";
     setStatus(elements.profileStatus, "Profil gespeichert.", false);
+  } catch (error) {
+    handleApiError(error, elements.profileStatus);
+  }
+}
+
+async function prepareTotpSetup() {
+  try {
+    const setup = await api("/api/auth/2fa/setup", { method: "POST" });
+    elements.totpSecret.value = setup.secret || "";
+    elements.totpUri.value = setup.otpauthUri || "";
+    elements.totpSetupCard.classList.remove("hidden");
+    elements.profileForm.elements.twoFactorTotpCode.focus();
+    setStatus(elements.profileStatus, "Authenticator vorbereitet. Code aus der App eintragen und Profil speichern.", false);
   } catch (error) {
     handleApiError(error, elements.profileStatus);
   }
@@ -405,10 +490,44 @@ function applySession(session) {
   elements.profileForm.elements.email.value = session.user.email || "";
   elements.profileForm.elements.minecraftName.value = session.user.minecraftName || "";
   elements.profileForm.elements.minecraftUniqueId.value = session.user.minecraftUniqueId || "";
+  elements.profileForm.elements.twoFactorMethod.value = session.user.twoFactorMethod || "NONE";
+  elements.profileForm.elements.twoFactorTotpCode.value = "";
+  updateTwoFactorProfileControls();
+}
+
+function updateTwoFactorProfileControls() {
+  const method = elements.twoFactorMethod.value || "NONE";
+  const currentMethod = state.currentUser?.twoFactorMethod || "NONE";
+  const needsTotpSetup = method === "TOTP" && currentMethod !== "TOTP";
+  elements.totpSetupButton.classList.toggle("hidden", method !== "TOTP");
+  elements.totpSetupButton.textContent = currentMethod === "TOTP"
+    ? "Authenticator neu einrichten"
+    : "Authenticator vorbereiten";
+  if (method !== "TOTP") {
+    elements.totpSetupCard.classList.add("hidden");
+    elements.totpSecret.value = "";
+    elements.totpUri.value = "";
+    elements.profileForm.elements.twoFactorTotpCode.value = "";
+  } else if (needsTotpSetup && !elements.totpSecret.value) {
+    elements.totpSetupCard.classList.add("hidden");
+  }
+}
+
+function twoFactorMethodLabel(method) {
+  switch (String(method || "NONE").toUpperCase()) {
+    case "EMAIL":
+      return "E-Mail";
+    case "TOTP":
+      return "Authenticator-App";
+    default:
+      return "aus";
+  }
 }
 
 function showLogin(message, isError) {
   elements.authForm.classList.remove("hidden");
+  elements.loginForm.classList.remove("hidden");
+  elements.twoFactorForm.classList.add("hidden");
   elements.userCard.classList.add("hidden");
   elements.pageNav.classList.add("hidden");
   elements.summaryGrid.classList.add("hidden");
@@ -418,6 +537,7 @@ function showLogin(message, isError) {
 
 function showPanel() {
   elements.authForm.classList.add("hidden");
+  elements.twoFactorForm.classList.add("hidden");
   elements.userCard.classList.remove("hidden");
   elements.pageNav.classList.remove("hidden");
   elements.summaryGrid.classList.remove("hidden");
@@ -444,6 +564,7 @@ function clearSession() {
   state.permissionAudit = [];
   state.settings = null;
   state.selectedPermissionSubject = "";
+  state.twoFactorChallengeId = "";
   localStorage.removeItem("tccb-session");
   if (state.consoleTimer) {
     clearInterval(state.consoleTimer);
@@ -1126,7 +1247,8 @@ function renderUsers() {
       <td>
         <span class="badge ${user.enabled ? "badge-success" : "badge-danger"}">
           ${user.enabled ? "aktiv" : "deaktiviert"}
-        </span>
+        </span><br>
+        <span class="muted">2FA: ${escapeHtml(twoFactorMethodLabel(user.twoFactorMethod))}</span>
       </td>
       <td>${escapeHtml(user.lastLoginAt || "-")}</td>
       <td>
@@ -2462,7 +2584,7 @@ function formatDateTime(value) {
 function handleApiError(error, statusElement) {
   if (String(error.message).includes("Nicht autorisiert")) {
     clearSession();
-    showLogin("Session ungueltig oder abgelaufen. Bitte neu einloggen.", true);
+    showLogin("Session ungültig oder abgelaufen. Bitte neu einloggen.", true);
     return;
   }
   if (statusElement) {

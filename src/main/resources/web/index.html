@@ -31,6 +31,12 @@
           <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Passwort">
           <button type="submit">Einloggen</button>
         </form>
+        <form id="two-factor-form" class="auth-stack hidden">
+          <p id="two-factor-hint" class="muted">Bitte gib deinen 2FA-Code ein.</p>
+          <input id="two-factor-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="2FA-Code">
+          <button type="submit">Login bestätigen</button>
+          <button id="two-factor-cancel" class="ghost-button" type="button">Zurück zum Login</button>
+        </form>
         <p id="auth-status" class="muted">Bitte mit einem Panel-Benutzer anmelden.</p>
         <details class="profile-details">
           <summary>Passwort vergessen</summary>
@@ -57,6 +63,27 @@
             <input name="email" type="email" placeholder="E-Mail für Passwort vergessen">
             <input name="minecraftName" type="text" placeholder="Minecraft Name für später">
             <input name="minecraftUniqueId" type="text" placeholder="Minecraft UUID optional">
+            <label>
+              <span>2-Faktor-Authentifikation</span>
+              <select name="twoFactorMethod" id="two-factor-method">
+                <option value="NONE">Deaktiviert</option>
+                <option value="EMAIL">E-Mail-Code</option>
+                <option value="TOTP">Google Authenticator App</option>
+              </select>
+            </label>
+            <div id="totp-setup-card" class="two-factor-setup hidden">
+              <p class="muted">Scanne die otpauth-URI in deiner Authenticator-App oder trage den Schlüssel manuell ein. Danach gib den 6-stelligen Code ein und speichere dein Profil.</p>
+              <label>
+                <span>Authenticator Schlüssel</span>
+                <input id="totp-secret" type="text" readonly>
+              </label>
+              <label>
+                <span>otpauth URI</span>
+                <input id="totp-uri" type="text" readonly>
+              </label>
+              <input name="twoFactorTotpCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="Code aus der App">
+            </div>
+            <button id="totp-setup-button" class="ghost-button hidden" type="button">Authenticator vorbereiten</button>
             <button type="submit">Profil speichern</button>
           </form>
           <form id="password-form" class="auth-stack">

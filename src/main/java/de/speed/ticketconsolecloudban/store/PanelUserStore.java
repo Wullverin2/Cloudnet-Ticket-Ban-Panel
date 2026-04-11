@@ -5,6 +5,7 @@ import de.speed.ticketconsolecloudban.auth.PanelPermission;
 import de.speed.ticketconsolecloudban.auth.PanelUser;
 import de.speed.ticketconsolecloudban.auth.PanelUserStoreData;
 import de.speed.ticketconsolecloudban.auth.PasswordResetToken;
+import de.speed.ticketconsolecloudban.auth.TwoFactorMethod;
 import eu.cloudnetservice.driver.document.DocumentFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -70,6 +71,11 @@ public final class PanelUserStore {
   }
 
   public synchronized PanelUser authenticate(String username, String password) {
+    var user = this.verifyCredentials(username, password);
+    return this.recordLogin(user.username());
+  }
+
+  public synchronized PanelUser verifyCredentials(String username, String password) {
     var user = this.findUser(username)
       .filter(PanelUser::enabled)
       .orElseThrow(() -> new IllegalArgumentException("Login fehlgeschlagen."));
@@ -78,6 +84,11 @@ public final class PanelUserStore {
       throw new IllegalArgumentException("Login fehlgeschlagen.");
     }
 
+    return user;
+  }
+
+  public synchronized PanelUser recordLogin(String username) {
+    var user = this.requireUser(username);
     var now = Instant.now().toString();
     var updated = new PanelUser(
       user.username(),
@@ -85,6 +96,8 @@ public final class PanelUserStore {
       user.email(),
       user.minecraftName(),
       user.minecraftUniqueId(),
+      normalizedTwoFactorMethod(user.twoFactorMethod()).name(),
+      user.twoFactorSecret(),
       user.passwordHash(),
       user.passwordSalt(),
       user.passwordIterations(),
@@ -122,6 +135,8 @@ public final class PanelUserStore {
       displayName == null || displayName.isBlank() ? normalized : displayName.trim(),
       null,
       null,
+      null,
+      TwoFactorMethod.NONE.name(),
       null,
       passwordMaterial.hash(),
       passwordMaterial.salt(),
@@ -165,6 +180,8 @@ public final class PanelUserStore {
       user.email(),
       user.minecraftName(),
       user.minecraftUniqueId(),
+      normalizedTwoFactorMethod(user.twoFactorMethod()).name(),
+      user.twoFactorSecret(),
       passwordHash,
       passwordSalt,
       passwordIterations,
@@ -180,14 +197,37 @@ public final class PanelUserStore {
     return updated;
   }
 
-  public synchronized PanelUser updateProfile(String username, String email, String minecraftName, String minecraftUniqueId) {
+  public synchronized PanelUser updateProfile(
+    String username,
+    String email,
+    String minecraftName,
+    String minecraftUniqueId,
+    String twoFactorMethod,
+    String twoFactorSecret
+  ) {
     var user = this.requireUser(username);
+    var normalizedEmail = this.nullableText(email);
+    var method = twoFactorMethod == null
+      ? normalizedTwoFactorMethod(user.twoFactorMethod())
+      : TwoFactorMethod.parse(twoFactorMethod);
+    if (method == TwoFactorMethod.EMAIL && normalizedEmail == null) {
+      throw new IllegalArgumentException("Für E-Mail-2FA muss im Profil eine E-Mail-Adresse hinterlegt sein.");
+    }
+    var nextSecret = method == TwoFactorMethod.TOTP
+      ? this.nullableText(twoFactorSecret) == null ? user.twoFactorSecret() : this.nullableText(twoFactorSecret)
+      : null;
+    if (method == TwoFactorMethod.TOTP && (nextSecret == null || nextSecret.isBlank())) {
+      throw new IllegalArgumentException("Für die Authenticator-App muss zuerst ein Schlüssel vorbereitet und bestätigt werden.");
+    }
+
     var updated = new PanelUser(
       user.username(),
       user.displayName(),
-      this.nullableText(email),
+      normalizedEmail,
       this.nullableText(minecraftName),
       this.nullableText(minecraftUniqueId),
+      method.name(),
+      nextSecret,
       user.passwordHash(),
       user.passwordSalt(),
       user.passwordIterations(),
@@ -216,6 +256,8 @@ public final class PanelUserStore {
       user.email(),
       user.minecraftName(),
       user.minecraftUniqueId(),
+      normalizedTwoFactorMethod(user.twoFactorMethod()).name(),
+      user.twoFactorSecret(),
       material.hash(),
       material.salt(),
       material.iterations(),
@@ -271,7 +313,7 @@ public final class PanelUserStore {
     var token = this.passwordResetTokens.stream()
       .filter(entry -> entry.tokenHash().equals(tokenHash))
       .findFirst()
-      .orElseThrow(() -> new IllegalArgumentException("Reset-Token ist ungueltig."));
+      .orElseThrow(() -> new IllegalArgumentException("Reset-Token ist ungültig."));
     if (token.usedAt() != null) {
       throw new IllegalArgumentException("Reset-Token wurde bereits benutzt.");
     }
@@ -287,6 +329,8 @@ public final class PanelUserStore {
       user.email(),
       user.minecraftName(),
       user.minecraftUniqueId(),
+      normalizedTwoFactorMethod(user.twoFactorMethod()).name(),
+      user.twoFactorSecret(),
       material.hash(),
       material.salt(),
       material.iterations(),
@@ -353,7 +397,7 @@ public final class PanelUserStore {
   public synchronized void deleteGroup(String name) {
     var group = this.requireGroup(name);
     if (group.system()) {
-      throw new IllegalArgumentException("Systemgruppen koennen nicht geloescht werden.");
+      throw new IllegalArgumentException("Systemgruppen können nicht gelöscht werden.");
     }
 
     var nextGroups = this.groups.stream()
@@ -367,6 +411,8 @@ public final class PanelUserStore {
       user.email(),
       user.minecraftName(),
       user.minecraftUniqueId(),
+      normalizedTwoFactorMethod(user.twoFactorMethod()).name(),
+      user.twoFactorSecret(),
       user.passwordHash(),
       user.passwordSalt(),
       user.passwordIterations(),
@@ -426,6 +472,27 @@ public final class PanelUserStore {
     throw new IllegalArgumentException("Der Benutzer wurde nicht gefunden.");
   }
 
+  private PanelUser withTwoFactorDefaults(PanelUser user) {
+    var method = normalizedTwoFactorMethod(user.twoFactorMethod());
+    var secret = method == TwoFactorMethod.TOTP ? this.nullableText(user.twoFactorSecret()) : null;
+    return new PanelUser(
+      user.username(),
+      user.displayName(),
+      user.email(),
+      user.minecraftName(),
+      user.minecraftUniqueId(),
+      method.name(),
+      secret,
+      user.passwordHash(),
+      user.passwordSalt(),
+      user.passwordIterations(),
+      user.groups(),
+      user.enabled(),
+      user.createdAt(),
+      user.updatedAt(),
+      user.lastLoginAt());
+  }
+
   private void replaceGroup(PanelGroup updated) {
     for (int index = 0; index < this.groups.size(); index++) {
       if (this.groups.get(index).name().equals(updated.name())) {
@@ -481,6 +548,10 @@ public final class PanelUserStore {
     return value == null || value.isBlank() ? null : value.trim();
   }
 
+  private static TwoFactorMethod normalizedTwoFactorMethod(String value) {
+    return value == null || value.isBlank() ? TwoFactorMethod.NONE : TwoFactorMethod.parse(value);
+  }
+
   private boolean verifyPassword(String password, PanelUser user) {
     if (password == null) {
       return false;
@@ -525,6 +596,7 @@ public final class PanelUserStore {
       this.users.clear();
       if (data.users() != null) {
         this.users.addAll(data.users());
+        this.users.replaceAll(this::withTwoFactorDefaults);
       }
       this.passwordResetTokens.clear();
       if (data.passwordResetTokens() != null) {
@@ -554,6 +626,8 @@ public final class PanelUserStore {
       "Administrator",
       null,
       null,
+      null,
+      TwoFactorMethod.NONE.name(),
       null,
       passwordMaterial.hash(),
       passwordMaterial.salt(),
@@ -619,7 +693,7 @@ public final class PanelUserStore {
         return;
       }
     }
-    throw new IllegalArgumentException("Reset-Token ist ungueltig.");
+    throw new IllegalArgumentException("Reset-Token ist ungültig.");
   }
 
   private static String sha256(String value) {
