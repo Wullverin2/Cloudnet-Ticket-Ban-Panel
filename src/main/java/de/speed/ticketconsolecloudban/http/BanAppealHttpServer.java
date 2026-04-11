@@ -1,0 +1,169 @@
+package de.speed.ticketconsolecloudban.http;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import de.speed.ticketconsolecloudban.appeal.BanAppealService;
+import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public final class BanAppealHttpServer {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(BanAppealHttpServer.class);
+
+  private final PanelConfiguration configuration;
+  private final BanAppealService appealService;
+
+  private HttpServer server;
+  private ExecutorService executor;
+
+  public BanAppealHttpServer(PanelConfiguration configuration, BanAppealService appealService) {
+    this.configuration = configuration;
+    this.appealService = appealService;
+  }
+
+  public void start() {
+    if (!this.configuration.appealEnabled() || this.server != null) {
+      return;
+    }
+
+    try {
+      this.server = HttpServer.create(
+        new InetSocketAddress(this.configuration.appealBindHost(), this.configuration.appealBindPort()),
+        0);
+      this.executor = Executors.newVirtualThreadPerTaskExecutor();
+      this.server.setExecutor(this.executor);
+      this.server.createContext("/", this::handleRequest);
+      this.server.start();
+    } catch (IOException exception) {
+      throw new IllegalStateException("Der Entbannungsantrag-HTTP-Server konnte nicht gestartet werden.", exception);
+    }
+  }
+
+  public void stop() {
+    if (this.server != null) {
+      this.server.stop(0);
+      this.server = null;
+    }
+    if (this.executor != null) {
+      this.executor.shutdownNow();
+      this.executor = null;
+    }
+  }
+
+  private void handleRequest(HttpExchange exchange) throws IOException {
+    HttpExchangeUtils.allowCommonHeaders(exchange.getResponseHeaders());
+
+    if (HttpExchangeUtils.matchesMethod(exchange, "OPTIONS")) {
+      HttpExchangeUtils.sendNoContent(exchange);
+      return;
+    }
+
+    try {
+      var segments = HttpExchangeUtils.pathSegments(exchange);
+      if (segments.size() == 2 && "api".equals(segments.get(0)) && "appeals".equals(segments.get(1))) {
+        this.handleAppealApi(exchange);
+        return;
+      }
+      if (segments.size() == 3
+        && "api".equals(segments.get(0))
+        && "appeals".equals(segments.get(1))
+        && "status".equals(segments.get(2))
+        && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        var query = HttpExchangeUtils.queryParameters(exchange);
+        HttpExchangeUtils.writeJson(exchange, 200, this.appealService.status(query.get("token")));
+        return;
+      }
+      if (segments.isEmpty() || (segments.size() == 1 && ("status".equals(segments.get(0)) || "app.js".equals(segments.get(0))))) {
+        this.writeAppealPage(exchange);
+        return;
+      }
+
+      HttpExchangeUtils.writeText(exchange, 404, "Nicht gefunden", "text/plain; charset=utf-8");
+    } catch (IllegalArgumentException exception) {
+      HttpExchangeUtils.writeJson(exchange, 400, new HttpExchangeUtils.ApiError(exception.getMessage()));
+    } catch (Exception exception) {
+      LOGGER.error("Unbehandelter Fehler im Entbannungsantrag-HTTP-Handler", exception);
+      HttpExchangeUtils.writeJson(exchange, 500, new HttpExchangeUtils.ApiError("Interner Serverfehler"));
+    }
+  }
+
+  private void handleAppealApi(HttpExchange exchange) throws IOException {
+    if (!HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      HttpExchangeUtils.writeJson(exchange, 405, new HttpExchangeUtils.ApiError("Methode nicht erlaubt"));
+      return;
+    }
+
+    var maxRequestBytes = (this.configuration.appealMaxFileBytes() * Math.max(1, this.configuration.appealMaxFiles())) + 512_000L;
+    var body = exchange.getRequestBody().readNBytes((int) Math.min(maxRequestBytes + 1, Integer.MAX_VALUE));
+    if (body.length > maxRequestBytes) {
+      HttpExchangeUtils.writeJson(exchange, 413, new HttpExchangeUtils.ApiError("Upload ist zu gross."));
+      return;
+    }
+
+    var form = MultipartFormParser.parse(exchange.getRequestHeaders().getFirst("Content-Type"), body);
+    HttpExchangeUtils.writeJson(exchange, 201, this.appealService.submit(form));
+  }
+
+  private void writeAppealPage(HttpExchange exchange) throws IOException {
+    HttpExchangeUtils.writeText(exchange, 200, page(), "text/html; charset=utf-8");
+  }
+
+  private static String page() {
+    return """
+      <!DOCTYPE html>
+      <html lang="de">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Entbannungsantrag</title>
+        <style>
+          :root{--bg:#07131d;--card:#0f1e2b;--line:rgba(244,188,70,.26);--text:#f5f0e7;--muted:#9eb0bc;--accent:#f4bc46;--danger:#ff7268;--success:#7cd7b0}
+          *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at top left,rgba(244,188,70,.16),transparent 34%),linear-gradient(180deg,#07131d,#081019);color:var(--text);font-family:Bahnschrift,Segoe UI,Trebuchet MS,sans-serif}
+          main{width:min(880px,calc(100vw - 28px));margin:0 auto;padding:42px 0}.card{border:1px solid var(--line);border-radius:28px;background:linear-gradient(180deg,rgba(15,30,43,.92),rgba(8,17,26,.96));box-shadow:0 24px 80px rgba(0,0,0,.35);padding:28px}
+          .eyebrow{margin:0 0 8px;color:var(--accent);letter-spacing:.2em;text-transform:uppercase;font-size:.75rem}h1{margin:0 0 12px;font-size:clamp(2rem,5vw,3.8rem);line-height:.95}.muted{color:var(--muted)}form{display:grid;gap:16px;margin-top:22px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}label{display:grid;gap:8px}input,textarea,button{border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:13px 14px;background:rgba(6,11,17,.72);color:var(--text);font:inherit}textarea{min-height:140px;resize:vertical}.full{grid-column:1/-1}button{cursor:pointer;border:0;background:linear-gradient(135deg,var(--accent),#ff9f43);color:#1d1406;font-weight:800}.status{margin-top:16px}.error{color:var(--danger)}.success{color:var(--success)}.hidden{display:none!important}.status-box{display:grid;gap:10px;margin-top:20px;padding:18px;border-radius:18px;background:rgba(255,255,255,.04)}
+          @media(max-width:720px){.grid{grid-template-columns:1fr}.card{padding:20px}}
+        </style>
+      </head>
+      <body>
+        <main>
+          <section class="card" id="form-card">
+            <p class="eyebrow">Ban Appeal</p>
+            <h1>Entbannungsantrag</h1>
+            <p class="muted">Gib die Random Ban-ID aus deiner Ban-Nachricht und deinen Spielernamen ein. Beides muss zusammenpassen.</p>
+            <form id="appeal-form">
+              <div class="grid">
+                <label><span>Random Ban-ID</span><input name="banId" required placeholder="z.B. A7K9Q2"></label>
+                <label><span>Spielername</span><input name="playerName" required placeholder="Dein Minecraft Name"></label>
+                <label><span>E-Mail</span><input name="email" type="email" required placeholder="name@example.com"></label>
+                <label><span>Video-Link optional</span><input name="videoLink" type="url" placeholder="https://youtu.be/..."></label>
+                <label class="full"><span>Begruendung</span><textarea name="reason" required placeholder="Warum soll dein Ban aufgehoben werden?"></textarea></label>
+                <label class="full"><span>Beweise hochladen optional</span><input name="evidence" type="file" multiple></label>
+              </div>
+              <button type="submit">Antrag absenden</button>
+            </form>
+            <p id="form-status" class="status muted"></p>
+          </section>
+          <section class="card hidden" id="status-card">
+            <p class="eyebrow">Status</p>
+            <h1>Dein Antrag</h1>
+            <div id="status-output" class="status-box muted">Status wird geladen.</div>
+          </section>
+        </main>
+        <script>
+          const formCard=document.getElementById('form-card');const statusCard=document.getElementById('status-card');const form=document.getElementById('appeal-form');const formStatus=document.getElementById('form-status');const output=document.getElementById('status-output');
+          const params=new URLSearchParams(location.search);const token=params.get('token');
+          if(token){formCard.classList.add('hidden');statusCard.classList.remove('hidden');loadStatus(token);}
+          form.addEventListener('submit',async event=>{event.preventDefault();formStatus.textContent='Antrag wird gesendet...';formStatus.className='status muted';try{const response=await fetch('/api/appeals',{method:'POST',body:new FormData(form)});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Antrag konnte nicht gesendet werden.');form.reset();formStatus.textContent=data.message||'Antrag wurde eingereicht.';formStatus.className='status success';if(data.statusUrl){history.replaceState(null,'',data.statusUrl);}}catch(error){formStatus.textContent=error.message;formStatus.className='status error';}});
+          async function loadStatus(token){try{const response=await fetch('/api/appeals/status?token='+encodeURIComponent(token));const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Status konnte nicht geladen werden.');output.innerHTML='<strong>Status: '+escapeHtml(data.status||'-')+'</strong><span>Random Ban-ID: '+escapeHtml(data.publicBanId||'-')+'</span><span>Spieler: '+escapeHtml(data.playerName||'-')+'</span><span>Eingereicht: '+escapeHtml(data.createdAt||'-')+'</span>'+(data.teamNote?'<span>Team-Notiz: '+escapeHtml(data.teamNote)+'</span>':'');}catch(error){output.textContent=error.message;output.className='status-box error';}}
+          function escapeHtml(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;");}
+        </script>
+      </body>
+      </html>
+      """;
+  }
+}

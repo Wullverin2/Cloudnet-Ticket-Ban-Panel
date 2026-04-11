@@ -20,7 +20,23 @@ public record PanelConfiguration(
   String smtpFrom,
   boolean smtpStartTls,
   boolean smtpSsl,
-  int passwordResetTokenMinutes
+  int passwordResetTokenMinutes,
+  boolean appealEnabled,
+  String appealBindHost,
+  int appealBindPort,
+  String appealPublicBaseUrl,
+  int appealMaxFiles,
+  long appealMaxFileBytes,
+  String appealEvidenceStorage,
+  String appealEvidenceLocalDirectory,
+  String appealEvidenceSftpHost,
+  int appealEvidenceSftpPort,
+  String appealEvidenceSftpUsername,
+  String appealEvidenceSftpPassword,
+  String appealEvidenceSftpPrivateKeyPath,
+  String appealEvidenceSftpRemoteDirectory,
+  String appealEvidenceOneDriveUploadUrlTemplate,
+  String appealEvidenceOneDriveBearerToken
 ) {
 
   private static final SecureRandom RANDOM = new SecureRandom();
@@ -41,7 +57,23 @@ public record PanelConfiguration(
       "panel@example.com",
       true,
       false,
-      30);
+      30,
+      true,
+      "0.0.0.0",
+      8090,
+      "http://127.0.0.1:8090",
+      3,
+      10L * 1024L * 1024L,
+      "LOCAL",
+      "appeal-evidence",
+      "",
+      22,
+      "",
+      "",
+      "",
+      "/appeals",
+      "",
+      "");
   }
 
   public PanelConfiguration normalize() {
@@ -56,6 +88,20 @@ public record PanelConfiguration(
     var normalizedSmtpPort = this.smtpPort > 0 && this.smtpPort <= 0xFFFF ? this.smtpPort : 587;
     var normalizedSmtpFrom = this.smtpFrom == null || this.smtpFrom.isBlank() ? "panel@example.com" : this.smtpFrom.trim();
     var normalizedResetMinutes = clamp(this.passwordResetTokenMinutes, 5, 240);
+    var normalizedAppealHost = this.appealBindHost == null || this.appealBindHost.isBlank() ? "0.0.0.0" : this.appealBindHost.trim();
+    var normalizedAppealPort = this.appealBindPort > 0 && this.appealBindPort <= 0xFFFF ? this.appealBindPort : 8090;
+    var normalizedAppealBaseUrl = this.appealPublicBaseUrl == null || this.appealPublicBaseUrl.isBlank()
+      ? "http://127.0.0.1:" + normalizedAppealPort
+      : this.appealPublicBaseUrl.trim().replaceAll("/+$", "");
+    var normalizedMaxFiles = clamp(this.appealMaxFiles, 0, 10);
+    var normalizedMaxFileBytes = this.appealMaxFileBytes <= 0 ? 10L * 1024L * 1024L : Math.min(this.appealMaxFileBytes, 100L * 1024L * 1024L);
+    var normalizedEvidenceStorage = this.appealEvidenceStorage == null || this.appealEvidenceStorage.isBlank()
+      ? "LOCAL"
+      : this.appealEvidenceStorage.trim().toUpperCase();
+    var normalizedLocalDirectory = this.appealEvidenceLocalDirectory == null || this.appealEvidenceLocalDirectory.isBlank()
+      ? "appeal-evidence"
+      : this.appealEvidenceLocalDirectory.trim();
+    var normalizedSftpPort = this.appealEvidenceSftpPort > 0 && this.appealEvidenceSftpPort <= 0xFFFF ? this.appealEvidenceSftpPort : 22;
 
     var normalizedTokens = new ArrayList<String>();
     if (this.apiTokens != null) {
@@ -85,7 +131,25 @@ public record PanelConfiguration(
       normalizedSmtpFrom,
       this.smtpStartTls,
       this.smtpSsl,
-      normalizedResetMinutes);
+      normalizedResetMinutes,
+      this.appealEnabled,
+      normalizedAppealHost,
+      normalizedAppealPort,
+      normalizedAppealBaseUrl,
+      normalizedMaxFiles,
+      normalizedMaxFileBytes,
+      normalizedEvidenceStorage,
+      normalizedLocalDirectory,
+      this.appealEvidenceSftpHost == null ? "" : this.appealEvidenceSftpHost.trim(),
+      normalizedSftpPort,
+      this.appealEvidenceSftpUsername == null ? "" : this.appealEvidenceSftpUsername.trim(),
+      this.appealEvidenceSftpPassword == null ? "" : this.appealEvidenceSftpPassword,
+      this.appealEvidenceSftpPrivateKeyPath == null ? "" : this.appealEvidenceSftpPrivateKeyPath.trim(),
+      this.appealEvidenceSftpRemoteDirectory == null || this.appealEvidenceSftpRemoteDirectory.isBlank()
+        ? "/appeals"
+        : this.appealEvidenceSftpRemoteDirectory.trim(),
+      this.appealEvidenceOneDriveUploadUrlTemplate == null ? "" : this.appealEvidenceOneDriveUploadUrlTemplate.trim(),
+      this.appealEvidenceOneDriveBearerToken == null ? "" : this.appealEvidenceOneDriveBearerToken);
   }
 
   public boolean acceptsToken(String candidate) {

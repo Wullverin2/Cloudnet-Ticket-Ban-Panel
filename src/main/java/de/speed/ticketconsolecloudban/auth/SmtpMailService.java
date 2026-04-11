@@ -37,13 +37,25 @@ public final class SmtpMailService {
       + "Wenn du das nicht warst, kannst du diese Mail ignorieren.\r\n";
 
     try {
-      this.send(recipient, subject, body);
+      this.send(recipient, subject, body, null);
     } catch (IOException exception) {
       throw new IllegalStateException("Reset-Mail konnte nicht gesendet werden: " + exception.getMessage(), exception);
     }
   }
 
-  private void send(String recipient, String subject, String body) throws IOException {
+  public void sendHtml(String recipient, String subject, String textBody, String htmlBody) {
+    if (!this.enabled()) {
+      return;
+    }
+
+    try {
+      this.send(recipient, subject, textBody, htmlBody);
+    } catch (IOException exception) {
+      throw new IllegalStateException("Mail konnte nicht gesendet werden: " + exception.getMessage(), exception);
+    }
+  }
+
+  private void send(String recipient, String subject, String body, String htmlBody) throws IOException {
     try (var socket = this.openSocket()) {
       var session = new Session(socket);
       session.expect(220);
@@ -71,13 +83,34 @@ public final class SmtpMailService {
       session.write("From: " + this.configuration.smtpFrom() + "\r\n"
         + "To: " + recipient + "\r\n"
         + "Subject: " + subject + "\r\n"
-        + "Content-Type: text/plain; charset=UTF-8\r\n"
+        + messageContent(body, htmlBody)
         + "\r\n"
-        + body.replace("\r\n.", "\r\n..")
         + "\r\n.");
       session.expect(250);
       session.command("QUIT", 221);
     }
+  }
+
+  private static String messageContent(String body, String htmlBody) {
+    if (htmlBody == null || htmlBody.isBlank()) {
+      return "Content-Type: text/plain; charset=UTF-8\r\n"
+        + "\r\n"
+        + body.replace("\r\n.", "\r\n..");
+    }
+
+    var boundary = "tccb-" + Long.toHexString(System.nanoTime());
+    return "MIME-Version: 1.0\r\n"
+      + "Content-Type: multipart/alternative; boundary=\"" + boundary + "\"\r\n"
+      + "\r\n"
+      + "--" + boundary + "\r\n"
+      + "Content-Type: text/plain; charset=UTF-8\r\n"
+      + "\r\n"
+      + body.replace("\r\n.", "\r\n..") + "\r\n"
+      + "--" + boundary + "\r\n"
+      + "Content-Type: text/html; charset=UTF-8\r\n"
+      + "\r\n"
+      + htmlBody.replace("\r\n.", "\r\n..") + "\r\n"
+      + "--" + boundary + "--";
   }
 
   private Socket openSocket() throws IOException {

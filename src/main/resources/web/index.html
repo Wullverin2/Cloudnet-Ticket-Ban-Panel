@@ -373,6 +373,7 @@
           <div class="sub-nav" aria-label="Ban Unterseiten">
             <button data-ban-tab="panel" class="active" type="button">Panel-Bans</button>
             <button data-ban-tab="litebans" type="button">LiteBans</button>
+            <button data-ban-tab="appeals" type="button">Entbannungsantraege</button>
             <button data-ban-tab="audit" type="button">Auditlog</button>
           </div>
 
@@ -428,7 +429,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>ID</th>
+                  <th>Random-ID</th>
                   <th>Ziel</th>
                   <th>Status</th>
                   <th>Grund</th>
@@ -453,6 +454,24 @@
                 </tr>
               </thead>
               <tbody id="ban-audit-table"></tbody>
+            </table>
+          </div>
+
+          <div class="table-shell ban-tab-panel hidden" data-ban-panel="appeals">
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Random-ID</th>
+                  <th>Spieler</th>
+                  <th>E-Mail</th>
+                  <th>Begruendung</th>
+                  <th>Beweise</th>
+                  <th>Erstellt</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="ban-appeal-table"></tbody>
             </table>
           </div>
         </article>

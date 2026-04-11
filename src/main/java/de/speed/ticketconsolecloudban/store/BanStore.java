@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public final class BanStore {
@@ -38,6 +39,16 @@ public final class BanStore {
     return this.liteBans.stream()
       .sorted(Comparator.comparing(LiteBanEntry::lastSyncedAt, Comparator.nullsLast(String::compareTo)).reversed())
       .toList();
+  }
+
+  public synchronized Optional<LiteBanEntry> findLiteBanByPublicIdAndTargetName(String publicId, String targetName) {
+    var normalizedId = normalize(publicId);
+    var normalizedName = normalize(targetName);
+    return this.liteBans.stream()
+      .filter(LiteBanEntry::active)
+      .filter(entry -> normalize(blankDefault(entry.publicId(), entry.id())).equals(normalizedId))
+      .filter(entry -> normalize(entry.targetName()).equals(normalizedName))
+      .findFirst();
   }
 
   public synchronized List<BanAuditEntry> auditLog() {
@@ -318,5 +329,9 @@ public final class BanStore {
 
   private static String blankDefault(String value, String fallback) {
     return value == null || value.isBlank() ? fallback : value;
+  }
+
+  private static String normalize(String value) {
+    return value == null ? "" : value.trim().toLowerCase();
   }
 }

@@ -26,6 +26,7 @@ const state = {
   ticketAudit: [],
   bans: [],
   liteBans: [],
+  banAppeals: [],
   banAudit: [],
   securityUsers: [],
   securityGroups: [],
@@ -109,6 +110,7 @@ function bindElements() {
   elements.banStatus = document.getElementById("ban-status");
   elements.banTable = document.getElementById("ban-table");
   elements.liteBanTable = document.getElementById("liteban-table");
+  elements.banAppealTable = document.getElementById("ban-appeal-table");
   elements.banAuditTable = document.getElementById("ban-audit-table");
 
   elements.groupForm = document.getElementById("group-form");
@@ -172,6 +174,7 @@ function bindEvents() {
   elements.banForm.addEventListener("submit", handleBanSubmit);
   elements.banTable.addEventListener("click", handleBanTableClick);
   elements.liteBanTable.addEventListener("click", handleLiteBanTableClick);
+  elements.banAppealTable.addEventListener("click", handleBanAppealTableClick);
   document.querySelectorAll("button[data-ban-tab]").forEach(button => {
     button.addEventListener("click", () => switchBanTab(button.dataset.banTab));
   });
@@ -396,6 +399,7 @@ function clearSession() {
   state.ticketAudit = [];
   state.bans = [];
   state.liteBans = [];
+  state.banAppeals = [];
   state.banAudit = [];
   state.securityUsers = [];
   state.securityGroups = [];
@@ -486,16 +490,19 @@ async function refreshAll() {
   }
 
   if (hasPermission(PERMISSIONS.BANS_VIEW)) {
-    const [bans, liteBans, banAudit] = await Promise.all([
+    const [bans, liteBans, banAppeals, banAudit] = await Promise.all([
       api("/api/bans"),
       api("/api/bans/litebans"),
+      api("/api/ban-appeals"),
       api("/api/bans/audit"),
     ]);
     state.bans = asArray(bans);
     state.liteBans = asArray(liteBans);
+    state.banAppeals = asArray(banAppeals);
     state.banAudit = asArray(banAudit);
     renderBans();
     renderLiteBans();
+    renderBanAppeals();
     renderBanAudit();
   }
 
@@ -751,6 +758,56 @@ function liteBanActions(ban) {
   return `
     <button data-liteban-action="unban" data-ban-id="${escapeAttr(ban.id)}" type="button">Aufheben</button>
     <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Verlaengern</button>
+  `;
+}
+
+function renderBanAppeals() {
+  if (!state.banAppeals.length) {
+    elements.banAppealTable.innerHTML = `<tr><td colspan="8" class="muted">Noch keine Entbannungsantraege vorhanden.</td></tr>`;
+    return;
+  }
+
+  elements.banAppealTable.innerHTML = state.banAppeals.map(appeal => `
+    <tr>
+      <td><span class="badge ${appealStatusClass(appeal.status)}">${escapeHtml(appeal.status || "-")}</span></td>
+      <td>
+        <strong>${escapeHtml(appeal.publicBanId || "-")}</strong><br>
+        <span class="muted">intern: ${escapeHtml(appeal.liteBanId || "-")}</span>
+      </td>
+      <td>${escapeHtml(appeal.playerName || "-")}</td>
+      <td>${escapeHtml(appeal.email || "-")}</td>
+      <td>${escapeHtml(shortText(appeal.reason, 90))}</td>
+      <td>${appealEvidence(appeal)}</td>
+      <td>${escapeHtml(appeal.createdAt || "-")}</td>
+      <td>${banAppealActions(appeal)}</td>
+    </tr>
+  `).join("");
+}
+
+function appealStatusClass(status) {
+  return status === "ACCEPTED" ? "badge-success" : status === "REJECTED" ? "badge-danger" : "";
+}
+
+function appealEvidence(appeal) {
+  const links = [];
+  if (appeal.videoLink) {
+    links.push(`<a href="${escapeAttr(appeal.videoLink)}" target="_blank" rel="noreferrer">Video</a>`);
+  }
+  (appeal.attachments || []).forEach(attachment => {
+    links.push(`<span title="${escapeAttr(attachment.storageReference || "")}">${escapeHtml(attachment.fileName || attachment.storageType || "Datei")}</span>`);
+  });
+  return links.join("<br>") || `<span class="muted">-</span>`;
+}
+
+function banAppealActions(appeal) {
+  if (!hasPermission(PERMISSIONS.BANS_MANAGE)) {
+    return `<span class="muted">Nur Ansicht</span>`;
+  }
+  return `
+    <button data-appeal-action="IN_REVIEW" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Pruefung</button>
+    <button data-appeal-action="ACCEPTED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Annehmen</button>
+    <button data-appeal-action="REJECTED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Ablehnen</button>
+    <button data-appeal-action="CLOSED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Schliessen</button>
   `;
 }
 
@@ -1511,6 +1568,32 @@ async function handleLiteBanTableClick(event) {
   }
 }
 
+async function handleBanAppealTableClick(event) {
+  const button = event.target.closest("button[data-appeal-action]");
+  if (!button || !hasPermission(PERMISSIONS.BANS_MANAGE)) {
+    return;
+  }
+
+  const teamNote = prompt("Team-Notiz fuer die Statusseite? Leer lassen, wenn keine Notiz gesetzt werden soll.", "");
+  if (teamNote === null) {
+    return;
+  }
+
+  try {
+    await api(`/api/ban-appeals/${encodeURIComponent(button.dataset.appealId)}/status`, {
+      method: "POST",
+      body: {
+        status: button.dataset.appealAction,
+        teamNote,
+      },
+    });
+    await refreshAll();
+    switchBanTab("appeals");
+  } catch (error) {
+    handleApiError(error, elements.banStatus);
+  }
+}
+
 function switchBanTab(tab) {
   document.querySelectorAll(".ban-tab-panel").forEach(panel => {
     panel.classList.toggle("hidden", panel.dataset.banPanel !== tab);
@@ -1848,6 +1931,11 @@ function summarizePermissions(permissions) {
 function shortId(id) {
   const value = String(id || "-");
   return value.length <= 8 ? value : value.slice(0, 8);
+}
+
+function shortText(value, maxLength) {
+  const text = String(value || "-");
+  return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
 }
 
 function handleApiError(error, statusElement) {

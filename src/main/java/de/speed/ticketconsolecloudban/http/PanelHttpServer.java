@@ -421,6 +421,25 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() == 2 && "ban-appeals".equals(segments.get(1)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.BANS_VIEW)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.listBanAppeals());
+      return;
+    }
+
+    if (segments.size() == 4
+      && "ban-appeals".equals(segments.get(1))
+      && "status".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.updateBanAppealStatus(segments.get(2), HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
     if (segments.size() == 4 && "bans".equals(segments.get(1))) {
       var banId = segments.get(2);
       var action = segments.get(3);

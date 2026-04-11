@@ -13,6 +13,7 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel fuer:
 - Benutzerprofil mit E-Mail fuer Passwort-vergessen-Prozesse und optionalem Minecraft-Account
 - Auditlogs fuer Tickets und Bans
 - LiteBans-Unterseite mit synchronisierten LiteBans-Bans
+- Oeffentliches Entbannungsformular auf separatem Port mit Statusseite und HTML-Mail
 - Passwort-vergessen-Flow mit Reset-Token und optionalem SMTP-Mailversand
 - LuckPerms-Unterseite mit Subject-Sync, Aktionsqueue und Auditlog
 
@@ -35,6 +36,8 @@ Das Panel ist bewusst als MVP gebaut:
 - Panel-Login mit Gruppenrechten ist vorhanden
 - LiteBans-Bans koennen ueber das Velocity-Plugin ins Panel synchronisiert werden
 - LiteBans-Unban und -Verlaengerung laufen ueber eine Panel-Aktionsqueue, die Velocity abarbeitet
+- Entbannungsantraege pruefen die Random-LiteBans-ID gegen den Spielernamen und erlauben nur einen Antrag je Ban-ID/Spieler
+- Beweise koennen lokal, per SFTP oder per OneDrive-Upload-URL gespeichert werden
 - LuckPerms-Gruppen und geladene Spieler koennen pro Proxy und pro Purpur-Unterserver ins Panel synchronisiert werden
 - LuckPerms-Permissions und Parent-Gruppen koennen im Panel als Queue-Aktion erstellt werden
 - Unterserver mit eigener LuckPerms-Datenbank werden ueber das Purpur-Companion-Plugin gezielt per `server.id` angesteuert
@@ -46,6 +49,7 @@ Noch nicht enthalten:
 - Rootserver-SSH oder echte Root-Console
 - Eigene Purpur-Ban-Durchsetzung ohne LiteBans
 - Vollstaendiger LuckPerms-Webeditor mit allen Metadaten/Expiry/Context-Kombinationen
+- Automatisches Unban nach angenommenem Entbannungsantrag
 
 Die Struktur ist aber so angelegt, dass diese Bausteine spaeter sauber angebunden werden koennen.
 
@@ -125,6 +129,22 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemaess so aus:
   "smtpStartTls": true,
   "smtpSsl": false,
   "passwordResetTokenMinutes": 30,
+  "appealEnabled": true,
+  "appealBindHost": "0.0.0.0",
+  "appealBindPort": 8090,
+  "appealPublicBaseUrl": "http://127.0.0.1:8090",
+  "appealMaxFiles": 3,
+  "appealMaxFileBytes": 10485760,
+  "appealEvidenceStorage": "LOCAL",
+  "appealEvidenceLocalDirectory": "appeal-evidence",
+  "appealEvidenceSftpHost": "",
+  "appealEvidenceSftpPort": 22,
+  "appealEvidenceSftpUsername": "",
+  "appealEvidenceSftpPassword": "",
+  "appealEvidenceSftpPrivateKeyPath": "",
+  "appealEvidenceSftpRemoteDirectory": "/appeals",
+  "appealEvidenceOneDriveUploadUrlTemplate": "",
+  "appealEvidenceOneDriveBearerToken": "",
   "apiTokens": [
     "dein-generiertes-token"
   ]
@@ -134,6 +154,37 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemaess so aus:
 Das Panel nutzt einen eigenen Login. Der alte API-Token-Zugang bleibt fuer externe Tools oder ein spaeteres Velocity-/Purpur-Companion-Plugin erhalten und hat Vollzugriff.
 
 Wenn `smtpEnabled=false` ist, werden Passwort-Reset-Links nicht per Mail versendet, sondern sicherheitshalber im CloudNet-Log ausgegeben. Fuer produktiven Betrieb solltest du `publicBaseUrl` auf deine Panel-Domain setzen und SMTP aktivieren.
+
+## Entbannungsformular
+
+Das Entbannungsformular laeuft bewusst auf einem eigenen HTTP-Port, damit du es getrennt vom Admin-Panel per Reverse Proxy auf eine eigene Subdomain legen kannst, zum Beispiel:
+
+```text
+https://unban.deinserver.de -> http://DEINE-NODE-IP:8090
+```
+
+Spieler geben dort ein:
+
+- Random Ban-ID aus der Ban-Nachricht
+- Spielername
+- E-Mail-Adresse
+- Begruendung
+- optionalen Video-Link
+- optionale Beweisdateien
+
+Das Formular akzeptiert einen Antrag nur, wenn die Random Ban-ID (`publicId`) und der Spielername zu einem aktiven LiteBans-Ban passen. Pro Random Ban-ID und Spielername ist maximal ein Antrag moeglich. Nach dem Absenden bekommt der Spieler eine HTML-Bestaetigungsmail mit einem persoenlichen Statuslink.
+
+Evidence-Speicher:
+
+- `LOCAL` speichert Dateien im Modul-Datenordner unter `appeal-evidence`.
+- `SFTP` speichert Dateien auf einem externen SFTP-Server. Dafuer muessen Host, Benutzer und Passwort oder Private-Key-Pfad gesetzt sein.
+- `ONEDRIVE` nutzt eine konfigurierte Microsoft-Graph-Upload-URL-Vorlage. Die Vorlage muss `{filename}` enthalten und ein gueltiger Bearer Token muss gesetzt sein.
+
+Beispiel OneDrive-URL-Vorlage:
+
+```text
+https://graph.microsoft.com/v1.0/me/drive/root:/BanAppeals/{filename}:/content
+```
 
 ## Velocity-Plugin
 
@@ -296,6 +347,10 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 - `GET /api/bans/actions`
 - `POST /api/bans/actions/{id}/complete`
 - `GET /api/bans/audit`
+- `GET /api/ban-appeals`
+- `POST /api/ban-appeals/{id}/status`
+- `POST http://APPEAL-HOST:APPEAL-PORT/api/appeals`
+- `GET http://APPEAL-HOST:APPEAL-PORT/api/appeals/status?token=<token>`
 - `GET /api/permissions/subjects`
 - `POST /api/permissions/sync`
 - `GET /api/permissions/actions?serverId=<server>`

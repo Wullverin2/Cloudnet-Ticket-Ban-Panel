@@ -2,8 +2,12 @@ package de.speed.ticketconsolecloudban;
 
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.auth.PanelSecurityService;
+import de.speed.ticketconsolecloudban.appeal.BanAppealService;
+import de.speed.ticketconsolecloudban.appeal.EvidenceStorageFactory;
+import de.speed.ticketconsolecloudban.http.BanAppealHttpServer;
 import de.speed.ticketconsolecloudban.http.PanelHttpServer;
 import de.speed.ticketconsolecloudban.service.CloudNetFacade;
+import de.speed.ticketconsolecloudban.store.BanAppealStore;
 import de.speed.ticketconsolecloudban.store.BanStore;
 import de.speed.ticketconsolecloudban.store.PanelUserStore;
 import de.speed.ticketconsolecloudban.store.PermissionBridgeStore;
@@ -24,6 +28,7 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
   private static final Logger LOGGER = LoggerFactory.getLogger(TicketConsoleCloudBanModule.class);
 
   private PanelHttpServer httpServer;
+  private BanAppealHttpServer appealHttpServer;
 
   @ModuleTask
   public void startModule(
@@ -37,6 +42,8 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
     this.writeConfig(DocumentFactory.json().newDocument().appendTree(configuration));
 
     var userStore = new PanelUserStore(this.moduleWrapper().dataDirectory());
+    var banStore = new BanStore(this.moduleWrapper().dataDirectory());
+    var banAppealStore = new BanAppealStore(this.moduleWrapper().dataDirectory());
     var security = new PanelSecurityService(userStore, configuration);
     var facade = new CloudNetFacade(
       cloudServiceProvider,
@@ -45,18 +52,32 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
       clusterNodeProvider,
       configuration,
       new TicketStore(this.moduleWrapper().dataDirectory()),
-      new BanStore(this.moduleWrapper().dataDirectory()),
+      banStore,
+      banAppealStore,
       new PermissionBridgeStore(this.moduleWrapper().dataDirectory()));
+    var appealService = new BanAppealService(
+      configuration,
+      banStore,
+      banAppealStore,
+      EvidenceStorageFactory.create(configuration, this.moduleWrapper().dataDirectory()));
 
     this.stopServer();
     this.httpServer = new PanelHttpServer(configuration, facade, security);
     this.httpServer.start();
+    this.appealHttpServer = new BanAppealHttpServer(configuration, appealService);
+    this.appealHttpServer.start();
 
     LOGGER.info(
       "TicketConsoleCloudBan started on http://{}:{}",
       configuration.bindHost(),
       configuration.bindPort());
     LOGGER.info("TicketConsoleCloudBan API token: {}", configuration.apiTokens().get(0));
+    if (configuration.appealEnabled()) {
+      LOGGER.info(
+        "TicketConsoleCloudBan appeal form started on http://{}:{}",
+        configuration.appealBindHost(),
+        configuration.appealBindPort());
+    }
     userStore.initialAdminPassword()
       .ifPresent(password -> LOGGER.warn("TicketConsoleCloudBan Panel login created: user=admin password={}", password));
   }
@@ -80,6 +101,10 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
     if (this.httpServer != null) {
       this.httpServer.stop();
       this.httpServer = null;
+    }
+    if (this.appealHttpServer != null) {
+      this.appealHttpServer.stop();
+      this.appealHttpServer = null;
     }
   }
 }

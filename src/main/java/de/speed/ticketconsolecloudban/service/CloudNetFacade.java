@@ -1,6 +1,7 @@
 package de.speed.ticketconsolecloudban.service;
 
 import de.speed.ticketconsolecloudban.auth.PanelPermission;
+import de.speed.ticketconsolecloudban.appeal.BanAppealEntry;
 import de.speed.ticketconsolecloudban.ban.BanActionRequest;
 import de.speed.ticketconsolecloudban.ban.BanAuditEntry;
 import de.speed.ticketconsolecloudban.ban.CloudBanEntry;
@@ -10,6 +11,7 @@ import de.speed.ticketconsolecloudban.permission.PermissionActionRequest;
 import de.speed.ticketconsolecloudban.permission.PermissionAuditEntry;
 import de.speed.ticketconsolecloudban.permission.PermissionSubject;
 import de.speed.ticketconsolecloudban.store.BanStore;
+import de.speed.ticketconsolecloudban.store.BanAppealStore;
 import de.speed.ticketconsolecloudban.store.PermissionBridgeStore;
 import de.speed.ticketconsolecloudban.store.TicketStore;
 import de.speed.ticketconsolecloudban.ticket.TicketComment;
@@ -60,6 +62,7 @@ public final class CloudNetFacade {
   private final PanelConfiguration configuration;
   private final TicketStore ticketStore;
   private final BanStore banStore;
+  private final BanAppealStore banAppealStore;
   private final PermissionBridgeStore permissionBridgeStore;
 
   public CloudNetFacade(
@@ -70,6 +73,7 @@ public final class CloudNetFacade {
     PanelConfiguration configuration,
     TicketStore ticketStore,
     BanStore banStore,
+    BanAppealStore banAppealStore,
     PermissionBridgeStore permissionBridgeStore
   ) {
     this.cloudServiceProvider = cloudServiceProvider;
@@ -79,6 +83,7 @@ public final class CloudNetFacade {
     this.configuration = configuration;
     this.ticketStore = ticketStore;
     this.banStore = banStore;
+    this.banAppealStore = banAppealStore;
     this.permissionBridgeStore = permissionBridgeStore;
   }
 
@@ -408,6 +413,17 @@ public final class CloudNetFacade {
 
   public List<BanAuditEntry> banAuditLog() {
     return this.banStore.auditLog();
+  }
+
+  public List<BanAppealEntry> listBanAppeals() {
+    return this.banAppealStore.list();
+  }
+
+  public BanAppealEntry updateBanAppealStatus(String appealId, Document request) {
+    return this.banAppealStore.updateStatus(
+      appealId,
+      this.requiredText(request, "status"),
+      this.nullableText(request.getString("teamNote")));
   }
 
   public List<PermissionSubject> listPermissionSubjects() {

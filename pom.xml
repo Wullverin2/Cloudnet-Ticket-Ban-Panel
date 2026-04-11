@@ -13,6 +13,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <cloudnet.version>4.0.0-RC16</cloudnet.version>
     <slf4j.version>2.0.16</slf4j.version>
+    <jsch.version>0.2.20</jsch.version>
   </properties>
 
   <dependencies>
@@ -34,6 +35,11 @@
       <version>${slf4j.version}</version>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>com.github.mwiede</groupId>
+      <artifactId>jsch</artifactId>
+      <version>${jsch.version}</version>
+    </dependency>
   </dependencies>
 
   <build>
@@ -46,6 +52,28 @@
         <configuration>
           <release>${maven.compiler.release}</release>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <relocations>
+                <relocation>
+                  <pattern>com.jcraft.jsch</pattern>
+                  <shadedPattern>de.speed.ticketconsolecloudban.libs.jsch</shadedPattern>
+                </relocation>
+              </relocations>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
