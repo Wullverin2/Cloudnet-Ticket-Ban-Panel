@@ -137,7 +137,7 @@ public final class BanAppealStore {
         this.appeals.addAll(data.appeals());
       }
     } catch (Exception exception) {
-      throw new IllegalStateException("Entbannungsantraege konnten nicht geladen werden.", exception);
+      throw new IllegalStateException("Entbannungsanträge konnten nicht geladen werden.", exception);
     }
   }
 
@@ -146,7 +146,7 @@ public final class BanAppealStore {
       Files.createDirectories(this.storagePath.getParent());
       this.backend.save("ban-appeals", this.storagePath, new BanAppealStoreData(List.copyOf(this.appeals)));
     } catch (Exception exception) {
-      throw new IllegalStateException("Entbannungsantraege konnten nicht gespeichert werden.", exception);
+      throw new IllegalStateException("Entbannungsanträge konnten nicht gespeichert werden.", exception);
     }
   }
 

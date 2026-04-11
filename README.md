@@ -211,7 +211,7 @@ Ab neueren Builds schreibt das Modul die echte Ursache mit Stacktrace ins CloudN
 
 Mailserver- und LiteBans-Datenbankwerte können im Webpanel unter `Einstellungen` geändert werden. Dort gibt es auch eine Testmail-Funktion. Die Panel-Speicherart selbst wird beim Modulstart geladen und bleibt deshalb in der Modul-Konfiguration.
 
-Panel-Titel, Logo-URL und die Statustexte für Entbannungsanträge können ebenfalls im Einstellungstab geändert werden. Das Logo wird als externe URL hinterlegt und direkt im Panel, auf der Entbannungsseite und in HTML-Mails verwendet.
+Panel-Titel, Logo-URL sowie Statusnamen und Statustexte für Entbannungsanträge können ebenfalls im Einstellungstab geändert werden. Das Logo wird als externe URL hinterlegt und direkt im Panel, auf der Entbannungsseite und in HTML-Mails verwendet.
 
 Wenn `smtpEnabled=false` ist, werden Passwort-Reset-Links nicht per Mail versendet, sondern sicherheitshalber im CloudNet-Log ausgegeben. Für produktiven Betrieb solltest du `publicBaseUrl` auf deine Panel-Domain setzen und SMTP aktivieren.
 
@@ -324,7 +324,7 @@ Ingame-Befehle:
 - `/ticketcomment <id> <nachricht>` kommentiert ein Ticket als alte Kurzform.
 - `/cloudban <spieler> <dauer> <grund>` führt den konfigurierten LiteBans-Befehl aus.
 - `/cloudunban <spieler> [grund]` führt den konfigurierten LiteBans-Unban aus.
-- `/baninfo <spieler>` prueft aktive LiteBans-Bans für online Spieler.
+- `/baninfo <spieler>` prüft aktive LiteBans-Bans für online Spieler.
 - `/tccbvelocity reload` lädt die Velocity-Config neu.
 
 Teleport aus dem Panel:

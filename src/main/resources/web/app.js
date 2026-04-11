@@ -940,7 +940,7 @@ function renderBanAppeals() {
   elements.banAppealTable.innerHTML = activeAppeals.map(appeal => `
     <tr>
       <td>
-        <span class="badge ${appealStatusClass(appeal.status)}">${escapeHtml(appeal.status || "-")}</span><br>
+        <span class="badge ${appealStatusClass(appeal.status)}">${escapeHtml(appealStatusLabel(appeal.status))}</span><br>
         <span class="muted">${escapeHtml(appealStatusText(appeal.status))}</span>
       </td>
       <td>
@@ -967,7 +967,7 @@ function renderBanAppealArchive() {
   elements.banAppealArchiveTable.innerHTML = archivedAppeals.map(appeal => `
     <tr>
       <td>
-        <span class="badge ${appealStatusClass(appeal.status)}">${escapeHtml(appeal.status || "-")}</span><br>
+        <span class="badge ${appealStatusClass(appeal.status)}">${escapeHtml(appealStatusLabel(appeal.status))}</span><br>
         <span class="muted">${escapeHtml(appealStatusText(appeal.status))}</span>
       </td>
       <td>
@@ -988,7 +988,24 @@ function isArchivedAppeal(appeal) {
 }
 
 function appealStatusClass(status) {
-  return status === "ACCEPTED" ? "badge-success" : status === "REJECTED" ? "badge-danger" : "";
+  const normalized = String(status || "").toUpperCase();
+  return normalized === "ACCEPTED" ? "badge-success" : normalized === "REJECTED" ? "badge-danger" : "";
+}
+
+function appealStatusLabel(status) {
+  const settings = state.settings || {};
+  switch (String(status || "").toUpperCase()) {
+    case "IN_REVIEW":
+      return settings.appealStatusInReviewLabel || "In Prüfung";
+    case "ACCEPTED":
+      return settings.appealStatusAcceptedLabel || "Angenommen";
+    case "REJECTED":
+      return settings.appealStatusRejectedLabel || "Abgelehnt";
+    case "CLOSED":
+      return settings.appealStatusClosedLabel || "Geschlossen";
+    default:
+      return settings.appealStatusOpenLabel || "Offen";
+  }
 }
 
 function appealStatusText(status) {
@@ -1026,7 +1043,7 @@ function banAppealActions(appeal) {
     <button data-appeal-action="IN_REVIEW" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Prüfung</button>
     <button data-appeal-action="ACCEPTED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Annehmen</button>
     <button data-appeal-action="REJECTED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Ablehnen</button>
-    <button data-appeal-action="CLOSED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Schliessen</button>
+    <button data-appeal-action="CLOSED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Schließen</button>
   `;
 }
 
@@ -1178,6 +1195,11 @@ function renderSettings() {
   const form = elements.settingsForm.elements;
   setFormValue(form, "brandName", settings.brandName || state.meta?.brandName || "Network Control");
   setFormValue(form, "brandLogoUrl", settings.brandLogoUrl || "");
+  setFormValue(form, "appealStatusOpenLabel", settings.appealStatusOpenLabel || "Offen");
+  setFormValue(form, "appealStatusInReviewLabel", settings.appealStatusInReviewLabel || "In Prüfung");
+  setFormValue(form, "appealStatusAcceptedLabel", settings.appealStatusAcceptedLabel || "Angenommen");
+  setFormValue(form, "appealStatusRejectedLabel", settings.appealStatusRejectedLabel || "Abgelehnt");
+  setFormValue(form, "appealStatusClosedLabel", settings.appealStatusClosedLabel || "Geschlossen");
   setFormValue(form, "appealStatusOpenText", settings.appealStatusOpenText || "");
   setFormValue(form, "appealStatusInReviewText", settings.appealStatusInReviewText || "");
   setFormValue(form, "appealStatusAcceptedText", settings.appealStatusAcceptedText || "");
@@ -1694,6 +1716,11 @@ async function handleSettingsSubmit(event) {
   const payload = {
     brandName: String(form.get("brandName") || "").trim(),
     brandLogoUrl: String(form.get("brandLogoUrl") || "").trim(),
+    appealStatusOpenLabel: String(form.get("appealStatusOpenLabel") || "").trim(),
+    appealStatusInReviewLabel: String(form.get("appealStatusInReviewLabel") || "").trim(),
+    appealStatusAcceptedLabel: String(form.get("appealStatusAcceptedLabel") || "").trim(),
+    appealStatusRejectedLabel: String(form.get("appealStatusRejectedLabel") || "").trim(),
+    appealStatusClosedLabel: String(form.get("appealStatusClosedLabel") || "").trim(),
     appealStatusOpenText: String(form.get("appealStatusOpenText") || "").trim(),
     appealStatusInReviewText: String(form.get("appealStatusInReviewText") || "").trim(),
     appealStatusAcceptedText: String(form.get("appealStatusAcceptedText") || "").trim(),

@@ -5,6 +5,11 @@ import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 public record PanelSettings(
   String brandName,
   String brandLogoUrl,
+  String appealStatusOpenLabel,
+  String appealStatusInReviewLabel,
+  String appealStatusAcceptedLabel,
+  String appealStatusRejectedLabel,
+  String appealStatusClosedLabel,
   String appealStatusOpenText,
   String appealStatusInReviewText,
   String appealStatusAcceptedText,
@@ -30,12 +35,18 @@ public record PanelSettings(
   int liteBansBridgeReadTimeoutMillis
 ) {
 
+  public static final String DEFAULT_APPEAL_STATUS_OPEN_LABEL = "Offen";
+  public static final String DEFAULT_APPEAL_STATUS_IN_REVIEW_LABEL = "In Prüfung";
+  public static final String DEFAULT_APPEAL_STATUS_ACCEPTED_LABEL = "Angenommen";
+  public static final String DEFAULT_APPEAL_STATUS_REJECTED_LABEL = "Abgelehnt";
+  public static final String DEFAULT_APPEAL_STATUS_CLOSED_LABEL = "Geschlossen";
+
   public static final String DEFAULT_APPEAL_STATUS_OPEN_TEXT =
     "Dein Entbannungsantrag ist eingegangen und wartet auf die Bearbeitung durch unser Team.";
   public static final String DEFAULT_APPEAL_STATUS_IN_REVIEW_TEXT =
-    "Dein Entbannungsantrag wird aktuell vom Team geprueft. Bitte habe noch etwas Geduld.";
+    "Dein Entbannungsantrag wird aktuell vom Team geprüft. Bitte habe noch etwas Geduld.";
   public static final String DEFAULT_APPEAL_STATUS_ACCEPTED_TEXT =
-    "Dein Entbannungsantrag wurde angenommen. Bitte pruefe, ob dein Ban bereits aufgehoben wurde.";
+    "Dein Entbannungsantrag wurde angenommen. Bitte prüfe, ob dein Ban bereits aufgehoben wurde.";
   public static final String DEFAULT_APPEAL_STATUS_REJECTED_TEXT =
     "Dein Entbannungsantrag wurde abgelehnt. Die Entscheidung und Hinweise des Teams findest du in der Team-Notiz.";
   public static final String DEFAULT_APPEAL_STATUS_CLOSED_TEXT =
@@ -45,6 +56,11 @@ public record PanelSettings(
     return new PanelSettings(
       configuration.brandName(),
       configuration.brandLogoUrl(),
+      DEFAULT_APPEAL_STATUS_OPEN_LABEL,
+      DEFAULT_APPEAL_STATUS_IN_REVIEW_LABEL,
+      DEFAULT_APPEAL_STATUS_ACCEPTED_LABEL,
+      DEFAULT_APPEAL_STATUS_REJECTED_LABEL,
+      DEFAULT_APPEAL_STATUS_CLOSED_LABEL,
       DEFAULT_APPEAL_STATUS_OPEN_TEXT,
       DEFAULT_APPEAL_STATUS_IN_REVIEW_TEXT,
       DEFAULT_APPEAL_STATUS_ACCEPTED_TEXT,
@@ -68,6 +84,16 @@ public record PanelSettings(
       configuration.liteBansBridgeSecret(),
       configuration.liteBansBridgeConnectTimeoutMillis(),
       configuration.liteBansBridgeReadTimeoutMillis());
+  }
+
+  public String appealStatusLabel(String status) {
+    return switch (status == null ? "" : status.trim().toUpperCase()) {
+      case "IN_REVIEW" -> this.appealStatusInReviewLabel();
+      case "ACCEPTED" -> this.appealStatusAcceptedLabel();
+      case "REJECTED" -> this.appealStatusRejectedLabel();
+      case "CLOSED" -> this.appealStatusClosedLabel();
+      default -> this.appealStatusOpenLabel();
+    };
   }
 
   public String appealStatusText(String status) {

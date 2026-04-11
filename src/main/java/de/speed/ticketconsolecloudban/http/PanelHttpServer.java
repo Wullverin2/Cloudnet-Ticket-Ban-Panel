@@ -644,13 +644,13 @@ public final class PanelHttpServer {
         return true;
       }
     }
-    HttpExchangeUtils.writeJson(exchange, 403, new HttpExchangeUtils.ApiError("Keine Berechtigung fuer diese Funktion"));
+    HttpExchangeUtils.writeJson(exchange, 403, new HttpExchangeUtils.ApiError("Keine Berechtigung für diese Funktion"));
     return false;
   }
 
   private boolean requirePermission(HttpExchange exchange, PanelPrincipal principal, String permission) throws IOException {
     if (!principal.hasPermission(permission)) {
-      HttpExchangeUtils.writeJson(exchange, 403, new HttpExchangeUtils.ApiError("Keine Berechtigung fuer diese Funktion"));
+      HttpExchangeUtils.writeJson(exchange, 403, new HttpExchangeUtils.ApiError("Keine Berechtigung für diese Funktion"));
       return false;
     }
     return true;

@@ -21,7 +21,7 @@ public final class PanelPermission {
 
   private static final List<PermissionView> CATALOG = List.of(
     new PermissionView(ALL, "System", "Alle Rechte", "Vollzugriff auf alle Panel-Funktionen."),
-    new PermissionView(CLOUDNET_VIEW, "CloudNet", "CloudNet ansehen", "Uebersicht, Tasks, Services, Nodes und Logs anzeigen."),
+    new PermissionView(CLOUDNET_VIEW, "CloudNet", "CloudNet ansehen", "Übersicht, Tasks, Services, Nodes und Logs anzeigen."),
     new PermissionView(CLOUDNET_MANAGE, "CloudNet", "CloudNet verwalten", "Tasks und Services erstellen, bearbeiten, starten, stoppen und loeschen."),
     new PermissionView(CLOUDNET_CONSOLE, "CloudNet", "Konsolen lesen", "Service-Konsolen und Log-Ausgaben anzeigen."),
     new PermissionView(CLOUDNET_COMMAND, "CloudNet", "Konsolenbefehle senden", "Befehle an einzelne Service-Konsolen senden."),
@@ -32,7 +32,7 @@ public final class PanelPermission {
     new PermissionView(BANS_MANAGE, "Bans", "Bans verwalten", "Cloud-Bans erstellen und deaktivieren."),
     new PermissionView(USERS_MANAGE, "Rechte", "Benutzer und Gruppen", "Panel-Benutzer, Gruppen und Rechte verwalten."),
     new PermissionView(PROXY_PERMISSIONS_MANAGE, "Rechte", "Proxy- und LuckPerms-Rechte", "LuckPerms-Subjects anzeigen und Permission-Aktionen ueber Velocity ausfuehren."),
-    new PermissionView(SERVER_PERMISSIONS_MANAGE, "Rechte", "Unterserver-Rechte", "Reserviertes Recht fuer spaetere server-spezifische LuckPerms-Kontexte."),
+    new PermissionView(SERVER_PERMISSIONS_MANAGE, "Rechte", "Unterserver-Rechte", "Reserviertes Recht für spätere server-spezifische LuckPerms-Kontexte."),
     new PermissionView(SETTINGS_MANAGE, "System", "Panel-Einstellungen", "Mailserver, LiteBans-DB und Panel-Speicher ansehen und bearbeiten."));
 
   private PanelPermission() {

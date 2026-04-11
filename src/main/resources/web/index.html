@@ -259,33 +259,38 @@
           </form>
         </article>
 
-        <article class="panel-card cloudnet-view" data-cloudnet-view="overview" data-permission="cloudnet.manage">
+        <article class="panel-card panel-wide cloudnet-view service-create-card" data-cloudnet-view="overview" data-permission="cloudnet.manage">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Services</p>
               <h2>Service Starten</h2>
+              <p class="muted">Starte neue CloudNet-Services direkt aus einem vorhandenen Task.</p>
             </div>
           </div>
 
-          <form id="service-create-form" class="stack-form slim-form">
-            <label>
-              <span>Task</span>
-              <select name="taskName" id="service-task-select"></select>
-            </label>
-            <label>
-              <span>Anzahl</span>
-              <input name="amount" type="number" min="1" max="20" value="1">
-            </label>
-            <label>
-              <span>Node Override</span>
-              <input name="node" type="text" placeholder="optional">
-            </label>
-            <label class="inline-label">
-              <input name="startImmediately" type="checkbox" checked>
-              <span>Sofort starten</span>
-            </label>
-            <button type="submit">Services erstellen</button>
-            <p id="service-create-status" class="muted"></p>
+          <form id="service-create-form" class="stack-form service-create-form">
+            <div class="form-grid service-start-grid">
+              <label>
+                <span>Task</span>
+                <select name="taskName" id="service-task-select"></select>
+              </label>
+              <label>
+                <span>Anzahl</span>
+                <input name="amount" type="number" min="1" max="20" value="1">
+              </label>
+              <label>
+                <span>Node Override</span>
+                <input name="node" type="text" placeholder="optional">
+              </label>
+              <label class="inline-label service-start-toggle">
+                <input name="startImmediately" type="checkbox" checked>
+                <span>Sofort starten</span>
+              </label>
+            </div>
+            <div class="action-row">
+              <button type="submit">Services erstellen</button>
+              <p id="service-create-status" class="muted"></p>
+            </div>
           </form>
         </article>
 
@@ -812,28 +817,51 @@
               </fieldset>
 
               <fieldset class="settings-wide">
-                <legend>Entbannungsstatus Texte</legend>
+                <legend>Entbannungsstatus</legend>
+                <p class="muted">Die kurzen Namen werden im Panel, auf der Statusseite und in Status-Mails angezeigt.</p>
+                <div class="form-grid">
+                  <label>
+                    <span>Offen Name</span>
+                    <input name="appealStatusOpenLabel" type="text" placeholder="Offen">
+                  </label>
+                  <label>
+                    <span>In Prüfung Name</span>
+                    <input name="appealStatusInReviewLabel" type="text" placeholder="In Prüfung">
+                  </label>
+                  <label>
+                    <span>Angenommen Name</span>
+                    <input name="appealStatusAcceptedLabel" type="text" placeholder="Angenommen">
+                  </label>
+                  <label>
+                    <span>Abgelehnt Name</span>
+                    <input name="appealStatusRejectedLabel" type="text" placeholder="Abgelehnt">
+                  </label>
+                  <label>
+                    <span>Geschlossen Name</span>
+                    <input name="appealStatusClosedLabel" type="text" placeholder="Geschlossen">
+                  </label>
+                </div>
+                <p class="muted">Die langen Texte erscheinen als Erklärung auf der Statusseite und in Status-Mails.</p>
                 <label>
-                  <span>Offen</span>
+                  <span>Offen Text</span>
                   <textarea name="appealStatusOpenText" rows="2"></textarea>
                 </label>
                 <label>
-                  <span>In Prüfung</span>
+                  <span>In Prüfung Text</span>
                   <textarea name="appealStatusInReviewText" rows="2"></textarea>
                 </label>
                 <label>
-                  <span>Angenommen</span>
+                  <span>Angenommen Text</span>
                   <textarea name="appealStatusAcceptedText" rows="2"></textarea>
                 </label>
                 <label>
-                  <span>Abgelehnt</span>
+                  <span>Abgelehnt Text</span>
                   <textarea name="appealStatusRejectedText" rows="2"></textarea>
                 </label>
                 <label>
-                  <span>Geschlossen</span>
+                  <span>Geschlossen Text</span>
                   <textarea name="appealStatusClosedText" rows="2"></textarea>
                 </label>
-                <p class="muted">Diese Texte erscheinen auf der Statusseite und in Status-Mails für Entbannungsanträge.</p>
               </fieldset>
 
               <fieldset>

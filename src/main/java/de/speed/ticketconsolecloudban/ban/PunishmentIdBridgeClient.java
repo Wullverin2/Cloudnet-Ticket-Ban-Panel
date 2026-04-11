@@ -75,7 +75,7 @@ public final class PunishmentIdBridgeClient {
         .build();
       var response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
-        LOGGER.warn("LiteBans Punishment-ID-Bridge antwortete mit HTTP {} fuer DB-ID {}", response.statusCode(), databaseId);
+        LOGGER.warn("LiteBans Punishment-ID-Bridge antwortete mit HTTP {} für DB-ID {}", response.statusCode(), databaseId);
         return Optional.empty();
       }
 

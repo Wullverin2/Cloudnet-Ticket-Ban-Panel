@@ -325,6 +325,23 @@ button {
   gap: 14px;
 }
 
+.service-start-grid {
+  grid-template-columns: minmax(220px, 1.5fr) minmax(120px, 0.5fr) minmax(220px, 1fr) minmax(170px, auto);
+  align-items: end;
+}
+
+.service-start-toggle {
+  min-height: 47px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(6, 11, 17, 0.72);
+}
+
+.service-create-form .action-row p {
+  margin: 0;
+}
+
 .settings-columns {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -845,6 +862,10 @@ tbody button {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .service-start-grid {
     grid-template-columns: 1fr;
   }
 

@@ -39,6 +39,11 @@ public final class PanelSettingsStore {
     this.settings = new PanelSettings(
       textOrDefaultWhenBlank(request, "brandName", existing.brandName()),
       text(request, "brandLogoUrl", existing.brandLogoUrl()),
+      textOrDefaultWhenBlank(request, "appealStatusOpenLabel", existing.appealStatusOpenLabel()),
+      textOrDefaultWhenBlank(request, "appealStatusInReviewLabel", existing.appealStatusInReviewLabel()),
+      textOrDefaultWhenBlank(request, "appealStatusAcceptedLabel", existing.appealStatusAcceptedLabel()),
+      textOrDefaultWhenBlank(request, "appealStatusRejectedLabel", existing.appealStatusRejectedLabel()),
+      textOrDefaultWhenBlank(request, "appealStatusClosedLabel", existing.appealStatusClosedLabel()),
       textOrDefaultWhenBlank(request, "appealStatusOpenText", existing.appealStatusOpenText()),
       textOrDefaultWhenBlank(request, "appealStatusInReviewText", existing.appealStatusInReviewText()),
       textOrDefaultWhenBlank(request, "appealStatusAcceptedText", existing.appealStatusAcceptedText()),
@@ -83,6 +88,11 @@ public final class PanelSettingsStore {
     return new PanelSettings(
       defaultIfBlank(source.brandName(), defaults.brandName()),
       source.brandLogoUrl() == null ? "" : source.brandLogoUrl(),
+      defaultIfBlank(source.appealStatusOpenLabel(), defaults.appealStatusOpenLabel()),
+      defaultIfBlank(source.appealStatusInReviewLabel(), defaults.appealStatusInReviewLabel()),
+      defaultIfBlank(source.appealStatusAcceptedLabel(), defaults.appealStatusAcceptedLabel()),
+      defaultIfBlank(source.appealStatusRejectedLabel(), defaults.appealStatusRejectedLabel()),
+      defaultIfBlank(source.appealStatusClosedLabel(), defaults.appealStatusClosedLabel()),
       defaultIfBlank(source.appealStatusOpenText(), defaults.appealStatusOpenText()),
       defaultIfBlank(source.appealStatusInReviewText(), defaults.appealStatusInReviewText()),
       defaultIfBlank(source.appealStatusAcceptedText(), defaults.appealStatusAcceptedText()),

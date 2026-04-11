@@ -61,7 +61,7 @@ public final class BanAppealService {
     var publicBanId = required(form.field("banId"), "Random Ban-ID");
     var playerName = required(form.field("playerName"), "Spielername");
     var email = required(form.field("email"), "E-Mail");
-    var reason = required(form.field("reason"), "Begruendung");
+    var reason = required(form.field("reason"), "Begründung");
     var videoLink = nullable(form.field("videoLink"));
 
     if (!EMAIL_PATTERN.matcher(email).matches()) {
@@ -89,7 +89,7 @@ public final class BanAppealService {
     var appealId = java.util.UUID.randomUUID().toString();
     for (var file : files) {
       if (file.content().length > this.configuration.appealMaxFileBytes()) {
-        throw new IllegalArgumentException("Die Datei " + file.fileName() + " ist groesser als erlaubt.");
+        throw new IllegalArgumentException("Die Datei " + file.fileName() + " ist größer als erlaubt.");
       }
       var stored = this.evidenceStorage.store(appealId, file);
       attachmentDrafts.add(new BanAppealAttachment(
@@ -113,7 +113,7 @@ public final class BanAppealService {
       List.copyOf(attachmentDrafts));
     this.sendConfirmation(appeal);
     return new AppealSubmittedView(
-      "Dein Entbannungsantrag wurde eingereicht. Bitte pruefe deine E-Mails fuer den Statuslink.",
+      "Dein Entbannungsantrag wurde eingereicht. Bitte prüfe deine E-Mails für den Statuslink.",
       this.statusUrl(appeal));
   }
 
@@ -128,6 +128,7 @@ public final class BanAppealService {
       appeal.id(),
       appeal.statusToken(),
       appeal.status(),
+      this.settings().appealStatusLabel(appeal.status()),
       this.settings().appealStatusText(appeal.status()),
       appeal.publicBanId(),
       appeal.liteBanId(),
@@ -142,24 +143,26 @@ public final class BanAppealService {
 
   private void sendConfirmation(BanAppealEntry appeal) {
     var statusUrl = this.statusUrl(appeal);
+    var statusLabel = this.settings().appealStatusLabel(appeal.status());
     var statusText = this.settings().appealStatusText(appeal.status());
     var text = "Hallo " + appeal.playerName() + ",\r\n\r\n"
-      + "dein Entbannungsantrag fuer Ban-ID " + appeal.publicBanId() + " wurde eingereicht.\r\n"
+      + "dein Entbannungsantrag für Ban-ID " + appeal.publicBanId() + " wurde eingereicht.\r\n"
+      + "Status: " + statusLabel + "\r\n"
       + statusText + "\r\n"
       + "Status: " + statusUrl + "\r\n\r\n"
       + "Bitte bewahre diesen Link auf.";
     var body = "<p style=\"margin:0 0 14px;color:#d7e2ea;line-height:1.55;\">Hallo <strong>"
       + escapeHtml(appeal.playerName())
-      + "</strong>, dein Antrag fuer die Random Ban-ID <strong>"
+      + "</strong>, dein Antrag für die Random Ban-ID <strong>"
       + escapeHtml(appeal.publicBanId())
       + "</strong> wurde erfolgreich eingereicht.</p>"
       + "<div style=\"margin:18px 0;padding:16px;border-radius:18px;background:rgba(255,255,255,.045);border:1px solid rgba(244,188,70,.2);\">"
       + "<p style=\"margin:0 0 8px;color:#f4bc46;font-weight:800;letter-spacing:.08em;text-transform:uppercase;\">"
-      + escapeHtml(appeal.status())
+      + escapeHtml(statusLabel)
       + "</p><p style=\"margin:0;color:#d7e2ea;line-height:1.55;\">"
       + escapeHtml(statusText)
       + "</p></div>"
-      + "<p style=\"margin:0;color:#9eb0bc;line-height:1.55;\">Ueber den folgenden Link kannst du jederzeit den Status pruefen.</p>";
+      + "<p style=\"margin:0;color:#9eb0bc;line-height:1.55;\">Über den folgenden Link kannst du jederzeit den Status prüfen.</p>";
     var html = this.craftplayMailHtml(
       "Entbannungsantrag",
       "Antrag eingegangen",
@@ -277,6 +280,7 @@ public final class BanAppealService {
     String id,
     String statusToken,
     String status,
+    String statusLabel,
     String statusText,
     String publicBanId,
     String liteBanId,

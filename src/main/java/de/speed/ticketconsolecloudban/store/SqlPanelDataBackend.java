@@ -71,7 +71,7 @@ public final class SqlPanelDataBackend implements PanelDataBackend {
       }
     } catch (Exception exception) {
       throw new IllegalStateException(
-        "SQL Panel-Speicher konnte nicht initialisiert werden fuer "
+        "SQL Panel-Speicher konnte nicht initialisiert werden für "
           + this.redactedJdbcUrl()
           + ", user="
           + this.configuration.panelSqlUsername()

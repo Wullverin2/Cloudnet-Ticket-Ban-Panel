@@ -39,7 +39,7 @@ public final class SmtpMailService {
 
     var subject = this.brandName() + " Passwort zuruecksetzen";
     var body = "Hallo,\r\n\r\n"
-      + "fuer dein " + this.brandName() + " Panel wurde ein Passwort-Reset angefordert.\r\n"
+      + "für dein " + this.brandName() + " Panel wurde ein Passwort-Reset angefordert.\r\n"
       + "Oeffne diesen Link, um ein neues Passwort zu setzen:\r\n\r\n"
       + resetUrl + "\r\n\r\n"
       + "Gueltig bis: " + expiresAt + "\r\n"
