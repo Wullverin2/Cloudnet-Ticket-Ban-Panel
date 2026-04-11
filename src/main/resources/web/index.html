@@ -72,7 +72,8 @@
               </select>
             </label>
             <div id="totp-setup-card" class="two-factor-setup hidden">
-              <p class="muted">Scanne die otpauth-URI in deiner Authenticator-App oder trage den Schlüssel manuell ein. Danach gib den 6-stelligen Code ein und speichere dein Profil.</p>
+              <p class="muted">Scanne den QR-Code in deiner Authenticator-App oder trage den Schlüssel manuell ein. Danach gib den 6-stelligen Code ein und speichere dein Profil.</p>
+              <div id="totp-qr-code" class="totp-qr-code" aria-label="Authenticator QR-Code"></div>
               <label>
                 <span>Authenticator Schlüssel</span>
                 <input id="totp-secret" type="text" readonly>

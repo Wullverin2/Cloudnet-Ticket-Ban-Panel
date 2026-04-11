@@ -448,6 +448,27 @@ button:hover {
   font-size: 0.86rem;
 }
 
+.totp-qr-code {
+  display: grid;
+  place-items: center;
+  justify-self: start;
+  width: min(220px, 100%);
+  padding: 12px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+}
+
+.totp-qr-code:empty {
+  display: none;
+}
+
+.totp-qr-code svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .page-nav {
   display: flex;
   flex-wrap: wrap;
