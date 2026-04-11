@@ -31,10 +31,14 @@ public final class PanelApiClient {
   }
 
   public PanelTicket createTicket(String creatorName, UUID creatorUniqueId, String sourceServer, String message) {
+    return this.createTicket(creatorName, creatorUniqueId, sourceServer, this.config.ticketDefaultCategory(), message);
+  }
+
+  public PanelTicket createTicket(String creatorName, UUID creatorUniqueId, String sourceServer, String category, String message) {
     var request = new JsonObject();
     request.addProperty("creatorName", creatorName);
     request.addProperty("creatorUniqueId", creatorUniqueId.toString());
-    request.addProperty("category", this.config.ticketDefaultCategory());
+    request.addProperty("category", category == null || category.isBlank() ? this.config.ticketDefaultCategory() : category);
     request.addProperty("priority", this.config.ticketDefaultPriority());
     request.addProperty("subject", shorten(message, 64));
     request.addProperty("content", message);
@@ -44,12 +48,18 @@ public final class PanelApiClient {
     return this.toTicket(this.send("POST", "/api/tickets", request).getAsJsonObject());
   }
 
+  public PanelTicket ticket(String id) {
+    return this.toTicket(this.send("GET", "/api/tickets/" + encode(id), null).getAsJsonObject());
+  }
+
   public List<PanelTicket> ownTickets(UUID uniqueId) {
     return this.tickets("/api/tickets?creatorUniqueId=" + encode(uniqueId.toString()));
   }
 
   public List<PanelTicket> openTickets() {
-    return this.tickets("/api/tickets?status=OPEN");
+    return this.tickets("/api/tickets").stream()
+      .filter(ticket -> ticket.status() == null || !"CLOSED".equalsIgnoreCase(ticket.status()))
+      .toList();
   }
 
   public PanelTicket setTicketStatus(String id, String status, String actor) {
@@ -57,6 +67,13 @@ public final class PanelApiClient {
     request.addProperty("status", status);
     request.addProperty("actor", actor);
     return this.toTicket(this.send("POST", "/api/tickets/" + encode(id) + "/status", request).getAsJsonObject());
+  }
+
+  public PanelTicket assignTicket(String id, String assignedTo, String actor) {
+    var request = new JsonObject();
+    request.addProperty("assignedTo", assignedTo);
+    request.addProperty("actor", actor);
+    return this.toTicket(this.send("POST", "/api/tickets/" + encode(id) + "/assign", request).getAsJsonObject());
   }
 
   public PanelTicket addTicketComment(String id, String author, String message, boolean internal) {
@@ -104,6 +121,18 @@ public final class PanelApiClient {
     request.addProperty("success", success);
     request.addProperty("message", message);
     this.send("POST", "/api/permissions/actions/" + encode(actionId) + "/complete", request);
+  }
+
+  public List<PanelPlayerAction> pendingPlayerActions() {
+    var response = this.send("GET", "/api/player-actions", null);
+    return Arrays.asList(GSON.fromJson(response, PanelPlayerAction[].class));
+  }
+
+  public void completePlayerAction(String actionId, boolean success, String message) {
+    var request = new JsonObject();
+    request.addProperty("success", success);
+    request.addProperty("message", message);
+    this.send("POST", "/api/player-actions/" + encode(actionId) + "/complete", request);
   }
 
   private List<PanelTicket> tickets(String path) {
@@ -154,16 +183,33 @@ public final class PanelApiClient {
     if (sourceServer == null || sourceServer.isBlank()) {
       sourceServer = string(object, "serviceName");
     }
+    var comments = new ArrayList<PanelTicketComment>();
+    if (object.has("comments") && object.get("comments").isJsonArray()) {
+      for (var element : object.getAsJsonArray("comments")) {
+        if (element.isJsonObject()) {
+          var comment = element.getAsJsonObject();
+          comments.add(new PanelTicketComment(
+            string(comment, "author"),
+            string(comment, "message"),
+            bool(comment, "internal"),
+            string(comment, "createdAt")));
+        }
+      }
+    }
     return new PanelTicket(
       string(object, "id"),
       string(object, "creatorName"),
+      string(object, "creatorUniqueId"),
       string(object, "category"),
       string(object, "priority"),
       string(object, "status"),
       string(object, "subject"),
+      string(object, "content"),
+      string(object, "assignedTo"),
       sourceServer,
       string(object, "createdAt"),
-      string(object, "updatedAt"));
+      string(object, "updatedAt"),
+      List.copyOf(comments));
   }
 
   private static String errorMessage(com.google.gson.JsonElement json, int statusCode) {
@@ -175,6 +221,10 @@ public final class PanelApiClient {
 
   private static String string(JsonObject object, String key) {
     return object.has(key) && !object.get(key).isJsonNull() ? object.get(key).getAsString() : null;
+  }
+
+  private static boolean bool(JsonObject object, String key) {
+    return object.has(key) && !object.get(key).isJsonNull() && object.get(key).getAsBoolean();
   }
 
   private static String shorten(String value, int maxLength) {

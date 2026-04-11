@@ -104,6 +104,7 @@ function bindElements() {
   elements.ticketForm = document.getElementById("ticket-form");
   elements.ticketStatus = document.getElementById("ticket-status");
   elements.ticketTable = document.getElementById("ticket-table");
+  elements.ticketArchiveTable = document.getElementById("ticket-archive-table");
   elements.ticketAuditTable = document.getElementById("ticket-audit-table");
   elements.ticketCategorySelect = document.getElementById("ticket-category-select");
   elements.ticketPrioritySelect = document.getElementById("ticket-priority-select");
@@ -114,6 +115,7 @@ function bindElements() {
   elements.banTable = document.getElementById("ban-table");
   elements.liteBanTable = document.getElementById("liteban-table");
   elements.banAppealTable = document.getElementById("ban-appeal-table");
+  elements.banAppealArchiveTable = document.getElementById("ban-appeal-archive-table");
   elements.banAuditTable = document.getElementById("ban-audit-table");
 
   elements.groupForm = document.getElementById("group-form");
@@ -177,6 +179,9 @@ function bindEvents() {
 
   elements.ticketForm.addEventListener("submit", handleTicketSubmit);
   elements.ticketTable.addEventListener("click", handleTicketTableClick);
+  document.querySelectorAll("button[data-ticket-tab]").forEach(button => {
+    button.addEventListener("click", () => switchTicketTab(button.dataset.ticketTab));
+  });
 
   elements.banForm.addEventListener("submit", handleBanSubmit);
   elements.banTable.addEventListener("click", handleBanTableClick);
@@ -501,6 +506,7 @@ async function refreshAll() {
     state.tickets = asArray(tickets);
     state.ticketAudit = asArray(ticketAudit);
     renderTickets();
+    renderTicketArchive();
     renderTicketAudit();
   }
 
@@ -518,6 +524,7 @@ async function refreshAll() {
     renderBans();
     renderLiteBans();
     renderBanAppeals();
+    renderBanAppealArchive();
     renderBanAudit();
   }
 
@@ -553,6 +560,7 @@ async function refreshAll() {
     state.settings = await api("/api/settings");
     renderSettings();
     renderBanAppeals();
+    renderBanAppealArchive();
   }
 
   if (hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)) {
@@ -661,12 +669,13 @@ function renderNodes() {
 }
 
 function renderTickets() {
-  if (!state.tickets.length) {
-    elements.ticketTable.innerHTML = `<tr><td colspan="7" class="muted">Keine Tickets vorhanden.</td></tr>`;
+  const activeTickets = state.tickets.filter(ticket => !isClosedTicket(ticket));
+  if (!activeTickets.length) {
+    elements.ticketTable.innerHTML = `<tr><td colspan="7" class="muted">Keine aktiven Tickets vorhanden.</td></tr>`;
     return;
   }
 
-  elements.ticketTable.innerHTML = state.tickets.map(ticket => `
+  elements.ticketTable.innerHTML = activeTickets.map(ticket => `
     <tr>
       <td>
         <strong>${escapeHtml(ticket.subject)}</strong><br>
@@ -682,12 +691,36 @@ function renderTickets() {
   `).join("");
 }
 
+function renderTicketArchive() {
+  const archivedTickets = state.tickets.filter(isClosedTicket);
+  if (!archivedTickets.length) {
+    elements.ticketArchiveTable.innerHTML = `<tr><td colspan="7" class="muted">Noch keine geschlossenen Tickets im Archiv.</td></tr>`;
+    return;
+  }
+
+  elements.ticketArchiveTable.innerHTML = archivedTickets.map(ticket => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(ticket.subject)}</strong><br>
+        <span class="muted">${escapeHtml(ticket.category)} | ${escapeHtml(ticket.createdAt || "-")}</span>
+      </td>
+      <td>${escapeHtml(ticket.creatorName)}</td>
+      <td>${escapeHtml(ticket.sourceServer || ticket.serviceName || "-")}</td>
+      <td>${escapeHtml(ticket.status)}</td>
+      <td>${escapeHtml(ticket.priority)}</td>
+      <td>${escapeHtml(ticket.assignedTo || "-")}</td>
+      <td>${escapeHtml(ticket.updatedAt || "-")}</td>
+    </tr>
+  `).join("");
+}
+
 function ticketActions(ticket) {
   if (!hasPermission(PERMISSIONS.TICKETS_MANAGE)) {
     return `<span class="muted">Nur Ansicht</span>`;
   }
 
   return `
+    <button data-ticket-action="teleport" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Teleport</button>
     <button data-ticket-action="open" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Open</button>
     <button data-ticket-action="progress" data-ticket-id="${escapeAttr(ticket.id)}" type="button">In Progress</button>
     <button data-ticket-action="close" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Close</button>
@@ -788,6 +821,10 @@ function liteBanIdCell(ban) {
   `;
 }
 
+function isClosedTicket(ticket) {
+  return String(ticket.status || "").toUpperCase() === "CLOSED";
+}
+
 function liteBanActions(ban) {
   if (!hasPermission(PERMISSIONS.BANS_MANAGE)) {
     return `<span class="muted">bans.manage fehlt</span>`;
@@ -810,12 +847,13 @@ function liteBanActions(ban) {
 }
 
 function renderBanAppeals() {
-  if (!state.banAppeals.length) {
-    elements.banAppealTable.innerHTML = `<tr><td colspan="8" class="muted">Noch keine Entbannungsantraege vorhanden.</td></tr>`;
+  const activeAppeals = state.banAppeals.filter(appeal => !isArchivedAppeal(appeal));
+  if (!activeAppeals.length) {
+    elements.banAppealTable.innerHTML = `<tr><td colspan="8" class="muted">Keine offenen Entbannungsantraege vorhanden.</td></tr>`;
     return;
   }
 
-  elements.banAppealTable.innerHTML = state.banAppeals.map(appeal => `
+  elements.banAppealTable.innerHTML = activeAppeals.map(appeal => `
     <tr>
       <td>
         <span class="badge ${appealStatusClass(appeal.status)}">${escapeHtml(appeal.status || "-")}</span><br>
@@ -833,6 +871,36 @@ function renderBanAppeals() {
       <td>${banAppealActions(appeal)}</td>
     </tr>
   `).join("");
+}
+
+function renderBanAppealArchive() {
+  const archivedAppeals = state.banAppeals.filter(isArchivedAppeal);
+  if (!archivedAppeals.length) {
+    elements.banAppealArchiveTable.innerHTML = `<tr><td colspan="7" class="muted">Noch keine abgeschlossenen Entbannungsantraege im Archiv.</td></tr>`;
+    return;
+  }
+
+  elements.banAppealArchiveTable.innerHTML = archivedAppeals.map(appeal => `
+    <tr>
+      <td>
+        <span class="badge ${appealStatusClass(appeal.status)}">${escapeHtml(appeal.status || "-")}</span><br>
+        <span class="muted">${escapeHtml(appealStatusText(appeal.status))}</span>
+      </td>
+      <td>
+        <strong>${escapeHtml(appeal.publicBanId || "-")}</strong><br>
+        <span class="muted">intern: ${escapeHtml(appeal.liteBanId || "-")}</span>
+      </td>
+      <td>${escapeHtml(appeal.playerName || "-")}</td>
+      <td>${escapeHtml(appeal.email || "-")}</td>
+      <td>${escapeHtml(shortText(appeal.reason, 90))}</td>
+      <td>${appealEvidence(appeal)}</td>
+      <td>${escapeHtml(appeal.updatedAt || appeal.createdAt || "-")}</td>
+    </tr>
+  `).join("");
+}
+
+function isArchivedAppeal(appeal) {
+  return ["ACCEPTED", "REJECTED", "CLOSED"].includes(String(appeal.status || "").toUpperCase());
 }
 
 function appealStatusClass(status) {
@@ -1690,6 +1758,26 @@ async function handleTicketTableClick(event) {
         method: "POST",
         body: { author, message, internal },
       });
+    } else if (action === "teleport") {
+      const ticket = state.tickets.find(entry => entry.id === ticketId);
+      const staffName = prompt(
+        "Welcher Teamler soll teleportiert werden? Das muss dein Minecraft-Name sein.",
+        state.currentUser?.minecraftName || state.currentUser?.displayName || state.currentUser?.username || "");
+      if (!ticket || !staffName) {
+        return;
+      }
+      await api("/api/player-actions/teleport", {
+        method: "POST",
+        body: {
+          staffName,
+          targetName: ticket.creatorName,
+          targetUniqueId: ticket.creatorUniqueId || "",
+          targetServer: ticket.sourceServer || ticket.serviceName || "",
+          ticketId,
+          actor: state.currentUser?.displayName || state.currentUser?.username || staffName,
+        },
+      });
+      setStatus(elements.ticketStatus, "Teleport wurde an Velocity uebergeben.", false);
     } else {
       const actor = prompt("Wer aendert den Ticket-Status?", state.currentUser?.displayName || state.currentUser?.username || "");
       if (!actor) {
@@ -1706,6 +1794,15 @@ async function handleTicketTableClick(event) {
   } catch (error) {
     handleApiError(error, elements.ticketStatus);
   }
+}
+
+function switchTicketTab(tab) {
+  document.querySelectorAll(".ticket-tab-panel").forEach(panel => {
+    panel.classList.toggle("hidden", panel.dataset.ticketPanel !== tab);
+  });
+  document.querySelectorAll("button[data-ticket-tab]").forEach(button => {
+    button.classList.toggle("active", button.dataset.ticketTab === tab);
+  });
 }
 
 async function handleBanTableClick(event) {
@@ -1801,7 +1898,7 @@ async function handleBanAppealTableClick(event) {
       },
     });
     await refreshAll();
-    switchBanTab("appeals");
+    switchBanTab(isArchivedAppeal({ status: button.dataset.appealAction }) ? "appeal-archive" : "appeals");
   } catch (error) {
     handleApiError(error, elements.banStatus);
   }

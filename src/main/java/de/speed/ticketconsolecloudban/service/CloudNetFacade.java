@@ -12,9 +12,11 @@ import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.permission.PermissionActionRequest;
 import de.speed.ticketconsolecloudban.permission.PermissionAuditEntry;
 import de.speed.ticketconsolecloudban.permission.PermissionSubject;
+import de.speed.ticketconsolecloudban.player.PlayerActionRequest;
 import de.speed.ticketconsolecloudban.store.BanStore;
 import de.speed.ticketconsolecloudban.store.BanAppealStore;
 import de.speed.ticketconsolecloudban.store.PermissionBridgeStore;
+import de.speed.ticketconsolecloudban.store.PlayerActionStore;
 import de.speed.ticketconsolecloudban.store.TicketStore;
 import de.speed.ticketconsolecloudban.settings.PanelSettings;
 import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
@@ -70,6 +72,7 @@ public final class CloudNetFacade {
   private final LiteBansDatabaseSyncService liteBansDatabaseSyncService;
   private final PanelSettingsStore settingsStore;
   private final PermissionBridgeStore permissionBridgeStore;
+  private final PlayerActionStore playerActionStore;
 
   public CloudNetFacade(
     CloudServiceProvider cloudServiceProvider,
@@ -82,7 +85,8 @@ public final class CloudNetFacade {
     BanAppealStore banAppealStore,
     LiteBansDatabaseSyncService liteBansDatabaseSyncService,
     PanelSettingsStore settingsStore,
-    PermissionBridgeStore permissionBridgeStore
+    PermissionBridgeStore permissionBridgeStore,
+    PlayerActionStore playerActionStore
   ) {
     this.cloudServiceProvider = cloudServiceProvider;
     this.serviceTaskProvider = serviceTaskProvider;
@@ -95,6 +99,7 @@ public final class CloudNetFacade {
     this.liteBansDatabaseSyncService = liteBansDatabaseSyncService;
     this.settingsStore = settingsStore;
     this.permissionBridgeStore = permissionBridgeStore;
+    this.playerActionStore = playerActionStore;
   }
 
   public MetaView meta() {
@@ -314,6 +319,10 @@ public final class CloudNetFacade {
     return this.ticketStore.auditLog();
   }
 
+  public TicketView getTicket(String id) {
+    return this.ticketView(this.ticketStore.get(id));
+  }
+
   public TicketView createTicket(Document request) {
     var creatorName = this.requiredText(request, "creatorName");
     var subject = this.requiredText(request, "subject");
@@ -353,6 +362,28 @@ public final class CloudNetFacade {
     var message = this.requiredText(request, "message");
     var internal = request.getBoolean("internal", false);
     return this.ticketView(this.ticketStore.addComment(id, author, message, internal));
+  }
+
+  public PlayerActionRequest requestTeleportToPlayer(Document request) {
+    var staffName = this.requiredText(request, "staffName");
+    return this.playerActionStore.requestTeleport(
+      staffName,
+      this.requiredText(request, "targetName"),
+      this.nullableText(request.getString("targetUniqueId")),
+      this.nullableText(request.getString("targetServer")),
+      this.nullableText(request.getString("ticketId")),
+      this.textOrDefault(request, "actor", staffName));
+  }
+
+  public List<PlayerActionRequest> pendingPlayerActions() {
+    return this.playerActionStore.pendingActionRequests();
+  }
+
+  public PlayerActionRequest completePlayerAction(String actionId, Document request) {
+    return this.playerActionStore.completeActionRequest(
+      actionId,
+      request.getBoolean("success", true),
+      this.textOrDefault(request, "message", "Aktion verarbeitet"));
   }
 
   public List<BanView> listBans() {
@@ -729,6 +760,7 @@ public final class CloudNetFacade {
     return new TicketView(
       ticket.id(),
       ticket.creatorName(),
+      ticket.creatorUniqueId(),
       ticket.category(),
       ticket.priority(),
       ticket.status(),
@@ -1052,6 +1084,7 @@ public final class CloudNetFacade {
   public record TicketView(
     String id,
     String creatorName,
+    String creatorUniqueId,
     String category,
     String priority,
     String status,

@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -62,6 +63,7 @@ public final class TicketConsoleVelocityPlugin {
     this.registerCommands();
     this.scheduleLiteBansBridge();
     this.scheduleLuckPermsBridge();
+    this.schedulePanelActions();
     this.logger.info("TicketConsoleCloudBan Velocity Plugin gestartet.");
   }
 
@@ -116,6 +118,7 @@ public final class TicketConsoleVelocityPlugin {
     this.register("ticket", List.of("support"), new TicketCommand());
     this.register("tickets", List.of("mytickets"), new OwnTicketsCommand());
     this.register("teamtickets", List.of("opentickets"), new TeamTicketsCommand());
+    this.register("teamticket", List.of("tticket", "staffticket"), new TicketTeamCommand());
     this.register("ticketclose", List.of(), new TicketCloseCommand());
     this.register("ticketcomment", List.of(), new TicketCommentCommand());
     this.register("cloudban", List.of("cban"), new CloudBanCommand());
@@ -146,6 +149,14 @@ public final class TicketConsoleVelocityPlugin {
       .repeat(this.config.luckPermsSyncIntervalSeconds(), TimeUnit.SECONDS)
       .schedule();
     this.executor.execute(this::syncLuckPermsAndActions);
+  }
+
+  private void schedulePanelActions() {
+    this.server.getScheduler()
+      .buildTask(this, () -> this.executor.execute(this::syncPlayerActions))
+      .repeat(this.config.panelActionIntervalSeconds(), TimeUnit.SECONDS)
+      .schedule();
+    this.executor.execute(this::syncPlayerActions);
   }
 
   private void syncLiteBansAndActions() {
@@ -208,6 +219,82 @@ public final class TicketConsoleVelocityPlugin {
     }
   }
 
+  private void syncPlayerActions() {
+    if (!this.config.hasPanelToken()) {
+      return;
+    }
+
+    for (var action : this.panelApi.pendingPlayerActions()) {
+      this.processPlayerAction(action);
+    }
+  }
+
+  private void processPlayerAction(PanelPlayerAction action) {
+    if (!"TELEPORT_TO_PLAYER".equals(action.type())) {
+      this.panelApi.completePlayerAction(action.id(), false, "Unbekannte Spieler-Aktion: " + action.type());
+      return;
+    }
+    if (!this.config.teleportEnabled()) {
+      this.panelApi.completePlayerAction(action.id(), false, "Teleport ist in der Velocity-Config deaktiviert.");
+      return;
+    }
+
+    var staff = this.server.getPlayer(action.staffName()).orElse(null);
+    var target = this.findTarget(action);
+    if (staff == null) {
+      this.panelApi.completePlayerAction(action.id(), false, "Teamler ist nicht online: " + action.staffName());
+      return;
+    }
+    if (target == null) {
+      this.panelApi.completePlayerAction(action.id(), false, "Spieler ist nicht online: " + action.targetName());
+      return;
+    }
+
+    var targetServer = target.getCurrentServer().orElse(null);
+    if (targetServer == null) {
+      this.panelApi.completePlayerAction(action.id(), false, "Spieler ist aktuell auf keinem Server verbunden.");
+      return;
+    }
+
+    var connection = staff.getCurrentServer().orElse(null);
+    var sameServer = connection != null
+      && connection.getServerInfo().getName().equalsIgnoreCase(targetServer.getServerInfo().getName());
+    var connectFuture = sameServer
+      ? java.util.concurrent.CompletableFuture.completedFuture(null)
+      : staff.createConnectionRequest(targetServer.getServer()).connect().thenApply(result -> null);
+
+    connectFuture.thenCompose(ignored -> {
+      staff.sendMessage(Component.text(PREFIX + "Teleportiere zu " + target.getUsername() + " auf " + targetServer.getServerInfo().getName(), NamedTextColor.GOLD));
+      var command = applyTeleportTemplate(this.config.teleportCommand(), staff.getUsername(), target.getUsername(), targetServer.getServerInfo().getName(), action.ticketId());
+      if (command == null || command.isBlank()) {
+        return java.util.concurrent.CompletableFuture.completedFuture(true);
+      }
+      return this.server.getCommandManager().executeAsync(this.server.getConsoleCommandSource(), command);
+    }).thenAccept(success -> this.panelApi.completePlayerAction(
+      action.id(),
+      success,
+      success
+        ? "Teamler wurde verbunden und Teleport-Befehl wurde ausgefuehrt."
+        : "Teamler wurde verbunden, aber der Teleport-Befehl konnte nicht ausgefuehrt werden."))
+      .exceptionally(throwable -> {
+        this.panelApi.completePlayerAction(action.id(), false, throwable.getMessage());
+        return null;
+      });
+  }
+
+  private Player findTarget(PanelPlayerAction action) {
+    if (action.targetUniqueId() != null && !action.targetUniqueId().isBlank()) {
+      try {
+        var target = this.server.getPlayer(UUID.fromString(action.targetUniqueId())).orElse(null);
+        if (target != null) {
+          return target;
+        }
+      } catch (IllegalArgumentException ignored) {
+      }
+    }
+    return this.server.getPlayer(action.targetName()).orElse(null);
+  }
+
   private final class TicketCommand implements SimpleCommand {
     @Override
     public void execute(Invocation invocation) {
@@ -215,24 +302,73 @@ public final class TicketConsoleVelocityPlugin {
         send(invocation.source(), "Dieser Befehl ist nur fuer Spieler.", NamedTextColor.RED);
         return;
       }
+      if (invocation.arguments().length == 0) {
+        send(player, "Nutzung: /ticket create <Grund> [Support|Bug|Melden|Sonstiges], /ticket list, /ticket view <id>", NamedTextColor.YELLOW);
+        return;
+      }
+
+      var args = invocation.arguments();
+      var subCommand = args[0].toLowerCase(Locale.ROOT);
+      if ("list".equals(subCommand)) {
+        if (!TicketConsoleVelocityPlugin.this.hasPermission(invocation.source(), TicketConsoleVelocityPlugin.this.config.permissionTicketListOwn())) {
+          noPermission(invocation.source());
+          return;
+        }
+        runAsync(invocation.source(), () -> {
+          var tickets = TicketConsoleVelocityPlugin.this.panelApi.ownTickets(player.getUniqueId());
+          sendTicketList(player, "Deine Tickets", tickets);
+        });
+        return;
+      }
+
+      if ("view".equals(subCommand)) {
+        if (args.length < 2) {
+          send(player, "Nutzung: /ticket view <id>", NamedTextColor.YELLOW);
+          return;
+        }
+        var canViewTeamTickets = TicketConsoleVelocityPlugin.this.hasPermission(invocation.source(), TicketConsoleVelocityPlugin.this.config.permissionTicketTeam())
+          || TicketConsoleVelocityPlugin.this.hasPermission(invocation.source(), TicketConsoleVelocityPlugin.this.config.permissionTicketManage());
+        if (!canViewTeamTickets
+          && !TicketConsoleVelocityPlugin.this.hasPermission(invocation.source(), TicketConsoleVelocityPlugin.this.config.permissionTicketListOwn())) {
+          noPermission(invocation.source());
+          return;
+        }
+        var id = args[1];
+        runAsync(invocation.source(), () -> {
+          var ticket = TicketConsoleVelocityPlugin.this.panelApi.ticket(id);
+          if (!canViewTeamTickets && !isOwnTicket(ticket, player)) {
+            send(player, "Dieses Ticket gehoert nicht zu deinem Minecraft-Account.", NamedTextColor.RED);
+            return;
+          }
+          sendTicketDetails(player, ticket, canViewTeamTickets);
+        });
+        return;
+      }
+
+      var startIndex = "create".equals(subCommand) ? 1 : 0;
       if (!TicketConsoleVelocityPlugin.this.hasPermission(invocation.source(), TicketConsoleVelocityPlugin.this.config.permissionTicketCreate())) {
         noPermission(invocation.source());
         return;
       }
-      if (invocation.arguments().length == 0) {
-        send(player, "Nutzung: /ticket <Nachricht>", NamedTextColor.YELLOW);
+      if (args.length <= startIndex) {
+        send(player, "Nutzung: /ticket create <Grund> [Support|Bug|Melden|Sonstiges]", NamedTextColor.YELLOW);
         return;
       }
 
-      var message = join(invocation.arguments(), 0);
+      var input = parseTicketCreate(args, startIndex);
+      if (input.message().isBlank()) {
+        send(player, "Bitte gib einen Grund bzw. eine Beschreibung fuer das Ticket an.", NamedTextColor.YELLOW);
+        return;
+      }
       var sourceServer = currentServer(player);
       runAsync(invocation.source(), () -> {
         var ticket = TicketConsoleVelocityPlugin.this.panelApi.createTicket(
           player.getUsername(),
           player.getUniqueId(),
           sourceServer,
-          message);
-        send(player, "Ticket erstellt: " + ticket.id() + " auf " + sourceServer, NamedTextColor.GREEN);
+          input.category(),
+          input.message());
+        send(player, "Ticket erstellt: " + ticket.id() + " auf " + sourceServer + ". Mit /ticket view " + ticket.id() + " kannst du Antworten lesen.", NamedTextColor.GREEN);
       });
     }
   }
@@ -268,6 +404,83 @@ public final class TicketConsoleVelocityPlugin {
         var tickets = TicketConsoleVelocityPlugin.this.panelApi.openTickets();
         sendTicketList(invocation.source(), "Offene Tickets", tickets);
       });
+    }
+  }
+
+  private final class TicketTeamCommand implements SimpleCommand {
+    @Override
+    public void execute(Invocation invocation) {
+      if (!TicketConsoleVelocityPlugin.this.hasPermission(invocation.source(), TicketConsoleVelocityPlugin.this.config.permissionTicketTeam())) {
+        noPermission(invocation.source());
+        return;
+      }
+      if (invocation.arguments().length == 0 || "list".equalsIgnoreCase(invocation.arguments()[0])) {
+        runAsync(invocation.source(), () -> {
+          var tickets = TicketConsoleVelocityPlugin.this.panelApi.openTickets();
+          sendTicketList(invocation.source(), "Offene Tickets", tickets);
+        });
+        return;
+      }
+
+      var args = invocation.arguments();
+      var action = args[0].toLowerCase(Locale.ROOT);
+      if ("view".equals(action)) {
+        if (args.length < 2) {
+          send(invocation.source(), "Nutzung: /teamticket view <id>", NamedTextColor.YELLOW);
+          return;
+        }
+        runAsync(invocation.source(), () -> sendTicketDetails(
+          invocation.source(),
+          TicketConsoleVelocityPlugin.this.panelApi.ticket(args[1]),
+          true));
+        return;
+      }
+
+      if (!TicketConsoleVelocityPlugin.this.hasPermission(invocation.source(), TicketConsoleVelocityPlugin.this.config.permissionTicketManage())) {
+        noPermission(invocation.source());
+        return;
+      }
+
+      var actor = actorName(invocation.source());
+      if ("close".equals(action) || "open".equals(action) || "progress".equals(action)) {
+        if (args.length < 2) {
+          send(invocation.source(), "Nutzung: /teamticket " + action + " <id>", NamedTextColor.YELLOW);
+          return;
+        }
+        var status = "close".equals(action) ? "CLOSED" : "progress".equals(action) ? "IN_PROGRESS" : "OPEN";
+        runAsync(invocation.source(), () -> {
+          TicketConsoleVelocityPlugin.this.panelApi.setTicketStatus(args[1], status, actor);
+          send(invocation.source(), "Ticket " + args[1] + " ist jetzt " + status + ".", NamedTextColor.GREEN);
+        });
+        return;
+      }
+
+      if ("assign".equals(action)) {
+        if (args.length < 3) {
+          send(invocation.source(), "Nutzung: /teamticket assign <id> <teamler>", NamedTextColor.YELLOW);
+          return;
+        }
+        runAsync(invocation.source(), () -> {
+          TicketConsoleVelocityPlugin.this.panelApi.assignTicket(args[1], args[2], actor);
+          send(invocation.source(), "Ticket " + args[1] + " wurde " + args[2] + " zugewiesen.", NamedTextColor.GREEN);
+        });
+        return;
+      }
+
+      if ("comment".equals(action)) {
+        if (args.length < 3) {
+          send(invocation.source(), "Nutzung: /teamticket comment <id> <nachricht>", NamedTextColor.YELLOW);
+          return;
+        }
+        var message = join(args, 2);
+        runAsync(invocation.source(), () -> {
+          TicketConsoleVelocityPlugin.this.panelApi.addTicketComment(args[1], actor, message, false);
+          send(invocation.source(), "Antwort zu Ticket " + args[1] + " gespeichert.", NamedTextColor.GREEN);
+        });
+        return;
+      }
+
+      send(invocation.source(), "Nutzung: /teamticket list|view|open|progress|close|assign|comment", NamedTextColor.YELLOW);
     }
   }
 
@@ -408,9 +621,35 @@ public final class TicketConsoleVelocityPlugin {
       .limit(this.config.ticketListLimit())
       .forEach(ticket -> send(
         source,
-        "#" + shortId(ticket.id()) + " [" + ticket.status() + "] "
+        "#" + nullDash(ticket.id()) + " [" + ticket.status() + "] "
           + ticket.subject() + " | " + nullDash(ticket.sourceServer()),
         NamedTextColor.YELLOW));
+  }
+
+  private void sendTicketDetails(CommandSource source, PanelTicket ticket, boolean includeInternal) {
+    send(source, "Ticket " + ticket.id() + " [" + ticket.status() + "]", NamedTextColor.GOLD);
+    send(source, ticket.subject() + " | " + ticket.category() + " | " + nullDash(ticket.sourceServer()), NamedTextColor.YELLOW);
+    send(source, "Ersteller: " + nullDash(ticket.creatorName()) + " | Zustaendig: " + nullDash(ticket.assignedTo()), NamedTextColor.GRAY);
+    if (ticket.content() != null && !ticket.content().isBlank()) {
+      send(source, "Beschreibung: " + ticket.content(), NamedTextColor.WHITE);
+    }
+
+    var visibleComments = ticket.comments() == null
+      ? List.<PanelTicketComment>of()
+      : ticket.comments().stream()
+        .filter(comment -> includeInternal || !comment.internal())
+        .toList();
+    if (visibleComments.isEmpty()) {
+      send(source, "Noch keine Antworten vorhanden.", NamedTextColor.GRAY);
+      return;
+    }
+    send(source, "Antworten:", NamedTextColor.GOLD);
+    visibleComments.stream()
+      .limit(8)
+      .forEach(comment -> send(
+        source,
+        nullDash(comment.author()) + ": " + nullDash(comment.message()) + (comment.internal() ? " (intern)" : ""),
+        comment.internal() ? NamedTextColor.DARK_GRAY : NamedTextColor.AQUA));
   }
 
   private void dispatchConsoleCommand(CommandSource source, String command, String successMessage) {
@@ -452,6 +691,44 @@ public final class TicketConsoleVelocityPlugin {
     return String.join(" ", Arrays.copyOfRange(arguments, startIndex, arguments.length)).trim();
   }
 
+  private static String join(String[] arguments, int startIndex, int endIndex) {
+    return String.join(" ", Arrays.copyOfRange(arguments, startIndex, endIndex)).trim();
+  }
+
+  private static TicketCreateInput parseTicketCreate(String[] arguments, int startIndex) {
+    var firstCategory = category(arguments[startIndex]);
+    if (firstCategory != null && arguments.length > startIndex + 1) {
+      return new TicketCreateInput(firstCategory, join(arguments, startIndex + 1));
+    }
+
+    var lastCategory = category(arguments[arguments.length - 1]);
+    if (lastCategory != null && arguments.length > startIndex + 1) {
+      return new TicketCreateInput(lastCategory, join(arguments, startIndex, arguments.length - 1));
+    }
+
+    return new TicketCreateInput(null, join(arguments, startIndex));
+  }
+
+  private static String category(String value) {
+    if (value == null) {
+      return null;
+    }
+    return switch (value.toLowerCase(Locale.ROOT)) {
+      case "support" -> "SUPPORT";
+      case "bug", "fehler" -> "BUG";
+      case "melden", "report", "meldung" -> "REPORT";
+      case "sonstiges", "other" -> "OTHER";
+      default -> null;
+    };
+  }
+
+  private static boolean isOwnTicket(PanelTicket ticket, Player player) {
+    if (ticket.creatorUniqueId() != null && ticket.creatorUniqueId().equalsIgnoreCase(player.getUniqueId().toString())) {
+      return true;
+    }
+    return ticket.creatorName() != null && ticket.creatorName().equalsIgnoreCase(player.getUsername());
+  }
+
   private static String currentServer(Player player) {
     return player.getCurrentServer()
       .map(connection -> connection.getServerInfo().getName())
@@ -482,11 +759,12 @@ public final class TicketConsoleVelocityPlugin {
       .replace("{actor}", nullDash(action.actor()));
   }
 
-  private static String shortId(String id) {
-    if (id == null) {
-      return "-";
-    }
-    return id.length() <= 8 ? id : id.substring(0, 8).toLowerCase(Locale.ROOT);
+  private static String applyTeleportTemplate(String template, String staff, String target, String serverName, String ticketId) {
+    return template == null ? "" : template
+      .replace("{staff}", nullDash(staff))
+      .replace("{target}", nullDash(target))
+      .replace("{server}", nullDash(serverName))
+      .replace("{ticketId}", nullDash(ticketId));
   }
 
   private static String nullDash(String value) {
@@ -500,5 +778,8 @@ public final class TicketConsoleVelocityPlugin {
       }
     }
     return null;
+  }
+
+  private record TicketCreateInput(String category, String message) {
   }
 }

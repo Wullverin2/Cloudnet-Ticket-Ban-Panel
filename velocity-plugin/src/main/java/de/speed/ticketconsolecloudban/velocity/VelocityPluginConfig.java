@@ -10,6 +10,7 @@ import java.util.Properties;
 public record VelocityPluginConfig(
   String panelUrl,
   String panelApiToken,
+  int panelActionIntervalSeconds,
   String ticketDefaultCategory,
   String ticketDefaultPriority,
   int ticketListLimit,
@@ -26,6 +27,8 @@ public record VelocityPluginConfig(
   String liteBansBanCommand,
   String liteBansUnbanCommand,
   String liteBansExtendCommand,
+  boolean teleportEnabled,
+  String teleportCommand,
   String permissionTicketCreate,
   String permissionTicketListOwn,
   String permissionTicketTeam,
@@ -64,6 +67,7 @@ public record VelocityPluginConfig(
     return new VelocityPluginConfig(
       text(properties, "panel.url", "http://127.0.0.1:8088"),
       text(properties, "panel.api-token", "CHANGE_ME"),
+      integer(properties, "panel.action-interval-seconds", 10, 5, 300),
       text(properties, "ticket.default-category", "SUPPORT"),
       text(properties, "ticket.default-priority", "NORMAL"),
       integer(properties, "ticket.list-limit", 8, 1, 25),
@@ -80,6 +84,8 @@ public record VelocityPluginConfig(
       text(properties, "litebans.ban-command", "ban {player} {duration} {reason}"),
       text(properties, "litebans.unban-command", "unban {player} {reason}"),
       text(properties, "litebans.extend-command", "ban {player} {duration} {reason}"),
+      bool(properties, "teleport.enabled", true),
+      text(properties, "teleport.command", "tp {staff} {target}"),
       text(properties, "permissions.ticket-create", "tccb.ticket.create"),
       text(properties, "permissions.ticket-list-own", "tccb.ticket.own"),
       text(properties, "permissions.ticket-team", "tccb.ticket.team"),

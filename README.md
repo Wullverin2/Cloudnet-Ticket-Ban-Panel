@@ -7,15 +7,16 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel fuer:
 - Services starten, stoppen, neustarten und löschen
 - Konsolen-Logs pro Service ansehen und Befehle senden
 - Cluster-Nodes im Panel anzeigen
-- Tickets erstellen, kommentieren, zuweisen und abschliessen
+- Tickets erstellen, kommentieren, zuweisen, abschliessen und archivieren
 - Zentrale Cloud-Bans anlegen und deaktivieren
 - Panel-Login mit Benutzern, Gruppen und Rechteverwaltung
 - Benutzerprofil mit E-Mail fuer Passwort-vergessen-Prozesse und optionalem Minecraft-Account
-- Auditlogs fuer Tickets und Bans
+- Auditlogs und Archivansichten fuer Tickets und Entbannungsantraege
 - LiteBans-Unterseite mit synchronisierten LiteBans-Bans
 - Oeffentliches Entbannungsformular auf separatem Port mit Statusseite und HTML-Mail
 - Passwort-vergessen-Flow mit Reset-Token und optionalem SMTP-Mailversand
 - LuckPerms-Unterseite mit Subject-Sync, Aktionsqueue und Auditlog
+- Panel-Teleport-Button fuer Ticket-Ersteller ueber die Velocity-Aktionsqueue
 
 Die UI ist direkt im Modul enthalten und wird ueber einen kleinen HTTP-Server ausgeliefert.
 
@@ -32,15 +33,18 @@ Das Panel ist bewusst als MVP gebaut:
 - Service-Konsole ist vorhanden
 - Node-Übersicht ist vorhanden
 - Ticket-System ist vorhanden und speichert den Unterserver/Service, auf dem ein Ticket erstellt wurde
+- Geschlossene Tickets werden im Ticket-Archiv angezeigt
 - Cloud-Ban-Verwaltung ist vorhanden
 - Panel-Login mit Gruppenrechten ist vorhanden
 - LiteBans-Bans koennen ueber das Velocity-Plugin ins Panel synchronisiert werden
 - LiteBans-Unban und -Verlaengerung laufen ueber eine Panel-Aktionsqueue, die Velocity abarbeitet
 - Entbannungsantraege pruefen die Random-LiteBans-ID gegen den Spielernamen und erlauben nur einen Antrag je Ban-ID/Spieler
+- Angenommene, abgelehnte und geschlossene Entbannungsantraege werden im Ban-Archiv angezeigt
 - Beweise koennen lokal, per SFTP oder per OneDrive-Upload-URL gespeichert werden
 - LuckPerms-Gruppen und geladene Spieler koennen pro Proxy und pro Purpur-Unterserver ins Panel synchronisiert werden
 - LuckPerms-Permissions und Parent-Gruppen koennen im Panel als Queue-Aktion erstellt werden
 - Unterserver mit eigener LuckPerms-Datenbank werden ueber das Purpur-Companion-Plugin gezielt per `server.id` angesteuert
+- Das Panel kann Teamler per Teleport-Queue zum Ticket-Ersteller schicken, sofern der Teamler online ist und Velocity den Teleport-Befehl ausfuehren kann
 - Passwort-Reset laeuft mit gehashten Einmal-Tokens und optionaler SMTP-Mail
 - Live-Konsole laeuft aktuell per Polling auf dem Log-Cache
 
@@ -159,7 +163,39 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemaess so aus:
 
 Das Panel nutzt einen eigenen Login. Der alte API-Token-Zugang bleibt fuer externe Tools oder ein spaeteres Velocity-/Purpur-Companion-Plugin erhalten und hat Vollzugriff.
 
-Panel-Daten wie Tickets, Entbannungsantraege, Teampanel-Benutzer, Panelgruppen, Gruppenrechte und LuckPerms-Bridge-Daten werden bei `panelStorageBackend=SQL` in der Tabelle `panelSqlTable` gespeichert. `SQL` ist die Standard-Speicherart. Beim Wechsel von `LOCAL` auf `SQL` importiert das Modul vorhandene lokale JSON-Dateien automatisch in die MySQL-Tabelle.
+Panel-Daten wie Tickets, Entbannungsantraege, Teampanel-Benutzer, Panelgruppen, Gruppenrechte, Ban-/LiteBans-Snapshots, Aktionsqueues und LuckPerms-Bridge-Daten werden bei `panelStorageBackend=SQL` in der Tabelle `panelSqlTable` gespeichert. `SQL` ist die Standard-Speicherart. Beim Wechsel von `LOCAL` auf `SQL` importiert das Modul vorhandene lokale JSON-Dateien automatisch in die MySQL-Tabelle.
+
+Fuer MySQL-Speicherung im Panel muessen in der CloudNet-Modul-`config.json` diese Werte gesetzt sein:
+
+```json
+{
+  "panelStorageBackend": "SQL",
+  "panelSqlJdbcUrl": "jdbc:mysql://MYSQL-HOST:3306/tccb_panel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
+  "panelSqlUsername": "tccb_panel",
+  "panelSqlPassword": "DEIN_PASSWORT",
+  "panelSqlTable": "tccb_panel_data"
+}
+```
+
+Empfohlene MySQL-Vorbereitung:
+
+```sql
+CREATE DATABASE tccb_panel CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'tccb_panel'@'%' IDENTIFIED BY 'DEIN_PASSWORT';
+GRANT ALL PRIVILEGES ON tccb_panel.* TO 'tccb_panel'@'%';
+FLUSH PRIVILEGES;
+```
+
+Migration von lokalem Speicher nach MySQL:
+
+1. CloudNet-Modul stoppen oder CloudNet-Node stoppen.
+2. Modul-Datenordner sichern, besonders `tickets.json`, `ban-appeals.json`, `panel-users.json`, `panel-settings.json`, `permissions.json`, `bans.json` und `player-actions.json`.
+3. In der Modul-`config.json` `panelStorageBackend` auf `SQL` setzen und JDBC-URL, Benutzer, Passwort und Tabelle eintragen.
+4. Modul/Node starten. Die SQL-Tabelle wird automatisch erstellt und lokale JSON-Dateien werden beim ersten Laden importiert.
+5. Im Log sollte pro Store eine Meldung wie `Lokaler Panel-Speicher tickets.json wurde nach SQL migriert.` erscheinen.
+6. Wenn in `panelSqlTable` bereits Daten fuer denselben `store_key` liegen, werden lokale JSON-Dateien nicht darueber geschrieben. Fuer einen erneuten Import die SQL-Zeilen oder die Tabelle vorher leeren.
+
+Wenn die SQL-Verbindung fehlschlaegt, nutzt das Modul als Sicherheitsfallback weiter lokalen JSON-Speicher und schreibt eine Warnung ins Log. Fuer produktiven Betrieb solltest du nach dem Start pruefen, dass keine Fallback-Warnung geloggt wurde.
 
 Mailserver- und LiteBans-Datenbankwerte koennen im Webpanel unter `Einstellungen` geaendert werden. Dort gibt es auch eine Testmail-Funktion. Die Panel-Speicherart selbst wird beim Modulstart geladen und bleibt deshalb in der Modul-Konfiguration.
 
@@ -237,6 +273,7 @@ Wichtige Config-Werte:
 ```properties
 panel.url=http://127.0.0.1:8088
 panel.api-token=CHANGE_ME
+panel.action-interval-seconds=10
 litebans.enabled=true
 litebans.join-check=true
 litebans.sync-enabled=true
@@ -250,6 +287,8 @@ litebans.bridge-secret=
 litebans.ban-command=ban {player} {duration} {reason}
 litebans.unban-command=unban {player} {reason}
 litebans.extend-command=ban {player} {duration} {reason}
+teleport.enabled=true
+teleport.command=tp {staff} {target}
 luckperms.sync-enabled=true
 luckperms.server-id=proxy
 luckperms.sync-interval-seconds=60
@@ -259,15 +298,30 @@ Hinweis zu LiteBans-IDs: LiteBans speichert intern eine numerische `id`, zeigt S
 
 Ingame-Befehle:
 
-- `/ticket <nachricht>` erstellt ein Ticket mit Spielername, UUID und aktuellem Unterserver.
-- `/tickets` zeigt eigene Tickets.
-- `/teamtickets` zeigt offene Tickets fuer Teamler.
-- `/ticketclose <id>` schliesst ein Ticket.
-- `/ticketcomment <id> <nachricht>` kommentiert ein Ticket.
+- `/ticket create <grund> [Support|Bug|Melden|Sonstiges]` erstellt ein Ticket mit Spielername, UUID und aktuellem Unterserver.
+- `/ticket <nachricht>` bleibt als Kurzform fuer ein Support-Ticket erhalten.
+- `/ticket list` oder `/tickets` zeigt eigene Tickets.
+- `/ticket view <id>` zeigt Status, Beschreibung und Antworten des eigenen Tickets.
+- `/teamtickets` zeigt offene und in Bearbeitung befindliche Tickets fuer Teamler.
+- `/teamticket list` zeigt offene und in Bearbeitung befindliche Tickets.
+- `/teamticket view <id>` zeigt ein Ticket inklusive interner Kommentare.
+- `/teamticket open <id>`, `/teamticket progress <id>` und `/teamticket close <id>` aendern den Ticketstatus.
+- `/teamticket assign <id> <teamler>` weist ein Ticket zu.
+- `/teamticket comment <id> <nachricht>` schreibt eine Antwort ins Ticket.
+- `/ticketclose <id>` schliesst ein Ticket als alte Kurzform.
+- `/ticketcomment <id> <nachricht>` kommentiert ein Ticket als alte Kurzform.
 - `/cloudban <spieler> <dauer> <grund>` fuehrt den konfigurierten LiteBans-Befehl aus.
 - `/cloudunban <spieler> [grund]` fuehrt den konfigurierten LiteBans-Unban aus.
 - `/baninfo <spieler>` prueft aktive LiteBans-Bans fuer online Spieler.
 - `/tccbvelocity reload` laedt die Velocity-Config neu.
+
+Teleport aus dem Panel:
+
+- Der Button im Ticket-Panel erstellt eine Spieler-Aktion in der Panel-Datenbank.
+- Velocity holt diese Aktion alle `panel.action-interval-seconds` Sekunden ab.
+- Velocity verbindet den Teamler auf den Server des Spielers und fuehrt anschliessend `teleport.command` aus.
+- Standard ist `tp {staff} {target}`. Platzhalter: `{staff}`, `{target}`, `{server}`, `{ticketId}`.
+- Das Kommando muss auf deinem Proxy-Setup ausfuehrbar sein. Wenn dein `/tp` nur serverseitig existiert, brauchst du ein Proxy-kompatibles Teleport-Command oder einen Server-Command-Forwarder.
 
 LuckPerms-Rechte:
 
@@ -371,11 +425,15 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 - `GET /api/tickets?creatorUniqueId=<uuid>`
 - `GET /api/tickets?creatorName=<name>`
 - `GET /api/tickets?status=OPEN`
+- `GET /api/tickets/{id}`
 - `GET /api/tickets/audit`
 - `POST /api/tickets` mit optional `sourceServer`/`serviceName`
 - `POST /api/tickets/{id}/status`
 - `POST /api/tickets/{id}/assign`
 - `POST /api/tickets/{id}/comments`
+- `GET /api/player-actions`
+- `POST /api/player-actions/teleport`
+- `POST /api/player-actions/{id}/complete`
 - `GET /api/bans`
 - `POST /api/bans`
 - `POST /api/bans/{id}/deactivate`

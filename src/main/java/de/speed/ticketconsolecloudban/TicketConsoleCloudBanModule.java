@@ -14,6 +14,7 @@ import de.speed.ticketconsolecloudban.store.BanStore;
 import de.speed.ticketconsolecloudban.store.PanelDataBackendFactory;
 import de.speed.ticketconsolecloudban.store.PanelUserStore;
 import de.speed.ticketconsolecloudban.store.PermissionBridgeStore;
+import de.speed.ticketconsolecloudban.store.PlayerActionStore;
 import de.speed.ticketconsolecloudban.store.TicketStore;
 import eu.cloudnetservice.driver.document.DocumentFactory;
 import eu.cloudnetservice.driver.module.ModuleLifeCycle;
@@ -47,8 +48,9 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
     var panelDataBackend = PanelDataBackendFactory.create(configuration);
     var settingsStore = new PanelSettingsStore(this.moduleWrapper().dataDirectory(), configuration, panelDataBackend);
     var userStore = new PanelUserStore(this.moduleWrapper().dataDirectory(), panelDataBackend);
-    var banStore = new BanStore(this.moduleWrapper().dataDirectory());
+    var banStore = new BanStore(this.moduleWrapper().dataDirectory(), panelDataBackend);
     var banAppealStore = new BanAppealStore(this.moduleWrapper().dataDirectory(), panelDataBackend);
+    var playerActionStore = new PlayerActionStore(this.moduleWrapper().dataDirectory(), panelDataBackend);
     var liteBansDatabaseSyncService = new LiteBansDatabaseSyncService(configuration, banStore, settingsStore);
     liteBansDatabaseSyncService.syncNow("module-start");
     var security = new PanelSecurityService(userStore, configuration, settingsStore);
@@ -63,7 +65,8 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
       banAppealStore,
       liteBansDatabaseSyncService,
       settingsStore,
-      new PermissionBridgeStore(this.moduleWrapper().dataDirectory(), panelDataBackend));
+      new PermissionBridgeStore(this.moduleWrapper().dataDirectory(), panelDataBackend),
+      playerActionStore);
     var appealService = new BanAppealService(
       configuration,
       banStore,

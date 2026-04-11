@@ -283,7 +283,12 @@
             </div>
           </div>
 
-          <form id="ticket-form" class="stack-form" data-permission="tickets.create">
+          <div class="sub-nav" aria-label="Ticket Unterseiten">
+            <button data-ticket-tab="active" class="active" type="button">Aktive Tickets</button>
+            <button data-ticket-tab="archive" type="button">Archiv</button>
+          </div>
+
+          <form id="ticket-form" class="stack-form ticket-tab-panel" data-ticket-panel="active" data-permission="tickets.create">
             <div class="form-grid">
               <label>
                 <span>Ersteller</span>
@@ -321,7 +326,7 @@
             </div>
           </form>
 
-          <div class="table-shell">
+          <div class="table-shell ticket-tab-panel" data-ticket-panel="active">
             <table>
               <thead>
                 <tr>
@@ -335,6 +340,23 @@
                 </tr>
               </thead>
               <tbody id="ticket-table"></tbody>
+            </table>
+          </div>
+
+          <div class="table-shell ticket-tab-panel hidden" data-ticket-panel="archive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Betreff</th>
+                  <th>Ersteller</th>
+                  <th>Unterserver</th>
+                  <th>Status</th>
+                  <th>Prioritaet</th>
+                  <th>Zustaendig</th>
+                  <th>Geschlossen</th>
+                </tr>
+              </thead>
+              <tbody id="ticket-archive-table"></tbody>
             </table>
           </div>
         </article>
@@ -378,6 +400,7 @@
             <button data-ban-tab="panel" class="active" type="button">Panel-Bans</button>
             <button data-ban-tab="litebans" type="button">LiteBans</button>
             <button data-ban-tab="appeals" type="button">Entbannungsantraege</button>
+            <button data-ban-tab="appeal-archive" type="button">Archiv</button>
             <button data-ban-tab="audit" type="button">Auditlog</button>
           </div>
 
@@ -477,6 +500,23 @@
                 </tr>
               </thead>
               <tbody id="ban-appeal-table"></tbody>
+            </table>
+          </div>
+
+          <div class="table-shell ban-tab-panel hidden" data-ban-panel="appeal-archive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Random-ID</th>
+                  <th>Spieler</th>
+                  <th>E-Mail</th>
+                  <th>Begruendung</th>
+                  <th>Beweise</th>
+                  <th>Aktualisiert</th>
+                </tr>
+              </thead>
+              <tbody id="ban-appeal-archive-table"></tbody>
             </table>
           </div>
         </article>

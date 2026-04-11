@@ -319,6 +319,14 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() == 3 && "tickets".equals(segments.get(1)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_VIEW)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.getTicket(segments.get(2)));
+      return;
+    }
+
     if (segments.size() == 4 && "tickets".equals(segments.get(1))) {
       var ticketId = segments.get(2);
       var action = segments.get(3);
@@ -344,6 +352,36 @@ public final class PanelHttpServer {
         HttpExchangeUtils.writeJson(exchange, 200, this.facade.addTicketComment(ticketId, HttpExchangeUtils.readJson(exchange)));
         return;
       }
+    }
+
+    if (segments.size() == 2 && "player-actions".equals(segments.get(1)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.pendingPlayerActions());
+      return;
+    }
+
+    if (segments.size() == 3
+      && "player-actions".equals(segments.get(1))
+      && "teleport".equals(segments.get(2))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestTeleportToPlayer(HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
+    if (segments.size() == 4
+      && "player-actions".equals(segments.get(1))
+      && "complete".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.completePlayerAction(segments.get(2), HttpExchangeUtils.readJson(exchange)));
+      return;
     }
 
     if (segments.size() == 2 && "bans".equals(segments.get(1))) {

@@ -3,13 +3,25 @@ package de.speed.ticketconsolecloudban.velocity;
 public record PanelTicket(
   String id,
   String creatorName,
+  String creatorUniqueId,
   String category,
   String priority,
   String status,
   String subject,
+  String content,
+  String assignedTo,
   String sourceServer,
   String createdAt,
-  String updatedAt
+  String updatedAt,
+  java.util.List<PanelTicketComment> comments
+) {
+}
+
+record PanelTicketComment(
+  String author,
+  String message,
+  boolean internal,
+  String createdAt
 ) {
 }
 
@@ -70,5 +82,18 @@ record PanelPermissionAction(
   Boolean value,
   String actor,
   String status
+) {
+}
+
+record PanelPlayerAction(
+  String id,
+  String type,
+  String status,
+  String staffName,
+  String targetName,
+  String targetUniqueId,
+  String targetServer,
+  String ticketId,
+  String actor
 ) {
 }

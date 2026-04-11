@@ -5,7 +5,6 @@ import de.speed.ticketconsolecloudban.ban.BanAuditEntry;
 import de.speed.ticketconsolecloudban.ban.BanStoreData;
 import de.speed.ticketconsolecloudban.ban.CloudBanEntry;
 import de.speed.ticketconsolecloudban.ban.LiteBanEntry;
-import eu.cloudnetservice.driver.document.DocumentFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -19,13 +18,19 @@ import java.util.UUID;
 public final class BanStore {
 
   private final Path storagePath;
+  private final PanelDataBackend backend;
   private final List<CloudBanEntry> bans = new ArrayList<>();
   private final List<LiteBanEntry> liteBans = new ArrayList<>();
   private final List<BanActionRequest> actionRequests = new ArrayList<>();
   private final List<BanAuditEntry> auditLog = new ArrayList<>();
 
   public BanStore(Path dataDirectory) {
+    this(dataDirectory, new LocalPanelDataBackend());
+  }
+
+  public BanStore(Path dataDirectory, PanelDataBackend backend) {
     this.storagePath = dataDirectory.resolve("bans.json");
+    this.backend = backend;
     this.load();
   }
 
@@ -299,13 +304,12 @@ public final class BanStore {
   private void load() {
     try {
       Files.createDirectories(this.storagePath.getParent());
-      if (Files.notExists(this.storagePath)) {
+      var data = this.backend.load("bans", this.storagePath, BanStoreData.class, null);
+      if (data == null) {
         this.save();
         return;
       }
 
-      var document = DocumentFactory.json().parse(this.storagePath);
-      var data = document.toInstanceOf(BanStoreData.class);
       if (data != null && data.bans() != null) {
         this.bans.clear();
         this.bans.addAll(data.bans());
@@ -330,14 +334,14 @@ public final class BanStore {
   private void save() {
     try {
       Files.createDirectories(this.storagePath.getParent());
-      DocumentFactory.json()
-        .newDocument()
-        .appendTree(new BanStoreData(
+      this.backend.save(
+        "bans",
+        this.storagePath,
+        new BanStoreData(
           List.copyOf(this.bans),
           List.copyOf(this.liteBans),
           List.copyOf(this.actionRequests),
-          List.copyOf(this.auditLog)))
-        .writeTo(this.storagePath);
+          List.copyOf(this.auditLog)));
     } catch (Exception exception) {
       throw new IllegalStateException("Bans konnten nicht gespeichert werden.", exception);
     }
