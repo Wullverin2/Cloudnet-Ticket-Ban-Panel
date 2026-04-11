@@ -1,6 +1,7 @@
 package de.speed.ticketconsolecloudban;
 
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.ban.LiteBansDatabaseSyncService;
 import de.speed.ticketconsolecloudban.auth.PanelSecurityService;
 import de.speed.ticketconsolecloudban.appeal.BanAppealService;
 import de.speed.ticketconsolecloudban.appeal.EvidenceStorageFactory;
@@ -44,6 +45,8 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
     var userStore = new PanelUserStore(this.moduleWrapper().dataDirectory());
     var banStore = new BanStore(this.moduleWrapper().dataDirectory());
     var banAppealStore = new BanAppealStore(this.moduleWrapper().dataDirectory());
+    var liteBansDatabaseSyncService = new LiteBansDatabaseSyncService(configuration, banStore);
+    liteBansDatabaseSyncService.syncNow("module-start");
     var security = new PanelSecurityService(userStore, configuration);
     var facade = new CloudNetFacade(
       cloudServiceProvider,
@@ -54,11 +57,13 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
       new TicketStore(this.moduleWrapper().dataDirectory()),
       banStore,
       banAppealStore,
+      liteBansDatabaseSyncService,
       new PermissionBridgeStore(this.moduleWrapper().dataDirectory()));
     var appealService = new BanAppealService(
       configuration,
       banStore,
       banAppealStore,
+      liteBansDatabaseSyncService,
       EvidenceStorageFactory.create(configuration, this.moduleWrapper().dataDirectory()));
 
     this.stopServer();

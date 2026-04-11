@@ -5,6 +5,7 @@ import de.speed.ticketconsolecloudban.appeal.BanAppealEntry;
 import de.speed.ticketconsolecloudban.ban.BanActionRequest;
 import de.speed.ticketconsolecloudban.ban.BanAuditEntry;
 import de.speed.ticketconsolecloudban.ban.CloudBanEntry;
+import de.speed.ticketconsolecloudban.ban.LiteBansDatabaseSyncService;
 import de.speed.ticketconsolecloudban.ban.LiteBanEntry;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.permission.PermissionActionRequest;
@@ -63,6 +64,7 @@ public final class CloudNetFacade {
   private final TicketStore ticketStore;
   private final BanStore banStore;
   private final BanAppealStore banAppealStore;
+  private final LiteBansDatabaseSyncService liteBansDatabaseSyncService;
   private final PermissionBridgeStore permissionBridgeStore;
 
   public CloudNetFacade(
@@ -74,6 +76,7 @@ public final class CloudNetFacade {
     TicketStore ticketStore,
     BanStore banStore,
     BanAppealStore banAppealStore,
+    LiteBansDatabaseSyncService liteBansDatabaseSyncService,
     PermissionBridgeStore permissionBridgeStore
   ) {
     this.cloudServiceProvider = cloudServiceProvider;
@@ -84,6 +87,7 @@ public final class CloudNetFacade {
     this.ticketStore = ticketStore;
     this.banStore = banStore;
     this.banAppealStore = banAppealStore;
+    this.liteBansDatabaseSyncService = liteBansDatabaseSyncService;
     this.permissionBridgeStore = permissionBridgeStore;
   }
 
@@ -376,6 +380,7 @@ public final class CloudNetFacade {
   }
 
   public List<LiteBanEntry> listLiteBans() {
+    this.liteBansDatabaseSyncService.syncNow("litebans-mysql");
     return this.banStore.listLiteBans();
   }
 

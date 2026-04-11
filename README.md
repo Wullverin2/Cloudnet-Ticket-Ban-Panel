@@ -186,6 +186,29 @@ Beispiel OneDrive-URL-Vorlage:
 https://graph.microsoft.com/v1.0/me/drive/root:/BanAppeals/{filename}:/content
 ```
 
+### LiteBans MySQL + Random Punishment-ID Bridge
+
+Das Panel kann LiteBans-Bans direkt aus der LiteBans-MySQL-Datenbank lesen. Die zufaellige Buchstaben-/Zahlen-ID, die LiteBans Spielern in der Ban-Nachricht zeigt, liegt nicht verlaesslich als eigene DB-Spalte vor. Deshalb fragt das Panel fuer diese Anzeige-ID die Velocity-Bridge, weil dort LiteBans geladen ist und die ID ueber LiteBans `RandomID`/API aus der internen Datenbank-ID aufgeloest werden kann.
+
+Wichtige Panel-Config:
+
+```json
+{
+  "liteBansDatabaseEnabled": true,
+  "liteBansJdbcUrl": "jdbc:mysql://127.0.0.1:3306/litebans?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
+  "liteBansDatabaseUsername": "litebans",
+  "liteBansDatabasePassword": "DEIN_PASSWORT",
+  "liteBansTablePrefix": "litebans_",
+  "liteBansDatabaseMaxRows": 1000,
+  "liteBansBridgeBaseUrl": "http://127.0.0.1:9095",
+  "liteBansBridgeSecret": ""
+}
+```
+
+Wenn `liteBansBridgeSecret` leer ist, nutzt das Panel automatisch den ersten `apiTokens`-Eintrag als Bridge-Secret. Trage denselben Token im Velocity-Plugin als `panel.api-token` ein oder setze explizit auf beiden Seiten dasselbe `litebans.bridge-secret`.
+
+Wenn Panel und Velocity nicht auf demselben Rootserver laufen, muss `liteBansBridgeBaseUrl` auf die erreichbare Proxy-IP zeigen, z.B. `http://PROXY-IP:9095`. Oeffne den Bridge-Port nur fuer die Panel-/CloudNet-IP.
+
 ## Velocity-Plugin
 
 Das Velocity-Plugin wird auf dem Velocity-Proxy installiert. Es nutzt das Panel per API fuer Tickets und nutzt LiteBans direkt auf dem Proxy fuer Ban-Pruefung und Ban-Befehle.
@@ -208,6 +231,10 @@ litebans.sync-enabled=true
 litebans.sync-interval-seconds=60
 litebans.server-scope=*
 litebans.public-id-column=id
+litebans.bridge-enabled=true
+litebans.bridge-bind-host=127.0.0.1
+litebans.bridge-port=9095
+litebans.bridge-secret=
 litebans.ban-command=ban {player} {duration} {reason}
 litebans.unban-command=unban {player} {reason}
 litebans.extend-command=ban {player} {duration} {reason}
@@ -216,7 +243,7 @@ luckperms.server-id=proxy
 luckperms.sync-interval-seconds=60
 ```
 
-Hinweis zu LiteBans-IDs: LiteBans speichert intern eine numerische `id`, zeigt Spielern aber je nach LiteBans-Version eine zufaellige Punishment-ID an. Das Velocity-Plugin loest diese Random-ID beim Sync automatisch ueber LiteBans `RandomID`/API aus der Datenbank-ID auf und sendet sie als `publicId` ans Panel. `litebans.public-id-column` ist nur noch ein Fallback, falls der API-Resolver auf einer LiteBans-Version nicht verfuegbar ist. Die Befehls-Templates koennen `{id}` fuer die Random-ID, `{banId}` fuer die interne Datenbank-ID sowie `{player}`, `{uuid}`, `{ip}`, `{duration}`, `{reason}` und `{actor}` verwenden.
+Hinweis zu LiteBans-IDs: LiteBans speichert intern eine numerische `id`, zeigt Spielern aber je nach LiteBans-Version eine zufaellige Punishment-ID an. Das Velocity-Plugin loest diese Random-ID beim Sync automatisch ueber LiteBans `RandomID`/API aus der Datenbank-ID auf und sendet sie als `publicId` ans Panel. Zusaetzlich stellt es die geschuetzte Bridge-Route `GET /api/punishment-id/from-db` bereit, damit das Panel bei direktem MySQL-Lesen dieselbe Random-ID anzeigen kann. `litebans.public-id-column` ist nur noch ein Fallback, falls der API-Resolver auf einer LiteBans-Version nicht verfuegbar ist. Die Befehls-Templates koennen `{id}` fuer die Random-ID, `{banId}` fuer die interne Datenbank-ID sowie `{player}`, `{uuid}`, `{ip}`, `{duration}`, `{reason}` und `{actor}` verwenden.
 
 Ingame-Befehle:
 

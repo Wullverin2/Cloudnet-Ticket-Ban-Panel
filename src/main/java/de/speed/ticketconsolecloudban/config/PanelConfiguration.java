@@ -36,7 +36,17 @@ public record PanelConfiguration(
   String appealEvidenceSftpPrivateKeyPath,
   String appealEvidenceSftpRemoteDirectory,
   String appealEvidenceOneDriveUploadUrlTemplate,
-  String appealEvidenceOneDriveBearerToken
+  String appealEvidenceOneDriveBearerToken,
+  boolean liteBansDatabaseEnabled,
+  String liteBansJdbcUrl,
+  String liteBansDatabaseUsername,
+  String liteBansDatabasePassword,
+  String liteBansTablePrefix,
+  int liteBansDatabaseMaxRows,
+  String liteBansBridgeBaseUrl,
+  String liteBansBridgeSecret,
+  int liteBansBridgeConnectTimeoutMillis,
+  int liteBansBridgeReadTimeoutMillis
 ) {
 
   private static final SecureRandom RANDOM = new SecureRandom();
@@ -73,7 +83,17 @@ public record PanelConfiguration(
       "",
       "/appeals",
       "",
-      "");
+      "",
+      false,
+      "jdbc:mysql://127.0.0.1:3306/litebans?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
+      "litebans",
+      "",
+      "litebans_",
+      1000,
+      "",
+      "",
+      2500,
+      5000);
   }
 
   public PanelConfiguration normalize() {
@@ -102,6 +122,23 @@ public record PanelConfiguration(
       ? "appeal-evidence"
       : this.appealEvidenceLocalDirectory.trim();
     var normalizedSftpPort = this.appealEvidenceSftpPort > 0 && this.appealEvidenceSftpPort <= 0xFFFF ? this.appealEvidenceSftpPort : 22;
+    var normalizedLiteBansJdbcUrl = this.liteBansJdbcUrl == null || this.liteBansJdbcUrl.isBlank()
+      ? "jdbc:mysql://127.0.0.1:3306/litebans?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      : this.liteBansJdbcUrl.trim();
+    var normalizedLiteBansTablePrefix = this.liteBansTablePrefix == null ? "litebans_" : this.liteBansTablePrefix.trim();
+    if (!normalizedLiteBansTablePrefix.matches("[A-Za-z0-9_]*")) {
+      normalizedLiteBansTablePrefix = "litebans_";
+    }
+    var normalizedLiteBansMaxRows = this.liteBansDatabaseMaxRows <= 0 ? 1000 : clamp(this.liteBansDatabaseMaxRows, 50, 10_000);
+    var normalizedLiteBansBridgeBaseUrl = this.liteBansBridgeBaseUrl == null || this.liteBansBridgeBaseUrl.isBlank()
+      ? ""
+      : this.liteBansBridgeBaseUrl.trim().replaceAll("/+$", "");
+    var normalizedLiteBansBridgeConnectTimeout = this.liteBansBridgeConnectTimeoutMillis <= 0
+      ? 2500
+      : clamp(this.liteBansBridgeConnectTimeoutMillis, 500, 30_000);
+    var normalizedLiteBansBridgeReadTimeout = this.liteBansBridgeReadTimeoutMillis <= 0
+      ? 5000
+      : clamp(this.liteBansBridgeReadTimeoutMillis, 500, 30_000);
 
     var normalizedTokens = new ArrayList<String>();
     if (this.apiTokens != null) {
@@ -149,7 +186,25 @@ public record PanelConfiguration(
         ? "/appeals"
         : this.appealEvidenceSftpRemoteDirectory.trim(),
       this.appealEvidenceOneDriveUploadUrlTemplate == null ? "" : this.appealEvidenceOneDriveUploadUrlTemplate.trim(),
-      this.appealEvidenceOneDriveBearerToken == null ? "" : this.appealEvidenceOneDriveBearerToken);
+      this.appealEvidenceOneDriveBearerToken == null ? "" : this.appealEvidenceOneDriveBearerToken,
+      this.liteBansDatabaseEnabled,
+      normalizedLiteBansJdbcUrl,
+      this.liteBansDatabaseUsername == null ? "" : this.liteBansDatabaseUsername.trim(),
+      this.liteBansDatabasePassword == null ? "" : this.liteBansDatabasePassword,
+      normalizedLiteBansTablePrefix,
+      normalizedLiteBansMaxRows,
+      normalizedLiteBansBridgeBaseUrl,
+      this.liteBansBridgeSecret == null ? "" : this.liteBansBridgeSecret,
+      normalizedLiteBansBridgeConnectTimeout,
+      normalizedLiteBansBridgeReadTimeout);
+  }
+
+  public String effectiveLiteBansBridgeSecret() {
+    if (this.liteBansBridgeSecret != null && !this.liteBansBridgeSecret.isBlank()) {
+      return this.liteBansBridgeSecret.trim();
+    }
+
+    return this.apiTokens == null || this.apiTokens.isEmpty() ? "" : this.apiTokens.get(0);
   }
 
   public boolean acceptsToken(String candidate) {

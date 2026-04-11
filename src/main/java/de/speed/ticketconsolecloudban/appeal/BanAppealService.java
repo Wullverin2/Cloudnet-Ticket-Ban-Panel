@@ -1,9 +1,11 @@
 package de.speed.ticketconsolecloudban.appeal;
 
 import de.speed.ticketconsolecloudban.auth.SmtpMailService;
+import de.speed.ticketconsolecloudban.ban.LiteBansDatabaseSyncService;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.store.BanAppealStore;
 import de.speed.ticketconsolecloudban.store.BanStore;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +21,7 @@ public final class BanAppealService {
   private final PanelConfiguration configuration;
   private final BanStore banStore;
   private final BanAppealStore appealStore;
+  private final LiteBansDatabaseSyncService liteBansDatabaseSyncService;
   private final EvidenceStorage evidenceStorage;
   private final SmtpMailService mailService;
 
@@ -26,11 +29,13 @@ public final class BanAppealService {
     PanelConfiguration configuration,
     BanStore banStore,
     BanAppealStore appealStore,
+    LiteBansDatabaseSyncService liteBansDatabaseSyncService,
     EvidenceStorage evidenceStorage
   ) {
     this.configuration = configuration;
     this.banStore = banStore;
     this.appealStore = appealStore;
+    this.liteBansDatabaseSyncService = liteBansDatabaseSyncService;
     this.evidenceStorage = evidenceStorage;
     this.mailService = new SmtpMailService(configuration);
   }
@@ -45,6 +50,8 @@ public final class BanAppealService {
     if (!EMAIL_PATTERN.matcher(email).matches()) {
       throw new IllegalArgumentException("Bitte gib eine gueltige E-Mail-Adresse an.");
     }
+
+    this.liteBansDatabaseSyncService.syncIfStale("litebans-mysql-appeal", Duration.ofSeconds(30));
 
     var ban = this.banStore.findLiteBanByPublicIdAndTargetName(publicBanId, playerName)
       .orElseThrow(() -> new IllegalArgumentException("Random Ban-ID und Spielername passen nicht zusammen oder der Ban ist nicht aktiv."));

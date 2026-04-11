@@ -57,6 +57,10 @@ public final class LiteBansBridge {
     return List.copyOf(bans);
   }
 
+  LiteBansRandomIdResolver randomIdResolver() {
+    return this.randomIdResolver;
+  }
+
   public String describe(LiteBanResult ban) {
     if (ban == null) {
       return "Kein aktiver LiteBans-Ban gefunden.";

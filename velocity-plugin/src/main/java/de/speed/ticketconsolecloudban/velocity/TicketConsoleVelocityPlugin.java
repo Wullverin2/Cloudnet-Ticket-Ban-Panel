@@ -47,6 +47,7 @@ public final class TicketConsoleVelocityPlugin {
   private PanelApiClient panelApi;
   private LuckPermsBridge luckPermsBridge;
   private LiteBansBridge liteBansBridge;
+  private LiteBansPunishmentBridgeServer punishmentBridgeServer;
 
   @Inject
   public TicketConsoleVelocityPlugin(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
@@ -66,6 +67,10 @@ public final class TicketConsoleVelocityPlugin {
 
   @Subscribe
   public void onShutdown(ProxyShutdownEvent event) {
+    if (this.punishmentBridgeServer != null) {
+      this.punishmentBridgeServer.stop();
+      this.punishmentBridgeServer = null;
+    }
     this.executor.shutdownNow();
   }
 
@@ -86,11 +91,18 @@ public final class TicketConsoleVelocityPlugin {
   }
 
   private void reload() {
+    if (this.punishmentBridgeServer != null) {
+      this.punishmentBridgeServer.stop();
+      this.punishmentBridgeServer = null;
+    }
+
     this.config = VelocityPluginConfig.load(this.dataDirectory);
     this.panelApi = new PanelApiClient(this.config);
     this.luckPermsBridge = new LuckPermsBridge(this.logger);
     this.luckPermsBridge.load();
     this.liteBansBridge = new LiteBansBridge(this.logger);
+    this.punishmentBridgeServer = new LiteBansPunishmentBridgeServer(this.logger, this.config, this.liteBansBridge.randomIdResolver());
+    this.punishmentBridgeServer.start();
 
     if (!this.config.hasPanelToken()) {
       this.logger.warn("panel.api-token ist noch CHANGE_ME. Ticket-Befehle funktionieren erst nach Konfiguration.");

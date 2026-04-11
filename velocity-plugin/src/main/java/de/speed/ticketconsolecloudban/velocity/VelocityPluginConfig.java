@@ -19,6 +19,10 @@ public record VelocityPluginConfig(
   int liteBansSyncIntervalSeconds,
   String liteBansServerScope,
   String liteBansPublicIdColumn,
+  boolean liteBansBridgeEnabled,
+  String liteBansBridgeBindHost,
+  int liteBansBridgePort,
+  String liteBansBridgeSecret,
   String liteBansBanCommand,
   String liteBansUnbanCommand,
   String liteBansExtendCommand,
@@ -69,6 +73,10 @@ public record VelocityPluginConfig(
       integer(properties, "litebans.sync-interval-seconds", 60, 15, 3600),
       text(properties, "litebans.server-scope", "*"),
       text(properties, "litebans.public-id-column", "id"),
+      bool(properties, "litebans.bridge-enabled", true),
+      text(properties, "litebans.bridge-bind-host", "127.0.0.1"),
+      integer(properties, "litebans.bridge-port", 9095, 1, 65535),
+      text(properties, "litebans.bridge-secret", ""),
       text(properties, "litebans.ban-command", "ban {player} {duration} {reason}"),
       text(properties, "litebans.unban-command", "unban {player} {reason}"),
       text(properties, "litebans.extend-command", "ban {player} {duration} {reason}"),
@@ -87,6 +95,13 @@ public record VelocityPluginConfig(
     return this.panelApiToken != null
       && !this.panelApiToken.isBlank()
       && !"CHANGE_ME".equalsIgnoreCase(this.panelApiToken.trim());
+  }
+
+  public String effectiveLiteBansBridgeSecret() {
+    if (this.liteBansBridgeSecret != null && !this.liteBansBridgeSecret.isBlank()) {
+      return this.liteBansBridgeSecret.trim();
+    }
+    return this.panelApiToken == null ? "" : this.panelApiToken.trim();
   }
 
   private static String text(Properties properties, String key, String fallback) {
