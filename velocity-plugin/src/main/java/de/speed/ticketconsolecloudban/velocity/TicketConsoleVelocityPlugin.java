@@ -60,6 +60,7 @@ public final class TicketConsoleVelocityPlugin {
     this.reload();
     this.registerCommands();
     this.scheduleLiteBansBridge();
+    this.scheduleLuckPermsBridge();
     this.logger.info("TicketConsoleCloudBan Velocity Plugin gestartet.");
   }
 
@@ -127,6 +128,14 @@ public final class TicketConsoleVelocityPlugin {
     this.executor.execute(this::syncLiteBansAndActions);
   }
 
+  private void scheduleLuckPermsBridge() {
+    this.server.getScheduler()
+      .buildTask(this, () -> this.executor.execute(this::syncLuckPermsAndActions))
+      .repeat(this.config.luckPermsSyncIntervalSeconds(), TimeUnit.SECONDS)
+      .schedule();
+    this.executor.execute(this::syncLuckPermsAndActions);
+  }
+
   private void syncLiteBansAndActions() {
     if (!this.config.hasPanelToken() || !this.config.liteBansEnabled() || !this.config.liteBansSyncEnabled()) {
       return;
@@ -165,6 +174,26 @@ public final class TicketConsoleVelocityPlugin {
         this.panelApi.completeBanAction(action.id(), false, throwable.getMessage());
         return null;
       });
+  }
+
+  private void syncLuckPermsAndActions() {
+    if (!this.config.hasPanelToken() || !this.config.luckPermsSyncEnabled()) {
+      return;
+    }
+
+    this.panelApi.syncPermissionSubjects(this.luckPermsBridge.subjects());
+    for (var action : this.panelApi.pendingPermissionActions()) {
+      this.processPermissionAction(action);
+    }
+  }
+
+  private void processPermissionAction(PanelPermissionAction action) {
+    try {
+      var message = this.luckPermsBridge.apply(action);
+      this.panelApi.completePermissionAction(action.id(), true, message);
+    } catch (Exception exception) {
+      this.panelApi.completePermissionAction(action.id(), false, exception.getMessage());
+    }
   }
 
   private final class TicketCommand implements SimpleCommand {

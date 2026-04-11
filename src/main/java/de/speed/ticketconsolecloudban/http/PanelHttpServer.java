@@ -100,6 +100,24 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() == 4
+      && "auth".equals(segments.get(1))
+      && "password-reset".equals(segments.get(2))
+      && "request".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.security.requestPasswordReset(HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
+    if (segments.size() == 4
+      && "auth".equals(segments.get(1))
+      && "password-reset".equals(segments.get(2))
+      && "complete".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.security.completePasswordReset(HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
     var principal = this.security.authenticate(HttpExchangeUtils.bearerToken(exchange), this.configuration);
     if (principal == null) {
       HttpExchangeUtils.writeJson(exchange, 401, new HttpExchangeUtils.ApiError("Nicht autorisiert"));
@@ -129,6 +147,11 @@ public final class PanelHttpServer {
 
     if (segments.size() >= 2 && "security".equals(segments.get(1))) {
       this.handleSecurityApi(exchange, segments, principal);
+      return;
+    }
+
+    if (segments.size() >= 2 && "permissions".equals(segments.get(1))) {
+      this.handlePermissionApi(exchange, segments, principal);
       return;
     }
 
@@ -473,6 +496,48 @@ public final class PanelHttpServer {
     }
 
     HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Security-Endpunkt nicht gefunden"));
+  }
+
+  private void handlePermissionApi(HttpExchange exchange, List<String> segments, PanelPrincipal principal) throws IOException {
+    if (!this.requirePermission(exchange, principal, PanelPermission.PROXY_PERMISSIONS_MANAGE)) {
+      return;
+    }
+
+    if (segments.size() == 3 && "subjects".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.listPermissionSubjects());
+      return;
+    }
+
+    if (segments.size() == 3 && "sync".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.syncPermissionSubjects(HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
+    if (segments.size() == 3 && "actions".equals(segments.get(2))) {
+      if (HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.pendingPermissionActions());
+        return;
+      }
+      if (HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestPermissionAction(HttpExchangeUtils.readJson(exchange)));
+        return;
+      }
+    }
+
+    if (segments.size() == 5
+      && "actions".equals(segments.get(2))
+      && "complete".equals(segments.get(4))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.completePermissionAction(segments.get(3), HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
+    if (segments.size() == 3 && "audit".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.permissionAuditLog());
+      return;
+    }
+
+    HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Permission-Endpunkt nicht gefunden"));
   }
 
   private boolean requirePermission(HttpExchange exchange, PanelPrincipal principal, String permission) throws IOException {

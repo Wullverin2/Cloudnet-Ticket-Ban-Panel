@@ -21,15 +21,28 @@
         </p>
       </div>
 
-      <form id="auth-form" class="auth-card">
+      <article id="auth-form" class="auth-card">
         <label for="login-username">Panel Login</label>
-        <div class="auth-stack">
+        <form id="login-form" class="auth-stack">
           <input id="login-username" name="username" type="text" autocomplete="username" placeholder="Benutzername">
           <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Passwort">
           <button type="submit">Einloggen</button>
-        </div>
+        </form>
         <p id="auth-status" class="muted">Bitte mit einem Panel-Benutzer anmelden.</p>
-      </form>
+        <details class="profile-details">
+          <summary>Passwort vergessen</summary>
+          <form id="reset-request-form" class="auth-stack">
+            <input name="usernameOrEmail" type="text" placeholder="Benutzername oder E-Mail">
+            <button type="submit">Reset-Link anfordern</button>
+          </form>
+          <form id="reset-complete-form" class="auth-stack">
+            <input name="token" type="text" placeholder="Reset-Token">
+            <input name="newPassword" type="password" autocomplete="new-password" placeholder="Neues Passwort">
+            <button type="submit">Passwort setzen</button>
+          </form>
+          <p id="reset-status" class="muted"></p>
+        </details>
+      </article>
 
       <article id="user-card" class="auth-card hidden">
         <p class="eyebrow">Angemeldet</p>
@@ -58,7 +71,7 @@
       <button data-page-target="cloudnet" data-permission="cloudnet.view" type="button">CloudNet</button>
       <button data-page-target="tickets" data-permission="tickets.view" type="button">Tickets</button>
       <button data-page-target="bans" data-permission="bans.view" type="button">Bans</button>
-      <button data-page-target="security" data-permission="users.manage" type="button">Rechte</button>
+      <button data-page-target="security" data-permission="users.manage,permissions.proxy.manage" type="button">Rechte</button>
     </nav>
 
     <section class="summary-grid hidden" id="summary-grid" data-permission="cloudnet.view">
@@ -445,9 +458,9 @@
       </div>
     </section>
 
-    <section id="page-security" class="page-panel hidden" data-page="security" data-permission="users.manage">
+    <section id="page-security" class="page-panel hidden" data-page="security" data-permission="users.manage,permissions.proxy.manage">
       <div class="panel-grid">
-        <article class="panel-card panel-wide">
+        <article class="panel-card panel-wide" data-permission="users.manage">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Rechte</p>
@@ -483,7 +496,7 @@
           </div>
         </article>
 
-        <article class="panel-card panel-wide">
+        <article class="panel-card panel-wide" data-permission="users.manage">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Panel Login</p>
@@ -534,18 +547,72 @@
           </div>
         </article>
 
-        <article class="panel-card panel-wide">
+        <article class="panel-card panel-wide" data-permission="permissions.proxy.manage">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Proxy & Unterserver</p>
-              <h2>Rechteverwaltung vorbereitet</h2>
+              <h2>LuckPerms Rechteverwaltung</h2>
             </div>
           </div>
-          <p class="muted">
-            Fuer die spaetere Bearbeitung von Proxy- und Unterserver-Rechten sind bereits die Rechte
-            <strong>permissions.proxy.manage</strong> und <strong>permissions.server.manage</strong> im Panel-Katalog angelegt.
-            Die eigentliche LuckPerms-Schreibbruecke bauen wir als naechsten Schritt ueber das Velocity-Plugin.
-          </p>
+
+          <form id="permission-action-form" class="stack-form">
+            <div class="form-grid">
+              <label>
+                <span>Subject</span>
+                <select name="subject" id="permission-subject-select"></select>
+              </label>
+              <label>
+                <span>Aktion</span>
+                <select name="action">
+                  <option value="ADD_PERMISSION">Permission hinzufuegen</option>
+                  <option value="REMOVE_PERMISSION">Permission entfernen</option>
+                  <option value="ADD_PARENT">Gruppe zuweisen</option>
+                  <option value="REMOVE_PARENT">Gruppe entfernen</option>
+                </select>
+              </label>
+              <label>
+                <span>Permission</span>
+                <input name="permission" type="text" placeholder="z.B. tccb.ticket.team">
+              </label>
+              <label>
+                <span>Parent-Gruppe</span>
+                <input name="parent" type="text" placeholder="z.B. admin">
+              </label>
+            </div>
+            <div class="action-row">
+              <button type="submit">LuckPerms-Aktion senden</button>
+              <span id="permission-status" class="muted"></span>
+            </div>
+          </form>
+
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Typ</th>
+                  <th>Name</th>
+                  <th>Parents</th>
+                  <th>Permissions</th>
+                </tr>
+              </thead>
+              <tbody id="permission-subject-table"></tbody>
+            </table>
+          </div>
+
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Zeit</th>
+                  <th>Subject</th>
+                  <th>Aktion</th>
+                  <th>Akteur</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="permission-audit-table"></tbody>
+            </table>
+          </div>
         </article>
       </div>
     </section>

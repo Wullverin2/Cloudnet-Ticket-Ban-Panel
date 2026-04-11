@@ -11,16 +11,23 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class PanelSecurityService {
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(PanelSecurityService.class);
   private static final SecureRandom RANDOM = new SecureRandom();
 
   private final PanelUserStore userStore;
+  private final PanelConfiguration configuration;
+  private final SmtpMailService mailService;
   private final Map<String, String> sessions = new ConcurrentHashMap<>();
 
-  public PanelSecurityService(PanelUserStore userStore) {
+  public PanelSecurityService(PanelUserStore userStore, PanelConfiguration configuration) {
     this.userStore = userStore;
+    this.configuration = configuration;
+    this.mailService = new SmtpMailService(configuration);
   }
 
   public PanelPrincipal authenticate(String token, PanelConfiguration configuration) {
@@ -60,6 +67,30 @@ public final class PanelSecurityService {
     var token = this.newToken();
     this.sessions.put(token, user.username());
     return new LoginView(token, this.userView(user), PanelPermission.catalog());
+  }
+
+  public PasswordResetRequestView requestPasswordReset(Document request) {
+    var identifier = this.requiredText(request, "usernameOrEmail");
+    var issue = this.userStore.createPasswordReset(identifier, this.configuration.passwordResetTokenMinutes());
+    issue.ifPresent(reset -> {
+      var resetUrl = this.configuration.publicBaseUrl() + "/?resetToken=" + reset.rawToken();
+      if (this.mailService.enabled()) {
+        this.mailService.sendPasswordReset(reset.email(), resetUrl, reset.expiresAt());
+      } else {
+        LOGGER.warn("Password reset requested for {} but SMTP is disabled. Reset URL: {}", reset.username(), resetUrl);
+      }
+    });
+
+    return new PasswordResetRequestView(
+      "Wenn ein passender Benutzer mit E-Mail existiert, wurde ein Reset-Link versendet.",
+      this.mailService.enabled());
+  }
+
+  public UserView completePasswordReset(Document request) {
+    var user = this.userStore.resetPassword(
+      this.requiredText(request, "token"),
+      this.requiredText(request, "newPassword"));
+    return this.userView(user);
   }
 
   public void logout(PanelPrincipal principal) {
@@ -241,6 +272,12 @@ public final class PanelSecurityService {
     String token,
     UserView user,
     List<PanelPermission.PermissionView> availablePermissions
+  ) {
+  }
+
+  public record PasswordResetRequestView(
+    String message,
+    boolean mailEnabled
   ) {
   }
 

@@ -86,6 +86,25 @@ public final class PanelApiClient {
     this.send("POST", "/api/bans/actions/" + encode(actionId) + "/complete", request);
   }
 
+  public void syncPermissionSubjects(List<PermissionSubjectSnapshot> subjects) {
+    var request = new JsonObject();
+    request.addProperty("actor", "velocity-luckperms-sync");
+    request.add("subjects", GSON.toJsonTree(subjects));
+    this.send("POST", "/api/permissions/sync", request);
+  }
+
+  public List<PanelPermissionAction> pendingPermissionActions() {
+    var response = this.send("GET", "/api/permissions/actions", null);
+    return Arrays.asList(GSON.fromJson(response, PanelPermissionAction[].class));
+  }
+
+  public void completePermissionAction(String actionId, boolean success, String message) {
+    var request = new JsonObject();
+    request.addProperty("success", success);
+    request.addProperty("message", message);
+    this.send("POST", "/api/permissions/actions/" + encode(actionId) + "/complete", request);
+  }
+
   private List<PanelTicket> tickets(String path) {
     var response = this.send("GET", path, null).getAsJsonArray();
     var tickets = new ArrayList<PanelTicket>();

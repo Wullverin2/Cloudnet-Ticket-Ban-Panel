@@ -13,10 +13,12 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel fuer:
 - Benutzerprofil mit E-Mail fuer Passwort-vergessen-Prozesse und optionalem Minecraft-Account
 - Auditlogs fuer Tickets und Bans
 - LiteBans-Unterseite mit synchronisierten LiteBans-Bans
+- Passwort-vergessen-Flow mit Reset-Token und optionalem SMTP-Mailversand
+- LuckPerms-Unterseite mit Subject-Sync, Aktionsqueue und Auditlog
 
 Die UI ist direkt im Modul enthalten und wird ueber einen kleinen HTTP-Server ausgeliefert.
 
-Zusaetzlich enthaelt das Repository ein Velocity-Companion-Plugin fuer Ingame-Tickets, LiteBans-Pruefung und LuckPerms-Rechte.
+Zusaetzlich enthaelt das Repository ein Velocity-Companion-Plugin fuer Ingame-Tickets, LiteBans-Pruefung, LiteBans-Sync und LuckPerms-Rechte.
 
 ## Architektur
 
@@ -33,13 +35,16 @@ Das Panel ist bewusst als MVP gebaut:
 - Panel-Login mit Gruppenrechten ist vorhanden
 - LiteBans-Bans koennen ueber das Velocity-Plugin ins Panel synchronisiert werden
 - LiteBans-Unban und -Verlaengerung laufen ueber eine Panel-Aktionsqueue, die Velocity abarbeitet
+- LuckPerms-Gruppen und geladene Spieler koennen ueber Velocity ins Panel synchronisiert werden
+- LuckPerms-Permissions und Parent-Gruppen koennen im Panel als Queue-Aktion erstellt werden
+- Passwort-Reset laeuft mit gehashten Einmal-Tokens und optionaler SMTP-Mail
 - Live-Konsole laeuft aktuell per Polling auf dem Log-Cache
 
 Noch nicht enthalten:
 
-- LuckPerms/LiteBans-Anbindung
 - Rootserver-SSH oder echte Root-Console
-- Aktive Ban-Durchsetzung direkt auf Velocity/Purpur
+- Eigene Purpur-Ban-Durchsetzung ohne LiteBans
+- Server-spezifische LuckPerms-Kontexte fuer einzelne Unterserver
 
 Die Struktur ist aber so angelegt, dass diese Bausteine spaeter sauber angebunden werden koennen.
 
@@ -96,6 +101,16 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemaess so aus:
   "bindPort": 8088,
   "consoleLineLimit": 250,
   "brandName": "Network Control",
+  "publicBaseUrl": "http://127.0.0.1:8088",
+  "smtpEnabled": false,
+  "smtpHost": "127.0.0.1",
+  "smtpPort": 587,
+  "smtpUsername": "",
+  "smtpPassword": "",
+  "smtpFrom": "panel@example.com",
+  "smtpStartTls": true,
+  "smtpSsl": false,
+  "passwordResetTokenMinutes": 30,
   "apiTokens": [
     "dein-generiertes-token"
   ]
@@ -103,6 +118,8 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemaess so aus:
 ```
 
 Das Panel nutzt einen eigenen Login. Der alte API-Token-Zugang bleibt fuer externe Tools oder ein spaeteres Velocity-/Purpur-Companion-Plugin erhalten und hat Vollzugriff.
+
+Wenn `smtpEnabled=false` ist, werden Passwort-Reset-Links nicht per Mail versendet, sondern sicherheitshalber im CloudNet-Log ausgegeben. Fuer produktiven Betrieb solltest du `publicBaseUrl` auf deine Panel-Domain setzen und SMTP aktivieren.
 
 ## Velocity-Plugin
 
@@ -129,6 +146,8 @@ litebans.public-id-column=id
 litebans.ban-command=ban {player} {duration} {reason}
 litebans.unban-command=unban {player} {reason}
 litebans.extend-command=ban {player} {duration} {reason}
+luckperms.sync-enabled=true
+luckperms.sync-interval-seconds=60
 ```
 
 Hinweis zu LiteBans-IDs: LiteBans speichert intern eine numerische `id`. Wenn dein Server in Nachrichten eine zufaellige Buchstaben-/Zahlen-ID nutzt, kannst du spaeter `litebans.public-id-column` auf eine passende Datenbankspalte setzen. Falls diese Spalte nicht existiert, nutzt das Panel automatisch die interne `id`. Die Befehls-Templates koennen `{id}`, `{banId}`, `{player}`, `{uuid}`, `{ip}`, `{duration}`, `{reason}` und `{actor}` verwenden.
@@ -156,6 +175,14 @@ LuckPerms-Rechte:
 
 Wenn LuckPerms auf Velocity installiert ist, werden diese Rechte ueber LuckPerms ausgewertet. Ohne LuckPerms nutzt das Plugin Velocitys normales `hasPermission`.
 
+LuckPerms-Panel-Bridge:
+
+- Das Velocity-Plugin synchronisiert geladene LuckPerms-Gruppen und geladene User regelmaessig ins Panel.
+- Im Panel unter `Rechte` kannst du Permissions hinzufuegen/entfernen und Parent-Gruppen zuweisen/entfernen.
+- Die Aenderungen werden als Queue-Aktion gespeichert und vom Velocity-Plugin verarbeitet.
+- Das Panel schreibt ein Auditlog fuer angeforderte und abgeschlossene Permission-Aktionen.
+- Fuer Unterserver mit gemeinsamer LuckPerms-Datenbank wirken globale LuckPerms-Aenderungen ebenfalls auf den Unterservern. Server-spezifische Contexts werden als naechster Ausbauschritt vorbereitet.
+
 ## Rechteverwaltung
 
 Im Panel gibt es die Unterseite `Rechte`. Dort kannst du Gruppen erstellen, Rechte zuweisen und Panel-Benutzer diesen Gruppen zuordnen.
@@ -172,6 +199,8 @@ Verfuegbare Rechte:
 - `bans.view`
 - `bans.manage`
 - `users.manage`
+- `permissions.proxy.manage`
+- `permissions.server.manage`
 - `*` fuer Vollzugriff
 
 ## Einsatz im Cluster
@@ -189,6 +218,8 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 - `POST /api/auth/login`
 - `GET /api/auth/session`
 - `POST /api/auth/logout`
+- `POST /api/auth/password-reset/request`
+- `POST /api/auth/password-reset/complete`
 - `GET /api/overview`
 - `GET /api/tasks`
 - `POST /api/tasks`
@@ -222,6 +253,12 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 - `GET /api/bans/actions`
 - `POST /api/bans/actions/{id}/complete`
 - `GET /api/bans/audit`
+- `GET /api/permissions/subjects`
+- `POST /api/permissions/sync`
+- `GET /api/permissions/actions`
+- `POST /api/permissions/actions`
+- `POST /api/permissions/actions/{id}/complete`
+- `GET /api/permissions/audit`
 - `PUT /api/auth/profile`
 - `POST /api/auth/password`
 - `GET /api/security/users`
@@ -237,6 +274,6 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 
 Wenn du daraus noch naeher an ein komplettes "NetworkManager"-System willst, wuerde ich als naechstes diese drei Erweiterungen bauen:
 
-1. Velocity-Plugin fuer aktive Ban-Pruefung beim Join
-2. Vollstaendige LuckPerms-Schreibbruecke fuer Proxy- und Unterserver-Rechte
-3. Passwort-vergessen-Mailversand mit SMTP/Token statt nur gespeicherter E-Mail-Adresse
+1. Server-spezifische LuckPerms-Kontexte fuer einzelne Unterserver
+2. Rootserver-Agent oder SSH-Anbindung fuer echte Rootserver-Konsole
+3. Optionaler Purpur-Companion fuer serverlokale Befehle und Statusdaten

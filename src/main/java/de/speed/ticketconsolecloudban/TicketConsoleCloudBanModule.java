@@ -6,6 +6,7 @@ import de.speed.ticketconsolecloudban.http.PanelHttpServer;
 import de.speed.ticketconsolecloudban.service.CloudNetFacade;
 import de.speed.ticketconsolecloudban.store.BanStore;
 import de.speed.ticketconsolecloudban.store.PanelUserStore;
+import de.speed.ticketconsolecloudban.store.PermissionBridgeStore;
 import de.speed.ticketconsolecloudban.store.TicketStore;
 import eu.cloudnetservice.driver.document.DocumentFactory;
 import eu.cloudnetservice.driver.module.ModuleLifeCycle;
@@ -36,7 +37,7 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
     this.writeConfig(DocumentFactory.json().newDocument().appendTree(configuration));
 
     var userStore = new PanelUserStore(this.moduleWrapper().dataDirectory());
-    var security = new PanelSecurityService(userStore);
+    var security = new PanelSecurityService(userStore, configuration);
     var facade = new CloudNetFacade(
       cloudServiceProvider,
       serviceTaskProvider,
@@ -44,7 +45,8 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
       clusterNodeProvider,
       configuration,
       new TicketStore(this.moduleWrapper().dataDirectory()),
-      new BanStore(this.moduleWrapper().dataDirectory()));
+      new BanStore(this.moduleWrapper().dataDirectory()),
+      new PermissionBridgeStore(this.moduleWrapper().dataDirectory()));
 
     this.stopServer();
     this.httpServer = new PanelHttpServer(configuration, facade, security);

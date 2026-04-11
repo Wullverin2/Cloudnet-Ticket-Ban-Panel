@@ -4,6 +4,7 @@ import de.speed.ticketconsolecloudban.auth.PanelGroup;
 import de.speed.ticketconsolecloudban.auth.PanelPermission;
 import de.speed.ticketconsolecloudban.auth.PanelUser;
 import de.speed.ticketconsolecloudban.auth.PanelUserStoreData;
+import de.speed.ticketconsolecloudban.auth.PasswordResetToken;
 import eu.cloudnetservice.driver.document.DocumentFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -11,6 +12,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
@@ -30,6 +32,7 @@ public final class PanelUserStore {
   private final Path storagePath;
   private final List<PanelUser> users = new ArrayList<>();
   private final List<PanelGroup> groups = new ArrayList<>();
+  private final List<PasswordResetToken> passwordResetTokens = new ArrayList<>();
   private String initialAdminPassword;
 
   public PanelUserStore(Path dataDirectory) {
@@ -215,6 +218,86 @@ public final class PanelUserStore {
       user.createdAt(),
       Instant.now().toString(),
       user.lastLoginAt());
+    this.replaceUser(updated);
+    return updated;
+  }
+
+  public synchronized Optional<PasswordResetIssue> createPasswordReset(String usernameOrEmail, int validMinutes) {
+    var lookup = usernameOrEmail == null ? "" : usernameOrEmail.trim();
+    if (lookup.isBlank()) {
+      return Optional.empty();
+    }
+
+    var user = this.users.stream()
+      .filter(PanelUser::enabled)
+      .filter(entry -> entry.username().equalsIgnoreCase(lookup)
+        || (entry.email() != null && entry.email().equalsIgnoreCase(lookup)))
+      .findFirst()
+      .orElse(null);
+    if (user == null || user.email() == null || user.email().isBlank()) {
+      return Optional.empty();
+    }
+
+    this.passwordResetTokens.removeIf(token -> token.username().equals(user.username()) && token.usedAt() == null);
+    var rawToken = HexFormat.of().formatHex(randomBytes(32));
+    var now = Instant.now();
+    var token = new PasswordResetToken(
+      sha256(rawToken),
+      user.username(),
+      user.email(),
+      now.toString(),
+      now.plus(validMinutes, ChronoUnit.MINUTES).toString(),
+      null);
+    this.passwordResetTokens.add(token);
+    this.save();
+    return Optional.of(new PasswordResetIssue(user.username(), user.email(), rawToken, token.expiresAt()));
+  }
+
+  public synchronized PanelUser resetPassword(String rawToken, String newPassword) {
+    if (rawToken == null || rawToken.isBlank()) {
+      throw new IllegalArgumentException("Reset-Token ist erforderlich.");
+    }
+    if (newPassword == null || newPassword.length() < 8) {
+      throw new IllegalArgumentException("Das neue Passwort muss mindestens 8 Zeichen haben.");
+    }
+
+    var tokenHash = sha256(rawToken.trim());
+    var token = this.passwordResetTokens.stream()
+      .filter(entry -> entry.tokenHash().equals(tokenHash))
+      .findFirst()
+      .orElseThrow(() -> new IllegalArgumentException("Reset-Token ist ungueltig."));
+    if (token.usedAt() != null) {
+      throw new IllegalArgumentException("Reset-Token wurde bereits benutzt.");
+    }
+    if (Instant.parse(token.expiresAt()).isBefore(Instant.now())) {
+      throw new IllegalArgumentException("Reset-Token ist abgelaufen.");
+    }
+
+    var user = this.requireUser(token.username());
+    var material = this.hashPassword(newPassword);
+    var updated = new PanelUser(
+      user.username(),
+      user.displayName(),
+      user.email(),
+      user.minecraftName(),
+      user.minecraftUniqueId(),
+      material.hash(),
+      material.salt(),
+      material.iterations(),
+      user.groups(),
+      user.enabled(),
+      user.createdAt(),
+      Instant.now().toString(),
+      user.lastLoginAt());
+
+    var used = new PasswordResetToken(
+      token.tokenHash(),
+      token.username(),
+      token.email(),
+      token.createdAt(),
+      token.expiresAt(),
+      Instant.now().toString());
+    this.replaceResetToken(used);
     this.replaceUser(updated);
     return updated;
   }
@@ -439,6 +522,10 @@ public final class PanelUserStore {
         if (data.users() != null) {
           this.users.addAll(data.users());
         }
+        this.passwordResetTokens.clear();
+        if (data.passwordResetTokens() != null) {
+          this.passwordResetTokens.addAll(data.passwordResetTokens());
+        }
       }
 
       if (this.users.isEmpty()) {
@@ -498,7 +585,10 @@ public final class PanelUserStore {
       Files.createDirectories(this.storagePath.getParent());
       DocumentFactory.json()
         .newDocument()
-        .appendTree(new PanelUserStoreData(List.copyOf(this.users), List.copyOf(this.groups)))
+        .appendTree(new PanelUserStoreData(
+          List.copyOf(this.users),
+          List.copyOf(this.groups),
+          List.copyOf(this.passwordResetTokens)))
         .writeTo(this.storagePath);
     } catch (Exception exception) {
       throw new IllegalStateException("Panel-Benutzer konnten nicht gespeichert werden.", exception);
@@ -519,6 +609,33 @@ public final class PanelUserStore {
     return values == null ? List.of() : values;
   }
 
+  private void replaceResetToken(PasswordResetToken updated) {
+    for (int index = 0; index < this.passwordResetTokens.size(); index++) {
+      if (this.passwordResetTokens.get(index).tokenHash().equals(updated.tokenHash())) {
+        this.passwordResetTokens.set(index, updated);
+        return;
+      }
+    }
+    throw new IllegalArgumentException("Reset-Token ist ungueltig.");
+  }
+
+  private static String sha256(String value) {
+    try {
+      var digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+      return HexFormat.of().formatHex(digest);
+    } catch (Exception exception) {
+      throw new IllegalStateException("Token konnte nicht verarbeitet werden.", exception);
+    }
+  }
+
   private record PasswordMaterial(String hash, String salt, int iterations) {
+  }
+
+  public record PasswordResetIssue(
+    String username,
+    String email,
+    String rawToken,
+    String expiresAt
+  ) {
   }
 }

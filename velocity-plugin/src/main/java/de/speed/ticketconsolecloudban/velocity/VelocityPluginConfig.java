@@ -27,7 +27,9 @@ public record VelocityPluginConfig(
   String permissionTicketTeam,
   String permissionTicketManage,
   String permissionBanManage,
-  String permissionReload
+  String permissionReload,
+  boolean luckPermsSyncEnabled,
+  int luckPermsSyncIntervalSeconds
 ) {
 
   public static VelocityPluginConfig load(Path dataDirectory) {
@@ -74,7 +76,9 @@ public record VelocityPluginConfig(
       text(properties, "permissions.ticket-team", "tccb.ticket.team"),
       text(properties, "permissions.ticket-manage", "tccb.ticket.manage"),
       text(properties, "permissions.ban-manage", "tccb.ban.manage"),
-      text(properties, "permissions.reload", "tccb.reload"));
+      text(properties, "permissions.reload", "tccb.reload"),
+      bool(properties, "luckperms.sync-enabled", true),
+      integer(properties, "luckperms.sync-interval-seconds", 60, 15, 3600));
   }
 
   public boolean hasPanelToken() {

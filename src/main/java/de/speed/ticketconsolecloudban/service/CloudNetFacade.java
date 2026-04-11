@@ -6,7 +6,11 @@ import de.speed.ticketconsolecloudban.ban.BanAuditEntry;
 import de.speed.ticketconsolecloudban.ban.CloudBanEntry;
 import de.speed.ticketconsolecloudban.ban.LiteBanEntry;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.permission.PermissionActionRequest;
+import de.speed.ticketconsolecloudban.permission.PermissionAuditEntry;
+import de.speed.ticketconsolecloudban.permission.PermissionSubject;
 import de.speed.ticketconsolecloudban.store.BanStore;
+import de.speed.ticketconsolecloudban.store.PermissionBridgeStore;
 import de.speed.ticketconsolecloudban.store.TicketStore;
 import de.speed.ticketconsolecloudban.ticket.TicketComment;
 import de.speed.ticketconsolecloudban.ticket.TicketAuditEntry;
@@ -56,6 +60,7 @@ public final class CloudNetFacade {
   private final PanelConfiguration configuration;
   private final TicketStore ticketStore;
   private final BanStore banStore;
+  private final PermissionBridgeStore permissionBridgeStore;
 
   public CloudNetFacade(
     CloudServiceProvider cloudServiceProvider,
@@ -64,7 +69,8 @@ public final class CloudNetFacade {
     ClusterNodeProvider clusterNodeProvider,
     PanelConfiguration configuration,
     TicketStore ticketStore,
-    BanStore banStore
+    BanStore banStore,
+    PermissionBridgeStore permissionBridgeStore
   ) {
     this.cloudServiceProvider = cloudServiceProvider;
     this.serviceTaskProvider = serviceTaskProvider;
@@ -73,6 +79,7 @@ public final class CloudNetFacade {
     this.configuration = configuration;
     this.ticketStore = ticketStore;
     this.banStore = banStore;
+    this.permissionBridgeStore = permissionBridgeStore;
   }
 
   public MetaView meta() {
@@ -401,6 +408,40 @@ public final class CloudNetFacade {
 
   public List<BanAuditEntry> banAuditLog() {
     return this.banStore.auditLog();
+  }
+
+  public List<PermissionSubject> listPermissionSubjects() {
+    return this.permissionBridgeStore.listSubjects();
+  }
+
+  public List<PermissionSubject> syncPermissionSubjects(Document request) {
+    var subjects = request.readObject("subjects", PermissionSubject[].class, new PermissionSubject[0]);
+    return this.permissionBridgeStore.syncSubjects(List.of(subjects), this.textOrDefault(request, "actor", "velocity-sync"));
+  }
+
+  public PermissionActionRequest requestPermissionAction(Document request) {
+    return this.permissionBridgeStore.requestAction(
+      this.requiredText(request, "action"),
+      this.requiredText(request, "subjectType"),
+      this.requiredText(request, "subjectId"),
+      this.nullableText(request.getString("permission")),
+      this.nullableText(request.getString("parent")),
+      this.textOrDefault(request, "actor", "Panel"));
+  }
+
+  public List<PermissionActionRequest> pendingPermissionActions() {
+    return this.permissionBridgeStore.pendingActionRequests();
+  }
+
+  public PermissionActionRequest completePermissionAction(String actionId, Document request) {
+    return this.permissionBridgeStore.completeActionRequest(
+      actionId,
+      request.getBoolean("success", true),
+      this.textOrDefault(request, "message", "Aktion verarbeitet"));
+  }
+
+  public List<PermissionAuditEntry> permissionAuditLog() {
+    return this.permissionBridgeStore.auditLog();
   }
 
   private TaskView taskView(ServiceTask task) {

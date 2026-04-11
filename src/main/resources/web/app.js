@@ -9,6 +9,8 @@ const PERMISSIONS = {
   BANS_VIEW: "bans.view",
   BANS_MANAGE: "bans.manage",
   USERS_MANAGE: "users.manage",
+  PROXY_PERMISSIONS_MANAGE: "permissions.proxy.manage",
+  SERVER_PERMISSIONS_MANAGE: "permissions.server.manage",
 };
 
 const state = {
@@ -27,6 +29,8 @@ const state = {
   banAudit: [],
   securityUsers: [],
   securityGroups: [],
+  permissionSubjects: [],
+  permissionAudit: [],
   selectedService: null,
   activePage: localStorage.getItem("tccb-page") || "cloudnet",
   consoleTimer: null,
@@ -46,9 +50,13 @@ document.addEventListener("DOMContentLoaded", () => {
 function bindElements() {
   elements.brandName = document.getElementById("brand-name");
   elements.authForm = document.getElementById("auth-form");
+  elements.loginForm = document.getElementById("login-form");
   elements.authStatus = document.getElementById("auth-status");
   elements.loginUsername = document.getElementById("login-username");
   elements.loginPassword = document.getElementById("login-password");
+  elements.resetRequestForm = document.getElementById("reset-request-form");
+  elements.resetCompleteForm = document.getElementById("reset-complete-form");
+  elements.resetStatus = document.getElementById("reset-status");
   elements.userCard = document.getElementById("user-card");
   elements.currentUser = document.getElementById("current-user");
   elements.currentPermissions = document.getElementById("current-permissions");
@@ -114,10 +122,18 @@ function bindElements() {
   elements.userStatus = document.getElementById("user-status");
   elements.userGroupGrid = document.getElementById("user-group-grid");
   elements.userTable = document.getElementById("user-table");
+
+  elements.permissionActionForm = document.getElementById("permission-action-form");
+  elements.permissionSubjectSelect = document.getElementById("permission-subject-select");
+  elements.permissionSubjectTable = document.getElementById("permission-subject-table");
+  elements.permissionAuditTable = document.getElementById("permission-audit-table");
+  elements.permissionStatus = document.getElementById("permission-status");
 }
 
 function bindEvents() {
-  elements.authForm.addEventListener("submit", handleLoginSubmit);
+  elements.loginForm.addEventListener("submit", handleLoginSubmit);
+  elements.resetRequestForm.addEventListener("submit", handleResetRequestSubmit);
+  elements.resetCompleteForm.addEventListener("submit", handleResetCompleteSubmit);
   elements.logoutButton.addEventListener("click", handleLogout);
   elements.profileForm.addEventListener("submit", handleProfileSubmit);
   elements.passwordForm.addEventListener("submit", handlePasswordSubmit);
@@ -161,6 +177,7 @@ function bindEvents() {
   elements.userForm.addEventListener("submit", handleUserSubmit);
   elements.userReset.addEventListener("click", resetUserForm);
   elements.userTable.addEventListener("click", handleUserTableClick);
+  elements.permissionActionForm.addEventListener("submit", handlePermissionActionSubmit);
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
 }
@@ -179,6 +196,7 @@ async function boot() {
     resetTaskForm();
     resetGroupForm();
     resetUserForm();
+    prefillResetToken();
 
     if (state.token) {
       await restoreSession();
@@ -236,6 +254,49 @@ async function handleLogout() {
   }
   clearSession();
   showLogin("Abgemeldet.", false);
+}
+
+async function handleResetRequestSubmit(event) {
+  event.preventDefault();
+  const form = new FormData(elements.resetRequestForm);
+
+  try {
+    const result = await api("/api/auth/password-reset/request", {
+      method: "POST",
+      auth: false,
+      body: { usernameOrEmail: String(form.get("usernameOrEmail") || "").trim() },
+    });
+    setStatus(elements.resetStatus, result.message || "Reset angefordert.", false);
+  } catch (error) {
+    setStatus(elements.resetStatus, error.message, true);
+  }
+}
+
+async function handleResetCompleteSubmit(event) {
+  event.preventDefault();
+  const form = new FormData(elements.resetCompleteForm);
+
+  try {
+    await api("/api/auth/password-reset/complete", {
+      method: "POST",
+      auth: false,
+      body: {
+        token: String(form.get("token") || "").trim(),
+        newPassword: String(form.get("newPassword") || ""),
+      },
+    });
+    elements.resetCompleteForm.reset();
+    setStatus(elements.resetStatus, "Passwort wurde gesetzt. Du kannst dich jetzt einloggen.", false);
+  } catch (error) {
+    setStatus(elements.resetStatus, error.message, true);
+  }
+}
+
+function prefillResetToken() {
+  const token = new URLSearchParams(window.location.search).get("resetToken");
+  if (token) {
+    elements.resetCompleteForm.elements.token.value = token;
+  }
 }
 
 async function handleProfileSubmit(event) {
@@ -321,6 +382,8 @@ function clearSession() {
   state.banAudit = [];
   state.securityUsers = [];
   state.securityGroups = [];
+  state.permissionSubjects = [];
+  state.permissionAudit = [];
   localStorage.removeItem("tccb-session");
   if (state.consoleTimer) {
     clearInterval(state.consoleTimer);
@@ -432,6 +495,18 @@ async function refreshAll() {
     }
     renderGroups();
     renderUsers();
+  }
+
+  if (hasPermission(PERMISSIONS.PROXY_PERMISSIONS_MANAGE)) {
+    const [subjects, audit] = await Promise.all([
+      api("/api/permissions/subjects"),
+      api("/api/permissions/audit"),
+    ]);
+    state.permissionSubjects = asArray(subjects);
+    state.permissionAudit = asArray(audit);
+    renderPermissionSubjects();
+    renderPermissionAudit();
+    refreshPermissionSubjectSelect();
   }
 
   if (hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)) {
@@ -751,6 +826,42 @@ function renderUsers() {
   `).join("");
 }
 
+function renderPermissionSubjects() {
+  if (!state.permissionSubjects.length) {
+    elements.permissionSubjectTable.innerHTML = `<tr><td colspan="4" class="muted">Noch keine LuckPerms-Daten synchronisiert.</td></tr>`;
+    return;
+  }
+
+  elements.permissionSubjectTable.innerHTML = state.permissionSubjects.map(subject => `
+    <tr>
+      <td>${escapeHtml(subject.type || "-")}</td>
+      <td>
+        <strong>${escapeHtml(subject.name || subject.id || "-")}</strong><br>
+        <span class="muted">${escapeHtml(subject.source || "LuckPerms")} | ${escapeHtml(subject.lastSyncedAt || "-")}</span>
+      </td>
+      <td>${escapeHtml((subject.parents || []).join(", ") || "-")}</td>
+      <td>${escapeHtml((subject.permissions || []).slice(0, 12).join(", ") || "-")}</td>
+    </tr>
+  `).join("");
+}
+
+function renderPermissionAudit() {
+  if (!state.permissionAudit.length) {
+    elements.permissionAuditTable.innerHTML = `<tr><td colspan="5" class="muted">Noch kein LuckPerms-Audit vorhanden.</td></tr>`;
+    return;
+  }
+
+  elements.permissionAuditTable.innerHTML = state.permissionAudit.slice(0, 120).map(entry => `
+    <tr>
+      <td>${escapeHtml(entry.createdAt || "-")}</td>
+      <td>${escapeHtml(entry.subjectType || "-")}:${escapeHtml(entry.subjectId || "-")}</td>
+      <td>${escapeHtml(entry.action || "-")}</td>
+      <td>${escapeHtml(entry.actor || "-")}</td>
+      <td>${escapeHtml(entry.message || "-")}</td>
+    </tr>
+  `).join("");
+}
+
 async function loadConsole() {
   if (!hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)) {
     return;
@@ -1011,6 +1122,50 @@ async function handleUserSubmit(event) {
     await reloadSessionAndData();
   } catch (error) {
     handleApiError(error, elements.userStatus);
+  }
+}
+
+async function handlePermissionActionSubmit(event) {
+  event.preventDefault();
+  if (!hasPermission(PERMISSIONS.PROXY_PERMISSIONS_MANAGE)) {
+    return;
+  }
+
+  const form = new FormData(elements.permissionActionForm);
+  const subject = parsePermissionSubject(String(form.get("subject") || ""));
+  const action = String(form.get("action") || "").trim();
+  const payload = {
+    action,
+    subjectType: subject.type,
+    subjectId: subject.id,
+    permission: String(form.get("permission") || "").trim(),
+    parent: String(form.get("parent") || "").trim(),
+    actor: state.currentUser?.displayName || state.currentUser?.username || "Panel",
+  };
+
+  if (!payload.subjectType || !payload.subjectId) {
+    setStatus(elements.permissionStatus, "Noch kein LuckPerms-Subject synchronisiert.", true);
+    return;
+  }
+
+  if ((action === "ADD_PERMISSION" || action === "REMOVE_PERMISSION") && !payload.permission) {
+    setStatus(elements.permissionStatus, "Bitte eine Permission eintragen.", true);
+    return;
+  }
+
+  if ((action === "ADD_PARENT" || action === "REMOVE_PARENT") && !payload.parent) {
+    setStatus(elements.permissionStatus, "Bitte eine Parent-Gruppe eintragen.", true);
+    return;
+  }
+
+  try {
+    await api("/api/permissions/actions", { method: "POST", body: payload });
+    elements.permissionActionForm.elements.permission.value = "";
+    elements.permissionActionForm.elements.parent.value = "";
+    setStatus(elements.permissionStatus, "LuckPerms-Aktion wurde in die Queue gelegt.", false);
+    await refreshAll();
+  } catch (error) {
+    handleApiError(error, elements.permissionStatus);
   }
 }
 
@@ -1392,6 +1547,31 @@ function refreshServiceSelectors() {
   }
 }
 
+function refreshPermissionSubjectSelect() {
+  const selected = elements.permissionSubjectSelect.value;
+  elements.permissionSubjectSelect.innerHTML = "";
+
+  state.permissionSubjects.forEach(subject => {
+    const option = document.createElement("option");
+    option.value = permissionSubjectValue(subject);
+    option.textContent = `${subject.type || "?"}: ${subject.name || subject.id || "Unbekannt"}`;
+    elements.permissionSubjectSelect.append(option);
+  });
+
+  if (selected && [...elements.permissionSubjectSelect.options].some(option => option.value === selected)) {
+    elements.permissionSubjectSelect.value = selected;
+  }
+}
+
+function permissionSubjectValue(subject) {
+  return `${subject.type || ""}|${subject.id || subject.name || ""}`;
+}
+
+function parsePermissionSubject(value) {
+  const [type, id] = value.split("|", 2);
+  return { type, id };
+}
+
 function populateSelect(select, values, preferred) {
   select.innerHTML = "";
   values.forEach(value => {
@@ -1482,7 +1662,11 @@ function handleVisibilityChange() {
 
 function hasPermission(permission) {
   const permissions = state.currentUser?.permissions || [];
-  return permissions.includes("*") || permissions.includes(permission);
+  const allowed = String(permission || "")
+    .split(",")
+    .map(entry => entry.trim())
+    .filter(Boolean);
+  return permissions.includes("*") || allowed.some(entry => permissions.includes(entry));
 }
 
 function summarizePermissions(permissions) {

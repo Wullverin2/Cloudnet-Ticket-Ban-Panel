@@ -46,3 +46,26 @@ record PanelBanAction(
   String status
 ) {
 }
+
+record PermissionSubjectSnapshot(
+  String type,
+  String id,
+  String name,
+  java.util.List<String> permissions,
+  java.util.List<String> parents,
+  String source,
+  String lastSyncedAt
+) {
+}
+
+record PanelPermissionAction(
+  String id,
+  String action,
+  String subjectType,
+  String subjectId,
+  String permission,
+  String parent,
+  String actor,
+  String status
+) {
+}

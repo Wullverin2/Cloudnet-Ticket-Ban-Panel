@@ -30,8 +30,8 @@ public final class PanelPermission {
     new PermissionView(BANS_VIEW, "Bans", "Bans ansehen", "Cloud-Bans im Panel anzeigen."),
     new PermissionView(BANS_MANAGE, "Bans", "Bans verwalten", "Cloud-Bans erstellen und deaktivieren."),
     new PermissionView(USERS_MANAGE, "Rechte", "Benutzer und Gruppen", "Panel-Benutzer, Gruppen und Rechte verwalten."),
-    new PermissionView(PROXY_PERMISSIONS_MANAGE, "Rechte", "Proxy-Rechte vorbereiten", "Reserviertes Recht fuer spaetere Proxy-/LuckPerms-Verwaltung."),
-    new PermissionView(SERVER_PERMISSIONS_MANAGE, "Rechte", "Unterserver-Rechte vorbereiten", "Reserviertes Recht fuer spaetere Unterserver-/LuckPerms-Verwaltung."));
+    new PermissionView(PROXY_PERMISSIONS_MANAGE, "Rechte", "Proxy- und LuckPerms-Rechte", "LuckPerms-Subjects anzeigen und Permission-Aktionen ueber Velocity ausfuehren."),
+    new PermissionView(SERVER_PERMISSIONS_MANAGE, "Rechte", "Unterserver-Rechte", "Reserviertes Recht fuer spaetere server-spezifische LuckPerms-Kontexte."));
 
   private PanelPermission() {
   }
