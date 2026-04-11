@@ -1,0 +1,15 @@
+panel:
+  url: "http://127.0.0.1:8088"
+  api-token: "CHANGE_ME"
+
+server:
+  # Muss eindeutig pro Purpur-Unterserver sein, z.B. Lobby-1, CityBuild-1 oder Survival.
+  # CHANGE_ME nutzt automatisch CLOUDNET_SERVICE_NAME oder den Bukkit-Servernamen als Fallback.
+  id: "CHANGE_ME"
+
+sync:
+  enabled: true
+  interval-seconds: 60
+
+permissions:
+  reload: "tccb.purpur.reload"

@@ -330,6 +330,111 @@ button:hover {
   color: #1d1406;
 }
 
+.compact-head {
+  margin-bottom: 12px;
+}
+
+.luckperms-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.35fr) minmax(260px, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.luckperms-editor {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.34fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.luckperms-sidebar,
+.luckperms-workspace {
+  min-height: 420px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  background: rgba(6, 12, 18, 0.58);
+  padding: 16px;
+}
+
+.subject-list,
+.node-list {
+  display: grid;
+  gap: 10px;
+}
+
+.subject-list {
+  max-height: 560px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.subject-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  justify-items: start;
+  text-align: left;
+  width: 100%;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.subject-card strong,
+.subject-card small {
+  grid-column: 2;
+}
+
+.subject-card small,
+.node-card-editor small {
+  color: var(--muted);
+}
+
+.subject-card.active {
+  border-color: var(--line-strong);
+  background: rgba(244, 188, 70, 0.12);
+}
+
+.selected-subject {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  margin-bottom: 16px;
+}
+
+.selected-subject div,
+.node-card-editor div {
+  display: grid;
+  gap: 5px;
+}
+
+.luckperms-add-form {
+  margin-bottom: 20px;
+}
+
+.node-section {
+  display: grid;
+  gap: 12px;
+}
+
+.node-card-editor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(8, 17, 26, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.node-card-editor.node-negative {
+  border-color: rgba(255, 114, 104, 0.34);
+}
+
 .page-panel {
   margin-top: 0;
 }
@@ -549,8 +654,14 @@ tbody button {
   .auth-row,
   .action-row,
   .inline-controls,
-  .console-form {
+  .console-form,
+  .node-card-editor {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .luckperms-toolbar,
+  .luckperms-editor {
+    grid-template-columns: 1fr;
   }
 }

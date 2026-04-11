@@ -416,21 +416,26 @@ public final class CloudNetFacade {
 
   public List<PermissionSubject> syncPermissionSubjects(Document request) {
     var subjects = request.readObject("subjects", PermissionSubject[].class, new PermissionSubject[0]);
-    return this.permissionBridgeStore.syncSubjects(List.of(subjects), this.textOrDefault(request, "actor", "velocity-sync"));
+    return this.permissionBridgeStore.syncSubjects(
+      List.of(subjects),
+      this.textOrDefault(request, "actor", "velocity-sync"),
+      this.textOrDefault(request, "serverId", "proxy"));
   }
 
   public PermissionActionRequest requestPermissionAction(Document request) {
     return this.permissionBridgeStore.requestAction(
+      this.textOrDefault(request, "serverId", "proxy"),
       this.requiredText(request, "action"),
       this.requiredText(request, "subjectType"),
       this.requiredText(request, "subjectId"),
       this.nullableText(request.getString("permission")),
       this.nullableText(request.getString("parent")),
+      request.contains("value") ? request.getBoolean("value") : null,
       this.textOrDefault(request, "actor", "Panel"));
   }
 
-  public List<PermissionActionRequest> pendingPermissionActions() {
-    return this.permissionBridgeStore.pendingActionRequests();
+  public List<PermissionActionRequest> pendingPermissionActions(String serverId) {
+    return this.permissionBridgeStore.pendingActionRequests(serverId);
   }
 
   public PermissionActionRequest completePermissionAction(String actionId, Document request) {

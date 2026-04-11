@@ -181,7 +181,7 @@ public final class TicketConsoleVelocityPlugin {
       return;
     }
 
-    this.panelApi.syncPermissionSubjects(this.luckPermsBridge.subjects());
+    this.panelApi.syncPermissionSubjects(this.luckPermsBridge.subjects(this.config.luckPermsServerId(), "velocity"));
     for (var action : this.panelApi.pendingPermissionActions()) {
       this.processPermissionAction(action);
     }

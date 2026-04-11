@@ -71,7 +71,8 @@
       <button data-page-target="cloudnet" data-permission="cloudnet.view" type="button">CloudNet</button>
       <button data-page-target="tickets" data-permission="tickets.view" type="button">Tickets</button>
       <button data-page-target="bans" data-permission="bans.view" type="button">Bans</button>
-      <button data-page-target="security" data-permission="users.manage,permissions.proxy.manage" type="button">Rechte</button>
+      <button data-page-target="security" data-permission="users.manage" type="button">Rechte</button>
+      <button data-page-target="luckperms" data-permission="permissions.proxy.manage,permissions.server.manage" type="button">LuckPerms</button>
     </nav>
 
     <section class="summary-grid hidden" id="summary-grid" data-permission="cloudnet.view">
@@ -458,7 +459,7 @@
       </div>
     </section>
 
-    <section id="page-security" class="page-panel hidden" data-page="security" data-permission="users.manage,permissions.proxy.manage">
+    <section id="page-security" class="page-panel hidden" data-page="security" data-permission="users.manage">
       <div class="panel-grid">
         <article class="panel-card panel-wide" data-permission="users.manage">
           <div class="panel-head">
@@ -547,62 +548,89 @@
           </div>
         </article>
 
-        <article class="panel-card panel-wide" data-permission="permissions.proxy.manage">
+      </div>
+    </section>
+
+    <section id="page-luckperms" class="page-panel hidden" data-page="luckperms" data-permission="permissions.proxy.manage,permissions.server.manage">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Proxy & Unterserver</p>
-              <h2>LuckPerms Rechteverwaltung</h2>
+              <h2>LuckPerms Editor</h2>
             </div>
+            <button id="permission-refresh" class="ghost-button" type="button">Synchronisieren</button>
           </div>
 
-          <form id="permission-action-form" class="stack-form">
-            <div class="form-grid">
-              <label>
-                <span>Subject</span>
-                <select name="subject" id="permission-subject-select"></select>
-              </label>
-              <label>
-                <span>Aktion</span>
-                <select name="action">
-                  <option value="ADD_PERMISSION">Permission hinzufuegen</option>
-                  <option value="REMOVE_PERMISSION">Permission entfernen</option>
-                  <option value="ADD_PARENT">Gruppe zuweisen</option>
-                  <option value="REMOVE_PARENT">Gruppe entfernen</option>
-                </select>
-              </label>
-              <label>
-                <span>Permission</span>
-                <input name="permission" type="text" placeholder="z.B. tccb.ticket.team">
-              </label>
-              <label>
-                <span>Parent-Gruppe</span>
-                <input name="parent" type="text" placeholder="z.B. admin">
-              </label>
-            </div>
-            <div class="action-row">
-              <button type="submit">LuckPerms-Aktion senden</button>
-              <span id="permission-status" class="muted"></span>
-            </div>
-          </form>
+          <div class="luckperms-toolbar">
+            <label>
+              <span>Zielserver</span>
+              <select id="permission-server-select"></select>
+            </label>
+            <label>
+              <span>Suche</span>
+              <input id="permission-subject-search" type="search" placeholder="Gruppe, Spieler, UUID oder Permission">
+            </label>
+          </div>
+
+          <div class="luckperms-editor">
+            <aside class="luckperms-sidebar">
+              <div class="panel-head compact-head">
+                <div>
+                  <p class="eyebrow">Subjects</p>
+                  <h2>Gruppen & Spieler</h2>
+                </div>
+              </div>
+              <div id="permission-subject-list" class="subject-list"></div>
+            </aside>
+
+            <section class="luckperms-workspace">
+              <div id="permission-selected-summary" class="selected-subject muted">
+                Waehle links eine Gruppe oder einen Spieler aus.
+              </div>
+
+              <form id="permission-action-form" class="stack-form luckperms-add-form">
+                <div class="form-grid">
+                  <label>
+                    <span>Node-Typ</span>
+                    <select name="nodeType">
+                      <option value="permission">Permission</option>
+                      <option value="parent">Parent-Gruppe</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Wert</span>
+                    <input name="nodeValue" type="text" placeholder="z.B. essentials.fly oder moderator">
+                  </label>
+                  <label>
+                    <span>Permission-Wert</span>
+                    <select name="nodeValueState">
+                      <option value="true">true / erlauben</option>
+                      <option value="false">false / verweigern</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="action-row">
+                  <button type="submit">Node hinzufuegen</button>
+                  <span id="permission-status" class="muted"></span>
+                </div>
+              </form>
+
+              <div class="node-section">
+                <div>
+                  <p class="eyebrow">Nodes</p>
+                  <h2>Aktive Eintraege</h2>
+                </div>
+                <div id="permission-node-list" class="node-list"></div>
+              </div>
+            </section>
+          </div>
 
           <div class="table-shell">
             <table>
               <thead>
                 <tr>
-                  <th>Typ</th>
-                  <th>Name</th>
-                  <th>Parents</th>
-                  <th>Permissions</th>
-                </tr>
-              </thead>
-              <tbody id="permission-subject-table"></tbody>
-            </table>
-          </div>
-
-          <div class="table-shell">
-            <table>
-              <thead>
-                <tr>
+                  <th>Server</th>
                   <th>Zeit</th>
                   <th>Subject</th>
                   <th>Aktion</th>

@@ -28,6 +28,7 @@ public record VelocityPluginConfig(
   String permissionTicketManage,
   String permissionBanManage,
   String permissionReload,
+  String luckPermsServerId,
   boolean luckPermsSyncEnabled,
   int luckPermsSyncIntervalSeconds
 ) {
@@ -77,6 +78,7 @@ public record VelocityPluginConfig(
       text(properties, "permissions.ticket-manage", "tccb.ticket.manage"),
       text(properties, "permissions.ban-manage", "tccb.ban.manage"),
       text(properties, "permissions.reload", "tccb.reload"),
+      text(properties, "luckperms.server-id", "proxy"),
       bool(properties, "luckperms.sync-enabled", true),
       integer(properties, "luckperms.sync-interval-seconds", 60, 15, 3600));
   }

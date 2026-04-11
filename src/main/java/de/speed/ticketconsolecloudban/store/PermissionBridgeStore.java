@@ -28,7 +28,9 @@ public final class PermissionBridgeStore {
 
   public synchronized List<PermissionSubject> listSubjects() {
     return this.subjects.stream()
-      .sorted(Comparator.comparing(PermissionSubject::type).thenComparing(PermissionSubject::name))
+      .sorted(Comparator.comparing((PermissionSubject subject) -> normalizedServer(subject.serverId()))
+        .thenComparing(PermissionSubject::type)
+        .thenComparing(PermissionSubject::name))
       .toList();
   }
 
@@ -39,24 +41,32 @@ public final class PermissionBridgeStore {
   }
 
   public synchronized List<PermissionActionRequest> pendingActionRequests() {
+    return this.pendingActionRequests(null);
+  }
+
+  public synchronized List<PermissionActionRequest> pendingActionRequests(String serverId) {
+    var normalizedServer = blankToNull(serverId);
     return this.actionRequests.stream()
       .filter(request -> "PENDING".equals(request.status()))
+      .filter(request -> normalizedServer == null || normalizedServer(request.serverId()).equalsIgnoreCase(normalizedServer))
       .sorted(Comparator.comparing(PermissionActionRequest::createdAt))
       .toList();
   }
 
-  public synchronized List<PermissionSubject> syncSubjects(List<PermissionSubject> incoming, String actor) {
+  public synchronized List<PermissionSubject> syncSubjects(List<PermissionSubject> incoming, String actor, String serverIdFallback) {
     var now = Instant.now().toString();
     var byKey = new LinkedHashMap<String, PermissionSubject>();
     for (var subject : this.subjects) {
-      byKey.put(key(subject.type(), subject.id()), subject);
+      byKey.put(key(subject.serverId(), subject.type(), subject.id()), subject);
     }
 
     for (var subject : incoming) {
       if (subject == null || subject.type() == null || subject.id() == null) {
         continue;
       }
+      var serverId = normalizedServer(subject.serverId() == null ? serverIdFallback : subject.serverId());
       var synced = new PermissionSubject(
+        serverId,
         subject.type().toUpperCase(),
         subject.id(),
         subject.name() == null || subject.name().isBlank() ? subject.id() : subject.name(),
@@ -64,9 +74,9 @@ public final class PermissionBridgeStore {
         subject.parents() == null ? List.of() : subject.parents(),
         subject.source() == null || subject.source().isBlank() ? "velocity" : subject.source(),
         now);
-      var previous = byKey.put(key(synced.type(), synced.id()), synced);
+      var previous = byKey.put(key(synced.serverId(), synced.type(), synced.id()), synced);
       if (previous == null) {
-        this.audit("SYNC_CREATE", synced.type(), synced.id(), actor, "LuckPerms Subject synchronisiert");
+        this.audit(synced.serverId(), "SYNC_CREATE", synced.type(), synced.id(), actor, "LuckPerms Subject synchronisiert");
       }
     }
 
@@ -77,30 +87,41 @@ public final class PermissionBridgeStore {
   }
 
   public synchronized PermissionActionRequest requestAction(
+    String serverId,
     String action,
     String subjectType,
     String subjectId,
     String permission,
     String parent,
+    Boolean value,
     String actor
   ) {
+    var normalizedServer = normalizedServer(serverId);
     var normalizedAction = require(action, "Aktion").toUpperCase();
     var normalizedType = require(subjectType, "Subject-Typ").toUpperCase();
     var normalizedSubject = require(subjectId, "Subject").trim();
     var request = new PermissionActionRequest(
       UUID.randomUUID().toString(),
+      normalizedServer,
       normalizedAction,
       normalizedType,
       normalizedSubject,
       blankToNull(permission),
       blankToNull(parent),
+      value,
       blankDefault(actor, "Panel"),
       "PENDING",
       Instant.now().toString(),
       null,
       null);
     this.actionRequests.add(request);
-    this.audit(normalizedAction + "_REQUESTED", normalizedType, normalizedSubject, request.actor(), request.permission() == null ? request.parent() : request.permission());
+    this.audit(
+      normalizedServer,
+      normalizedAction + "_REQUESTED",
+      normalizedType,
+      normalizedSubject,
+      request.actor(),
+      describe(request.permission() == null ? request.parent() : request.permission(), request.value()));
     this.save();
     return request;
   }
@@ -112,11 +133,13 @@ public final class PermissionBridgeStore {
       .orElseThrow(() -> new IllegalArgumentException("Permission-Aktion wurde nicht gefunden."));
     var updated = new PermissionActionRequest(
       existing.id(),
+      normalizedServer(existing.serverId()),
       existing.action(),
       existing.subjectType(),
       existing.subjectId(),
       existing.permission(),
       existing.parent(),
+      existing.value(),
       existing.actor(),
       success ? "COMPLETED" : "FAILED",
       existing.createdAt(),
@@ -129,14 +152,15 @@ public final class PermissionBridgeStore {
         break;
       }
     }
-    this.audit(existing.action() + "_" + updated.status(), existing.subjectType(), existing.subjectId(), existing.actor(), message);
+    this.audit(normalizedServer(existing.serverId()), existing.action() + "_" + updated.status(), existing.subjectType(), existing.subjectId(), existing.actor(), message);
     this.save();
     return updated;
   }
 
-  private void audit(String action, String subjectType, String subjectId, String actor, String message) {
+  private void audit(String serverId, String action, String subjectType, String subjectId, String actor, String message) {
     this.auditLog.add(new PermissionAuditEntry(
       UUID.randomUUID().toString(),
+      normalizedServer(serverId),
       action,
       subjectType,
       subjectId,
@@ -185,8 +209,8 @@ public final class PermissionBridgeStore {
     }
   }
 
-  private static String key(String type, String id) {
-    return type.toUpperCase() + ":" + id;
+  private static String key(String serverId, String type, String id) {
+    return normalizedServer(serverId) + ":" + type.toUpperCase() + ":" + id;
   }
 
   private static String require(String value, String label) {
@@ -202,5 +226,16 @@ public final class PermissionBridgeStore {
 
   private static String blankDefault(String value, String fallback) {
     return value == null || value.isBlank() ? fallback : value.trim();
+  }
+
+  private static String normalizedServer(String serverId) {
+    return serverId == null || serverId.isBlank() ? "proxy" : serverId.trim();
+  }
+
+  private static String describe(String node, Boolean value) {
+    if (value == null || value) {
+      return node;
+    }
+    return node + " = false";
   }
 }

@@ -18,7 +18,7 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel fuer:
 
 Die UI ist direkt im Modul enthalten und wird ueber einen kleinen HTTP-Server ausgeliefert.
 
-Zusaetzlich enthaelt das Repository ein Velocity-Companion-Plugin fuer Ingame-Tickets, LiteBans-Pruefung, LiteBans-Sync und LuckPerms-Rechte.
+Zusaetzlich enthaelt das Repository ein Velocity-Companion-Plugin fuer Ingame-Tickets, LiteBans-Pruefung, LiteBans-Sync und Proxy-LuckPerms sowie ein Purpur/Paper-Companion-Plugin fuer lokale Unterserver-LuckPerms-Datenbanken.
 
 ## Architektur
 
@@ -35,8 +35,9 @@ Das Panel ist bewusst als MVP gebaut:
 - Panel-Login mit Gruppenrechten ist vorhanden
 - LiteBans-Bans koennen ueber das Velocity-Plugin ins Panel synchronisiert werden
 - LiteBans-Unban und -Verlaengerung laufen ueber eine Panel-Aktionsqueue, die Velocity abarbeitet
-- LuckPerms-Gruppen und geladene Spieler koennen ueber Velocity ins Panel synchronisiert werden
+- LuckPerms-Gruppen und geladene Spieler koennen pro Proxy und pro Purpur-Unterserver ins Panel synchronisiert werden
 - LuckPerms-Permissions und Parent-Gruppen koennen im Panel als Queue-Aktion erstellt werden
+- Unterserver mit eigener LuckPerms-Datenbank werden ueber das Purpur-Companion-Plugin gezielt per `server.id` angesteuert
 - Passwort-Reset laeuft mit gehashten Einmal-Tokens und optionaler SMTP-Mail
 - Live-Konsole laeuft aktuell per Polling auf dem Log-Cache
 
@@ -44,7 +45,7 @@ Noch nicht enthalten:
 
 - Rootserver-SSH oder echte Root-Console
 - Eigene Purpur-Ban-Durchsetzung ohne LiteBans
-- Server-spezifische LuckPerms-Kontexte fuer einzelne Unterserver
+- Vollstaendiger LuckPerms-Webeditor mit allen Metadaten/Expiry/Context-Kombinationen
 
 Die Struktur ist aber so angelegt, dass diese Bausteine spaeter sauber angebunden werden koennen.
 
@@ -73,6 +74,19 @@ Artefakt:
 
 ```text
 velocity-plugin/target/TicketConsoleCloudBan-Velocity.jar
+```
+
+Purpur/Paper-Plugin:
+
+```bash
+cd purpur-plugin
+mvn -DskipTests package
+```
+
+Artefakt:
+
+```text
+purpur-plugin/target/TicketConsoleCloudBan-Purpur.jar
 ```
 
 Optional liegt auch ein `build.gradle.kts` bei, falls du lieber mit Gradle arbeitest.
@@ -147,6 +161,7 @@ litebans.ban-command=ban {player} {duration} {reason}
 litebans.unban-command=unban {player} {reason}
 litebans.extend-command=ban {player} {duration} {reason}
 luckperms.sync-enabled=true
+luckperms.server-id=proxy
 luckperms.sync-interval-seconds=60
 ```
 
@@ -175,13 +190,41 @@ LuckPerms-Rechte:
 
 Wenn LuckPerms auf Velocity installiert ist, werden diese Rechte ueber LuckPerms ausgewertet. Ohne LuckPerms nutzt das Plugin Velocitys normales `hasPermission`.
 
-LuckPerms-Panel-Bridge:
+LuckPerms-Panel-Bridge fuer Velocity:
 
-- Das Velocity-Plugin synchronisiert geladene LuckPerms-Gruppen und geladene User regelmaessig ins Panel.
-- Im Panel unter `Rechte` kannst du Permissions hinzufuegen/entfernen und Parent-Gruppen zuweisen/entfernen.
-- Die Aenderungen werden als Queue-Aktion gespeichert und vom Velocity-Plugin verarbeitet.
+- Das Velocity-Plugin synchronisiert geladene LuckPerms-Gruppen und geladene User als Server `proxy` ins Panel.
+- Im Panel unter `LuckPerms` kannst du Permissions hinzufuegen/entfernen und Parent-Gruppen zuweisen/entfernen.
+- Die Aenderungen werden als Queue-Aktion gespeichert und vom Velocity-Plugin verarbeitet, wenn `serverId=proxy` ist.
 - Das Panel schreibt ein Auditlog fuer angeforderte und abgeschlossene Permission-Aktionen.
-- Fuer Unterserver mit gemeinsamer LuckPerms-Datenbank wirken globale LuckPerms-Aenderungen ebenfalls auf den Unterservern. Server-spezifische Contexts werden als naechster Ausbauschritt vorbereitet.
+- Fuer Unterserver mit eigenen LuckPerms-Datenbanken brauchst du das Purpur/Paper-Plugin auf jedem Unterserver.
+
+## Purpur/Paper-Plugin
+
+Das Purpur/Paper-Plugin wird auf jedem Minecraft-Unterserver installiert, der eine eigene LuckPerms-Datenbank nutzt. Es verbindet sich mit dem Panel, synchronisiert die lokale LuckPerms-Instanz und verarbeitet nur Aktionen fuer seine eigene `server.id`.
+
+Installation:
+
+1. Kopiere `purpur-plugin/target/TicketConsoleCloudBan-Purpur.jar` in den `plugins/`-Ordner jedes Purpur-Servers.
+2. Starte den Server einmal, damit `plugins/TicketConsoleCloudBan-Purpur/config.yml` erstellt wird.
+3. Trage `panel.url`, `panel.api-token` und eine eindeutige `server.id` ein, zum Beispiel `Lobby-1`, `Survival-1` oder `CityBuild`.
+4. Starte den Server neu oder nutze `/tccbpurpur reload`.
+
+Wichtige Config-Werte:
+
+```yaml
+panel:
+  url: "http://127.0.0.1:8088"
+  api-token: "CHANGE_ME"
+server:
+  id: "Lobby-1"
+sync:
+  enabled: true
+  interval-seconds: 60
+permissions:
+  reload: "tccb.purpur.reload"
+```
+
+Wichtig: Bei getrennten LuckPerms-Datenbanken muss jeder Unterserver, dessen Rechte du im Panel bearbeiten willst, dieses Purpur/Paper-Plugin installiert haben. Velocity kann diese getrennten Datenbanken nicht direkt bearbeiten.
 
 ## Rechteverwaltung
 
@@ -255,7 +298,7 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 - `GET /api/bans/audit`
 - `GET /api/permissions/subjects`
 - `POST /api/permissions/sync`
-- `GET /api/permissions/actions`
+- `GET /api/permissions/actions?serverId=<server>`
 - `POST /api/permissions/actions`
 - `POST /api/permissions/actions/{id}/complete`
 - `GET /api/permissions/audit`
@@ -274,6 +317,6 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 
 Wenn du daraus noch naeher an ein komplettes "NetworkManager"-System willst, wuerde ich als naechstes diese drei Erweiterungen bauen:
 
-1. Server-spezifische LuckPerms-Kontexte fuer einzelne Unterserver
+1. LuckPerms-Expiry, Meta-Nodes und Context-Kombinationen im Editor
 2. Rootserver-Agent oder SSH-Anbindung fuer echte Rootserver-Konsole
-3. Optionaler Purpur-Companion fuer serverlokale Befehle und Statusdaten
+3. Serverlokale Purpur-Befehle und Statusdaten ueber das Purpur-Companion-Plugin

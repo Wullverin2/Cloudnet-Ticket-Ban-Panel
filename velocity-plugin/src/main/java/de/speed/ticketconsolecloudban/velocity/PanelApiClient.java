@@ -89,12 +89,13 @@ public final class PanelApiClient {
   public void syncPermissionSubjects(List<PermissionSubjectSnapshot> subjects) {
     var request = new JsonObject();
     request.addProperty("actor", "velocity-luckperms-sync");
+    request.addProperty("serverId", this.config.luckPermsServerId());
     request.add("subjects", GSON.toJsonTree(subjects));
     this.send("POST", "/api/permissions/sync", request);
   }
 
   public List<PanelPermissionAction> pendingPermissionActions() {
-    var response = this.send("GET", "/api/permissions/actions", null);
+    var response = this.send("GET", "/api/permissions/actions?serverId=" + encode(this.config.luckPermsServerId()), null);
     return Arrays.asList(GSON.fromJson(response, PanelPermissionAction[].class));
   }
 

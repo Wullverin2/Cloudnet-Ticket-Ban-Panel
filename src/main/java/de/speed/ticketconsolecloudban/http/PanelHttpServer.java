@@ -499,7 +499,7 @@ public final class PanelHttpServer {
   }
 
   private void handlePermissionApi(HttpExchange exchange, List<String> segments, PanelPrincipal principal) throws IOException {
-    if (!this.requirePermission(exchange, principal, PanelPermission.PROXY_PERMISSIONS_MANAGE)) {
+    if (!this.requireAnyPermission(exchange, principal, PanelPermission.PROXY_PERMISSIONS_MANAGE, PanelPermission.SERVER_PERMISSIONS_MANAGE)) {
       return;
     }
 
@@ -515,11 +515,16 @@ public final class PanelHttpServer {
 
     if (segments.size() == 3 && "actions".equals(segments.get(2))) {
       if (HttpExchangeUtils.matchesMethod(exchange, "GET")) {
-        HttpExchangeUtils.writeJson(exchange, 200, this.facade.pendingPermissionActions());
+        var query = HttpExchangeUtils.queryParameters(exchange);
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.pendingPermissionActions(query.get("serverId")));
         return;
       }
       if (HttpExchangeUtils.matchesMethod(exchange, "POST")) {
-        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestPermissionAction(HttpExchangeUtils.readJson(exchange)));
+        var request = HttpExchangeUtils.readJson(exchange);
+        if (!this.requirePermissionForServer(exchange, principal, request.getString("serverId"))) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestPermissionAction(request));
         return;
       }
     }
@@ -538,6 +543,23 @@ public final class PanelHttpServer {
     }
 
     HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Permission-Endpunkt nicht gefunden"));
+  }
+
+  private boolean requirePermissionForServer(HttpExchange exchange, PanelPrincipal principal, String serverId) throws IOException {
+    var permission = serverId == null || serverId.isBlank() || "proxy".equalsIgnoreCase(serverId)
+      ? PanelPermission.PROXY_PERMISSIONS_MANAGE
+      : PanelPermission.SERVER_PERMISSIONS_MANAGE;
+    return this.requirePermission(exchange, principal, permission);
+  }
+
+  private boolean requireAnyPermission(HttpExchange exchange, PanelPrincipal principal, String... permissions) throws IOException {
+    for (var permission : permissions) {
+      if (principal.hasPermission(permission)) {
+        return true;
+      }
+    }
+    HttpExchangeUtils.writeJson(exchange, 403, new HttpExchangeUtils.ApiError("Keine Berechtigung fuer diese Funktion"));
+    return false;
   }
 
   private boolean requirePermission(HttpExchange exchange, PanelPrincipal principal, String permission) throws IOException {

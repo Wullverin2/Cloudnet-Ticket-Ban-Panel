@@ -3,6 +3,7 @@ package de.speed.ticketconsolecloudban.permission;
 import java.util.List;
 
 public record PermissionSubject(
+  String serverId,
   String type,
   String id,
   String name,

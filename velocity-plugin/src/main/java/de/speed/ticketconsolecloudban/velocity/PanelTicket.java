@@ -48,6 +48,7 @@ record PanelBanAction(
 }
 
 record PermissionSubjectSnapshot(
+  String serverId,
   String type,
   String id,
   String name,
@@ -60,11 +61,13 @@ record PermissionSubjectSnapshot(
 
 record PanelPermissionAction(
   String id,
+  String serverId,
   String action,
   String subjectType,
   String subjectId,
   String permission,
   String parent,
+  Boolean value,
   String actor,
   String status
 ) {

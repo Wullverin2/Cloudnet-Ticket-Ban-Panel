@@ -31,6 +31,8 @@ const state = {
   securityGroups: [],
   permissionSubjects: [],
   permissionAudit: [],
+  selectedPermissionServer: localStorage.getItem("tccb-lp-server") || "proxy",
+  selectedPermissionSubject: localStorage.getItem("tccb-lp-subject") || "",
   selectedService: null,
   activePage: localStorage.getItem("tccb-page") || "cloudnet",
   consoleTimer: null,
@@ -124,8 +126,12 @@ function bindElements() {
   elements.userTable = document.getElementById("user-table");
 
   elements.permissionActionForm = document.getElementById("permission-action-form");
-  elements.permissionSubjectSelect = document.getElementById("permission-subject-select");
-  elements.permissionSubjectTable = document.getElementById("permission-subject-table");
+  elements.permissionRefresh = document.getElementById("permission-refresh");
+  elements.permissionServerSelect = document.getElementById("permission-server-select");
+  elements.permissionSubjectSearch = document.getElementById("permission-subject-search");
+  elements.permissionSubjectList = document.getElementById("permission-subject-list");
+  elements.permissionSelectedSummary = document.getElementById("permission-selected-summary");
+  elements.permissionNodeList = document.getElementById("permission-node-list");
   elements.permissionAuditTable = document.getElementById("permission-audit-table");
   elements.permissionStatus = document.getElementById("permission-status");
 }
@@ -178,6 +184,17 @@ function bindEvents() {
   elements.userReset.addEventListener("click", resetUserForm);
   elements.userTable.addEventListener("click", handleUserTableClick);
   elements.permissionActionForm.addEventListener("submit", handlePermissionActionSubmit);
+  elements.permissionRefresh.addEventListener("click", refreshAll);
+  elements.permissionServerSelect.addEventListener("change", () => {
+    state.selectedPermissionServer = elements.permissionServerSelect.value || "proxy";
+    state.selectedPermissionSubject = "";
+    localStorage.setItem("tccb-lp-server", state.selectedPermissionServer);
+    localStorage.removeItem("tccb-lp-subject");
+    renderPermissionSubjects();
+  });
+  elements.permissionSubjectSearch.addEventListener("input", renderPermissionSubjects);
+  elements.permissionSubjectList.addEventListener("click", handlePermissionSubjectClick);
+  elements.permissionNodeList.addEventListener("click", handlePermissionNodeClick);
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
 }
@@ -384,6 +401,7 @@ function clearSession() {
   state.securityGroups = [];
   state.permissionSubjects = [];
   state.permissionAudit = [];
+  state.selectedPermissionSubject = "";
   localStorage.removeItem("tccb-session");
   if (state.consoleTimer) {
     clearInterval(state.consoleTimer);
@@ -497,16 +515,16 @@ async function refreshAll() {
     renderUsers();
   }
 
-  if (hasPermission(PERMISSIONS.PROXY_PERMISSIONS_MANAGE)) {
+  if (hasPermission(`${PERMISSIONS.PROXY_PERMISSIONS_MANAGE},${PERMISSIONS.SERVER_PERMISSIONS_MANAGE}`)) {
     const [subjects, audit] = await Promise.all([
       api("/api/permissions/subjects"),
       api("/api/permissions/audit"),
     ]);
     state.permissionSubjects = asArray(subjects);
     state.permissionAudit = asArray(audit);
+    refreshPermissionServerSelect();
     renderPermissionSubjects();
     renderPermissionAudit();
-    refreshPermissionSubjectSelect();
   }
 
   if (hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)) {
@@ -827,32 +845,45 @@ function renderUsers() {
 }
 
 function renderPermissionSubjects() {
-  if (!state.permissionSubjects.length) {
-    elements.permissionSubjectTable.innerHTML = `<tr><td colspan="4" class="muted">Noch keine LuckPerms-Daten synchronisiert.</td></tr>`;
+  const subjects = filteredPermissionSubjects();
+  if (!subjects.length) {
+    elements.permissionSubjectList.innerHTML = `<p class="muted">Noch keine Subjects fuer diesen Server synchronisiert.</p>`;
+    elements.permissionSelectedSummary.textContent = "Waehle einen Server mit synchronisierten LuckPerms-Daten aus.";
+    elements.permissionNodeList.innerHTML = "";
     return;
   }
 
-  elements.permissionSubjectTable.innerHTML = state.permissionSubjects.map(subject => `
-    <tr>
-      <td>${escapeHtml(subject.type || "-")}</td>
-      <td>
-        <strong>${escapeHtml(subject.name || subject.id || "-")}</strong><br>
-        <span class="muted">${escapeHtml(subject.source || "LuckPerms")} | ${escapeHtml(subject.lastSyncedAt || "-")}</span>
-      </td>
-      <td>${escapeHtml((subject.parents || []).join(", ") || "-")}</td>
-      <td>${escapeHtml((subject.permissions || []).slice(0, 12).join(", ") || "-")}</td>
-    </tr>
-  `).join("");
+  if (!subjects.some(subject => permissionSubjectValue(subject) === state.selectedPermissionSubject)) {
+    state.selectedPermissionSubject = permissionSubjectValue(subjects[0]);
+    localStorage.setItem("tccb-lp-subject", state.selectedPermissionSubject);
+  }
+
+  elements.permissionSubjectList.innerHTML = subjects.map(subject => {
+    const value = permissionSubjectValue(subject);
+    const active = value === state.selectedPermissionSubject ? "active" : "";
+    const permissionCount = (subject.permissions || []).length;
+    const parentCount = (subject.parents || []).length;
+    return `
+      <button class="subject-card ${active}" data-subject-value="${escapeAttr(value)}" type="button">
+        <span class="badge ${subject.type === "GROUP" ? "badge-success" : "badge-danger"}">${escapeHtml(subject.type || "-")}</span>
+        <strong>${escapeHtml(subject.name || subject.id || "-")}</strong>
+        <small>${permissionCount} Permissions | ${parentCount} Parents</small>
+      </button>
+    `;
+  }).join("");
+
+  renderSelectedPermissionSubject();
 }
 
 function renderPermissionAudit() {
   if (!state.permissionAudit.length) {
-    elements.permissionAuditTable.innerHTML = `<tr><td colspan="5" class="muted">Noch kein LuckPerms-Audit vorhanden.</td></tr>`;
+    elements.permissionAuditTable.innerHTML = `<tr><td colspan="6" class="muted">Noch kein LuckPerms-Audit vorhanden.</td></tr>`;
     return;
   }
 
   elements.permissionAuditTable.innerHTML = state.permissionAudit.slice(0, 120).map(entry => `
     <tr>
+      <td>${escapeHtml(entry.serverId || "proxy")}</td>
       <td>${escapeHtml(entry.createdAt || "-")}</td>
       <td>${escapeHtml(entry.subjectType || "-")}:${escapeHtml(entry.subjectId || "-")}</td>
       <td>${escapeHtml(entry.action || "-")}</td>
@@ -860,6 +891,53 @@ function renderPermissionAudit() {
       <td>${escapeHtml(entry.message || "-")}</td>
     </tr>
   `).join("");
+}
+
+function renderSelectedPermissionSubject() {
+  const subject = selectedPermissionSubject();
+  if (!subject) {
+    elements.permissionSelectedSummary.textContent = "Waehle links eine Gruppe oder einen Spieler aus.";
+    elements.permissionNodeList.innerHTML = "";
+    return;
+  }
+
+  elements.permissionSelectedSummary.innerHTML = `
+    <div>
+      <span class="badge ${subject.type === "GROUP" ? "badge-success" : "badge-danger"}">${escapeHtml(subject.type || "-")}</span>
+      <strong>${escapeHtml(subject.name || subject.id || "-")}</strong>
+      <span class="muted">${escapeHtml(subject.serverId || "proxy")} | ${escapeHtml(subject.source || "LuckPerms")} | ${escapeHtml(subject.lastSyncedAt || "-")}</span>
+    </div>
+  `;
+
+  const parents = (subject.parents || []).map(parent => nodeCard("parent", parent, true));
+  const permissions = (subject.permissions || []).map(permission => {
+    const parsed = parsePermissionNode(permission);
+    return nodeCard("permission", parsed.key, parsed.value);
+  });
+  const nodes = [...parents, ...permissions];
+  elements.permissionNodeList.innerHTML = nodes.length
+    ? nodes.join("")
+    : `<p class="muted">Noch keine Nodes fuer dieses Subject synchronisiert.</p>`;
+}
+
+function nodeCard(type, value, enabled) {
+  const action = type === "parent" ? "REMOVE_PARENT" : "REMOVE_PERMISSION";
+  const label = type === "parent" ? "Parent" : "Permission";
+  return `
+    <article class="node-card-editor ${enabled ? "" : "node-negative"}">
+      <div>
+        <span class="eyebrow">${label}</span>
+        <strong>${escapeHtml(value)}</strong>
+        <small>${type === "permission" ? (enabled ? "true / erlauben" : "false / verweigern") : "Gruppe geerbt"}</small>
+      </div>
+      <button
+        class="ghost-button"
+        data-node-action="${action}"
+        data-node-value="${escapeAttr(value)}"
+        data-node-state="${enabled ? "true" : "false"}"
+        type="button">Entfernen</button>
+    </article>
+  `;
 }
 
 async function loadConsole() {
@@ -1127,42 +1205,92 @@ async function handleUserSubmit(event) {
 
 async function handlePermissionActionSubmit(event) {
   event.preventDefault();
-  if (!hasPermission(PERMISSIONS.PROXY_PERMISSIONS_MANAGE)) {
+  if (!hasPermission(`${PERMISSIONS.PROXY_PERMISSIONS_MANAGE},${PERMISSIONS.SERVER_PERMISSIONS_MANAGE}`)) {
     return;
   }
 
   const form = new FormData(elements.permissionActionForm);
-  const subject = parsePermissionSubject(String(form.get("subject") || ""));
-  const action = String(form.get("action") || "").trim();
+  const subject = selectedPermissionSubject();
+  const nodeType = String(form.get("nodeType") || "permission");
+  const nodeValue = String(form.get("nodeValue") || "").trim();
   const payload = {
-    action,
-    subjectType: subject.type,
-    subjectId: subject.id,
-    permission: String(form.get("permission") || "").trim(),
-    parent: String(form.get("parent") || "").trim(),
+    action: nodeType === "parent" ? "ADD_PARENT" : "ADD_PERMISSION",
+    serverId: subject?.serverId || state.selectedPermissionServer || "proxy",
+    subjectType: subject?.type,
+    subjectId: subject?.id,
+    permission: nodeType === "permission" ? nodeValue : "",
+    parent: nodeType === "parent" ? nodeValue : "",
+    value: String(form.get("nodeValueState") || "true") === "true",
     actor: state.currentUser?.displayName || state.currentUser?.username || "Panel",
   };
 
-  if (!payload.subjectType || !payload.subjectId) {
-    setStatus(elements.permissionStatus, "Noch kein LuckPerms-Subject synchronisiert.", true);
+  if (!subject) {
+    setStatus(elements.permissionStatus, "Bitte zuerst links ein Subject auswaehlen.", true);
     return;
   }
 
-  if ((action === "ADD_PERMISSION" || action === "REMOVE_PERMISSION") && !payload.permission) {
-    setStatus(elements.permissionStatus, "Bitte eine Permission eintragen.", true);
+  if (!nodeValue) {
+    setStatus(elements.permissionStatus, "Bitte einen Node-Wert eintragen.", true);
     return;
   }
 
-  if ((action === "ADD_PARENT" || action === "REMOVE_PARENT") && !payload.parent) {
-    setStatus(elements.permissionStatus, "Bitte eine Parent-Gruppe eintragen.", true);
+  if (!canManagePermissionServer(payload.serverId)) {
+    setStatus(elements.permissionStatus, "Dir fehlt das passende Proxy- oder Unterserver-Recht.", true);
     return;
   }
 
   try {
     await api("/api/permissions/actions", { method: "POST", body: payload });
-    elements.permissionActionForm.elements.permission.value = "";
-    elements.permissionActionForm.elements.parent.value = "";
-    setStatus(elements.permissionStatus, "LuckPerms-Aktion wurde in die Queue gelegt.", false);
+    elements.permissionActionForm.elements.nodeValue.value = "";
+    setStatus(elements.permissionStatus, "Node wurde in die LuckPerms-Queue gelegt.", false);
+    await refreshAll();
+  } catch (error) {
+    handleApiError(error, elements.permissionStatus);
+  }
+}
+
+function handlePermissionSubjectClick(event) {
+  const button = event.target.closest("button[data-subject-value]");
+  if (!button) {
+    return;
+  }
+  state.selectedPermissionSubject = button.dataset.subjectValue;
+  localStorage.setItem("tccb-lp-subject", state.selectedPermissionSubject);
+  renderPermissionSubjects();
+}
+
+async function handlePermissionNodeClick(event) {
+  const button = event.target.closest("button[data-node-action]");
+  if (!button) {
+    return;
+  }
+
+  const subject = selectedPermissionSubject();
+  if (!subject) {
+    setStatus(elements.permissionStatus, "Bitte zuerst ein Subject auswaehlen.", true);
+    return;
+  }
+  if (!canManagePermissionServer(subject.serverId)) {
+    setStatus(elements.permissionStatus, "Dir fehlt das passende Proxy- oder Unterserver-Recht.", true);
+    return;
+  }
+
+  const action = button.dataset.nodeAction;
+  const value = button.dataset.nodeValue;
+  const payload = {
+    action,
+    serverId: subject.serverId || "proxy",
+    subjectType: subject.type,
+    subjectId: subject.id,
+    permission: action === "REMOVE_PERMISSION" ? value : "",
+    parent: action === "REMOVE_PARENT" ? value : "",
+    value: button.dataset.nodeState !== "false",
+    actor: state.currentUser?.displayName || state.currentUser?.username || "Panel",
+  };
+
+  try {
+    await api("/api/permissions/actions", { method: "POST", body: payload });
+    setStatus(elements.permissionStatus, "Entfernen wurde in die LuckPerms-Queue gelegt.", false);
     await refreshAll();
   } catch (error) {
     handleApiError(error, elements.permissionStatus);
@@ -1547,29 +1675,67 @@ function refreshServiceSelectors() {
   }
 }
 
-function refreshPermissionSubjectSelect() {
-  const selected = elements.permissionSubjectSelect.value;
-  elements.permissionSubjectSelect.innerHTML = "";
-
-  state.permissionSubjects.forEach(subject => {
-    const option = document.createElement("option");
-    option.value = permissionSubjectValue(subject);
-    option.textContent = `${subject.type || "?"}: ${subject.name || subject.id || "Unbekannt"}`;
-    elements.permissionSubjectSelect.append(option);
-  });
-
-  if (selected && [...elements.permissionSubjectSelect.options].some(option => option.value === selected)) {
-    elements.permissionSubjectSelect.value = selected;
+function refreshPermissionServerSelect() {
+  const servers = permissionServers();
+  if (!servers.includes(state.selectedPermissionServer)
+    || (state.selectedPermissionServer === "proxy" && !hasPermissionSubjectsForServer("proxy") && servers.some(server => hasPermissionSubjectsForServer(server)))) {
+    state.selectedPermissionServer = servers.find(server => hasPermissionSubjectsForServer(server)) || "proxy";
   }
+  populateSelect(elements.permissionServerSelect, servers, state.selectedPermissionServer);
+  state.selectedPermissionServer = elements.permissionServerSelect.value || "proxy";
+  localStorage.setItem("tccb-lp-server", state.selectedPermissionServer);
+}
+
+function permissionServers() {
+  const servers = new Set(["proxy"]);
+  state.permissionSubjects.forEach(subject => servers.add(subject.serverId || "proxy"));
+  return [...servers].sort((left, right) => left.localeCompare(right));
+}
+
+function hasPermissionSubjectsForServer(serverId) {
+  return state.permissionSubjects.some(subject => (subject.serverId || "proxy") === serverId);
+}
+
+function filteredPermissionSubjects() {
+  const query = String(elements.permissionSubjectSearch.value || "").trim().toLowerCase();
+  return state.permissionSubjects
+    .filter(subject => (subject.serverId || "proxy") === state.selectedPermissionServer)
+    .filter(subject => !query || permissionSubjectSearchText(subject).includes(query))
+    .sort((left, right) => `${left.type}:${left.name}`.localeCompare(`${right.type}:${right.name}`));
 }
 
 function permissionSubjectValue(subject) {
-  return `${subject.type || ""}|${subject.id || subject.name || ""}`;
+  return `${subject.serverId || "proxy"}|${subject.type || ""}|${subject.id || subject.name || ""}`;
 }
 
-function parsePermissionSubject(value) {
-  const [type, id] = value.split("|", 2);
-  return { type, id };
+function selectedPermissionSubject() {
+  return state.permissionSubjects.find(subject => permissionSubjectValue(subject) === state.selectedPermissionSubject) || null;
+}
+
+function permissionSubjectSearchText(subject) {
+  return [
+    subject.serverId,
+    subject.type,
+    subject.id,
+    subject.name,
+    ...(subject.permissions || []),
+    ...(subject.parents || []),
+  ].join(" ").toLowerCase();
+}
+
+function parsePermissionNode(node) {
+  const value = String(node || "");
+  if (value.startsWith("-")) {
+    return { key: value.slice(1), value: false };
+  }
+  return { key: value, value: true };
+}
+
+function canManagePermissionServer(serverId) {
+  if (!serverId || serverId === "proxy") {
+    return hasPermission(PERMISSIONS.PROXY_PERMISSIONS_MANAGE);
+  }
+  return hasPermission(PERMISSIONS.SERVER_PERMISSIONS_MANAGE);
 }
 
 function populateSelect(select, values, preferred) {

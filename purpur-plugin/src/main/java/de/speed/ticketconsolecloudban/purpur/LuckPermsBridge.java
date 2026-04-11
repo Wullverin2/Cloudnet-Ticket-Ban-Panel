@@ -1,9 +1,9 @@
-package de.speed.ticketconsolecloudban.velocity;
+package de.speed.ticketconsolecloudban.purpur;
 
-import com.velocitypowered.api.proxy.Player;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Logger;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
 import net.luckperms.api.model.PermissionHolder;
@@ -11,7 +11,6 @@ import net.luckperms.api.model.group.Group;
 import net.luckperms.api.model.user.User;
 import net.luckperms.api.node.Node;
 import net.luckperms.api.node.types.InheritanceNode;
-import org.slf4j.Logger;
 
 public final class LuckPermsBridge {
 
@@ -25,40 +24,24 @@ public final class LuckPermsBridge {
   public void load() {
     try {
       this.luckPerms = LuckPermsProvider.get();
-      this.logger.info("LuckPerms API erkannt. Velocity-Permissions werden ueber LuckPerms ausgewertet.");
+      this.logger.info("LuckPerms API erkannt. Lokale Purpur-Rechte werden synchronisiert.");
     } catch (IllegalStateException exception) {
       this.luckPerms = null;
-      this.logger.warn("LuckPerms API nicht verfuegbar. Es wird Velocity hasPermission als Fallback genutzt.");
+      this.logger.warning("LuckPerms API nicht verfuegbar. Purpur-Rechte koennen nicht synchronisiert werden.");
     }
   }
 
-  public boolean hasPermission(Player player, String permission) {
-    if (permission == null || permission.isBlank()) {
-      return true;
-    }
-
-    if (this.luckPerms != null) {
-      var user = this.luckPerms.getUserManager().getUser(player.getUniqueId());
-      if (user != null) {
-        var result = user.getCachedData().getPermissionData().checkPermission(permission);
-        return result.asBoolean();
-      }
-    }
-
-    return player.hasPermission(permission);
-  }
-
-  public List<PermissionSubjectSnapshot> subjects(String serverId, String source) {
+  public List<PermissionSubjectSnapshot> subjects(String serverId) {
     var snapshots = new ArrayList<PermissionSubjectSnapshot>();
     if (this.luckPerms == null) {
       return List.of();
     }
 
     for (var group : this.luckPerms.getGroupManager().getLoadedGroups()) {
-      snapshots.add(this.snapshot(serverId, "GROUP", group.getName(), group.getName(), group, source));
+      snapshots.add(this.snapshot(serverId, "GROUP", group.getName(), group.getName(), group));
     }
     for (var user : this.luckPerms.getUserManager().getLoadedUsers()) {
-      snapshots.add(this.snapshot(serverId, "USER", user.getUniqueId().toString(), user.getFriendlyName(), user, source));
+      snapshots.add(this.snapshot(serverId, "USER", user.getUniqueId().toString(), user.getFriendlyName(), user));
     }
     return List.copyOf(snapshots);
   }
@@ -86,7 +69,7 @@ public final class LuckPermsBridge {
     return action.action() + " fuer " + action.subjectType() + " " + action.subjectId() + " auf " + action.serverId() + " ausgefuehrt.";
   }
 
-  private PermissionSubjectSnapshot snapshot(String serverId, String type, String id, String name, PermissionHolder holder, String source) {
+  private PermissionSubjectSnapshot snapshot(String serverId, String type, String id, String name, PermissionHolder holder) {
     var permissions = new ArrayList<String>();
     var parents = new ArrayList<String>();
     for (var node : holder.getNodes()) {
@@ -96,7 +79,7 @@ public final class LuckPermsBridge {
         permissions.add((node.getValue() ? "" : "-") + node.getKey());
       }
     }
-    return new PermissionSubjectSnapshot(serverId, type, id, name, List.copyOf(permissions), List.copyOf(parents), source, null);
+    return new PermissionSubjectSnapshot(serverId, type, id, name, List.copyOf(permissions), List.copyOf(parents), "purpur", null);
   }
 
   private PermissionHolder loadHolder(String subjectType, String subjectId) {
