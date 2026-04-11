@@ -3,7 +3,6 @@ package de.speed.ticketconsolecloudban.velocity;
 import java.lang.reflect.Method;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,9 +16,11 @@ public final class LiteBansBridge {
   private Method getBanMethod;
   private Method prepareStatementMethod;
   private Method getPlayerNameMethod;
+  private final LiteBansRandomIdResolver randomIdResolver;
 
   public LiteBansBridge(Logger logger) {
     this.logger = logger;
+    this.randomIdResolver = new LiteBansRandomIdResolver(logger);
   }
 
   public boolean available() {
@@ -47,7 +48,7 @@ public final class LiteBansBridge {
       var statement = this.prepareStatement("SELECT * FROM {bans} WHERE active=1");
       try (statement; ResultSet resultSet = statement.executeQuery()) {
         while (resultSet.next()) {
-          bans.add(this.toSnapshot(resultSet, publicIdColumn));
+          bans.add(this.toSnapshot(resultSet, serverScope, publicIdColumn));
         }
       }
     } catch (Throwable throwable) {
@@ -117,11 +118,14 @@ public final class LiteBansBridge {
       : serverScope.trim();
   }
 
-  private LiteBanSnapshot toSnapshot(ResultSet resultSet, String publicIdColumn) throws SQLException {
+  private LiteBanSnapshot toSnapshot(ResultSet resultSet, String defaultServerScope, String publicIdColumn) throws SQLException {
     var id = safeString(resultSet, "id");
-    var publicId = safeString(resultSet, publicIdColumn);
     var uuid = normalizeUuid(safeString(resultSet, "uuid"));
     var uniqueId = parseUuid(uuid);
+    var serverScope = firstNonBlank(safeString(resultSet, "server_scope"), defaultServerScope);
+    var serverOrigin = safeString(resultSet, "server_origin");
+    var fallbackPublicId = safeString(resultSet, publicIdColumn);
+    var publicId = this.resolvePublicId(id, uuid, serverScope, serverOrigin, fallbackPublicId);
     var targetName = firstNonBlank(safeString(resultSet, "name"), this.playerName(uniqueId));
     var until = safeLong(resultSet, "until");
 
@@ -133,13 +137,30 @@ public final class LiteBansBridge {
       safeString(resultSet, "ip"),
       safeString(resultSet, "reason"),
       firstNonBlank(safeString(resultSet, "banned_by_name"), safeString(resultSet, "banned_by_uuid")),
-      safeString(resultSet, "server_scope"),
+      serverScope,
       epochMillis(safeLong(resultSet, "time")),
       until <= 0 ? null : epochMillis(until),
       safeBoolean(resultSet, "active"),
       firstNonBlank(safeString(resultSet, "removed_by_name"), safeString(resultSet, "removed_by_uuid")),
       epochMillis(safeLong(resultSet, "removed_by_date")),
       Instant.now().toString());
+  }
+
+  private String resolvePublicId(String databaseId,
+                                 String playerUuid,
+                                 String serverScope,
+                                 String serverOrigin,
+                                 String fallbackPublicId) {
+    var numericId = parseLong(databaseId);
+    if (numericId > 0) {
+      var randomId = this.randomIdResolver.fromDatabaseId(numericId, playerUuid, serverScope, serverOrigin);
+      if (randomId.isPresent()) {
+        return randomId.get();
+      }
+      this.logger.debug("LiteBans Random-Punishment-ID konnte fuer DB-ID {} nicht ermittelt werden.", databaseId);
+    }
+
+    return firstNonBlank(fallbackPublicId, databaseId);
   }
 
   private static String safeString(ResultSet resultSet, String column) {
@@ -158,6 +179,14 @@ public final class LiteBansBridge {
     try {
       return resultSet.getLong(column);
     } catch (SQLException exception) {
+      return 0L;
+    }
+  }
+
+  private static long parseLong(String value) {
+    try {
+      return value == null || value.isBlank() ? 0L : Long.parseLong(value.trim());
+    } catch (NumberFormatException exception) {
       return 0L;
     }
   }

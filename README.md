@@ -216,7 +216,7 @@ luckperms.server-id=proxy
 luckperms.sync-interval-seconds=60
 ```
 
-Hinweis zu LiteBans-IDs: LiteBans speichert intern eine numerische `id`. Wenn dein Server in Nachrichten eine zufaellige Buchstaben-/Zahlen-ID nutzt, kannst du spaeter `litebans.public-id-column` auf eine passende Datenbankspalte setzen. Falls diese Spalte nicht existiert, nutzt das Panel automatisch die interne `id`. Die Befehls-Templates koennen `{id}`, `{banId}`, `{player}`, `{uuid}`, `{ip}`, `{duration}`, `{reason}` und `{actor}` verwenden.
+Hinweis zu LiteBans-IDs: LiteBans speichert intern eine numerische `id`, zeigt Spielern aber je nach LiteBans-Version eine zufaellige Punishment-ID an. Das Velocity-Plugin loest diese Random-ID beim Sync automatisch ueber LiteBans `RandomID`/API aus der Datenbank-ID auf und sendet sie als `publicId` ans Panel. `litebans.public-id-column` ist nur noch ein Fallback, falls der API-Resolver auf einer LiteBans-Version nicht verfuegbar ist. Die Befehls-Templates koennen `{id}` fuer die Random-ID, `{banId}` fuer die interne Datenbank-ID sowie `{player}`, `{uuid}`, `{ip}`, `{duration}`, `{reason}` und `{actor}` verwenden.
 
 Ingame-Befehle:
 
