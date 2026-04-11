@@ -1,6 +1,8 @@
 package de.speed.ticketconsolecloudban.ban;
 
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.settings.PanelSettings;
+import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
 import de.speed.ticketconsolecloudban.store.BanStore;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -22,18 +24,26 @@ public final class LiteBansDatabaseSyncService {
   private static final Logger LOGGER = LoggerFactory.getLogger(LiteBansDatabaseSyncService.class);
 
   private final PanelConfiguration configuration;
+  private final PanelSettingsStore settingsStore;
   private final BanStore banStore;
   private final PunishmentIdBridgeClient bridgeClient;
   private volatile long lastSyncMillis;
 
   public LiteBansDatabaseSyncService(PanelConfiguration configuration, BanStore banStore) {
+    this(configuration, banStore, null);
+  }
+
+  public LiteBansDatabaseSyncService(PanelConfiguration configuration, BanStore banStore, PanelSettingsStore settingsStore) {
     this.configuration = configuration;
+    this.settingsStore = settingsStore;
     this.banStore = banStore;
-    this.bridgeClient = new PunishmentIdBridgeClient(configuration);
+    this.bridgeClient = settingsStore == null
+      ? new PunishmentIdBridgeClient(configuration)
+      : new PunishmentIdBridgeClient(configuration, settingsStore);
   }
 
   public boolean enabled() {
-    return this.configuration.liteBansDatabaseEnabled();
+    return this.settings().liteBansDatabaseEnabled();
   }
 
   public void syncNow(String actor) {
@@ -64,16 +74,17 @@ public final class LiteBansDatabaseSyncService {
   }
 
   private List<LiteBanEntry> loadFromDatabase() throws SQLException {
+    var settings = this.settings();
     try (var connection = DriverManager.getConnection(
-      this.configuration.liteBansJdbcUrl(),
-      this.configuration.liteBansDatabaseUsername(),
-      this.configuration.liteBansDatabasePassword())) {
+      settings.liteBansJdbcUrl(),
+      settings.liteBansDatabaseUsername(),
+      settings.liteBansDatabasePassword())) {
       var historyNames = this.loadLatestHistoryNames(connection);
       var bansTable = this.tableName("bans");
       var query = "SELECT * FROM " + bansTable + " ORDER BY time DESC LIMIT ?";
 
       try (var statement = connection.prepareStatement(query)) {
-        statement.setInt(1, this.configuration.liteBansDatabaseMaxRows());
+        statement.setInt(1, settings.liteBansDatabaseMaxRows());
         try (var resultSet = statement.executeQuery()) {
           var entries = new ArrayList<LiteBanEntry>();
           while (resultSet.next()) {
@@ -137,7 +148,13 @@ public final class LiteBansDatabaseSyncService {
   }
 
   private String tableName(String suffix) {
-    return this.configuration.liteBansTablePrefix() + suffix;
+    return this.settings().liteBansTablePrefix() + suffix;
+  }
+
+  private PanelSettings settings() {
+    return this.settingsStore == null
+      ? PanelSettings.fromConfiguration(this.configuration)
+      : this.settingsStore.current();
   }
 
   private static String safeString(ResultSet resultSet, String column) {

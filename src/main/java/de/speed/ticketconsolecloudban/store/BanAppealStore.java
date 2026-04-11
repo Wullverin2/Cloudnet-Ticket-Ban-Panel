@@ -16,10 +16,16 @@ import java.util.UUID;
 public final class BanAppealStore {
 
   private final Path storagePath;
+  private final PanelDataBackend backend;
   private final List<BanAppealEntry> appeals = new ArrayList<>();
 
   public BanAppealStore(Path dataDirectory) {
+    this(dataDirectory, new LocalPanelDataBackend());
+  }
+
+  public BanAppealStore(Path dataDirectory, PanelDataBackend backend) {
     this.storagePath = dataDirectory.resolve("ban-appeals.json");
+    this.backend = backend;
     this.load();
   }
 
@@ -121,11 +127,11 @@ public final class BanAppealStore {
   private void load() {
     try {
       Files.createDirectories(this.storagePath.getParent());
-      if (Files.notExists(this.storagePath)) {
+      var data = this.backend.load("ban-appeals", this.storagePath, BanAppealStoreData.class, null);
+      if (data == null) {
         this.save();
         return;
       }
-      var data = DocumentFactory.json().parse(this.storagePath).toInstanceOf(BanAppealStoreData.class);
       this.appeals.clear();
       if (data != null && data.appeals() != null) {
         this.appeals.addAll(data.appeals());
@@ -138,10 +144,7 @@ public final class BanAppealStore {
   private void save() {
     try {
       Files.createDirectories(this.storagePath.getParent());
-      DocumentFactory.json()
-        .newDocument()
-        .appendTree(new BanAppealStoreData(List.copyOf(this.appeals)))
-        .writeTo(this.storagePath);
+      this.backend.save("ban-appeals", this.storagePath, new BanAppealStoreData(List.copyOf(this.appeals)));
     } catch (Exception exception) {
       throw new IllegalStateException("Entbannungsantraege konnten nicht gespeichert werden.", exception);
     }

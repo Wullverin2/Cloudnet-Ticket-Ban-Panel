@@ -224,6 +224,28 @@ button {
   gap: 14px;
 }
 
+.settings-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+fieldset {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid rgba(244, 188, 70, 0.18);
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+legend {
+  padding: 0 8px;
+  color: var(--accent);
+  font-weight: 800;
+}
+
 label {
   display: grid;
   gap: 8px;
@@ -648,6 +670,10 @@ tbody button {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-columns {
     grid-template-columns: 1fr;
   }
 

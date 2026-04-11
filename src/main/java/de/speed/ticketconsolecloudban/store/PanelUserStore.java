@@ -30,13 +30,19 @@ public final class PanelUserStore {
   private static final SecureRandom RANDOM = new SecureRandom();
 
   private final Path storagePath;
+  private final PanelDataBackend backend;
   private final List<PanelUser> users = new ArrayList<>();
   private final List<PanelGroup> groups = new ArrayList<>();
   private final List<PasswordResetToken> passwordResetTokens = new ArrayList<>();
   private String initialAdminPassword;
 
   public PanelUserStore(Path dataDirectory) {
+    this(dataDirectory, new LocalPanelDataBackend());
+  }
+
+  public PanelUserStore(Path dataDirectory, PanelDataBackend backend) {
     this.storagePath = dataDirectory.resolve("panel-users.json");
+    this.backend = backend;
     this.load();
   }
 
@@ -508,24 +514,21 @@ public final class PanelUserStore {
   private void load() {
     try {
       Files.createDirectories(this.storagePath.getParent());
-      if (Files.notExists(this.storagePath)) {
+      var data = this.backend.load("panel-users", this.storagePath, PanelUserStoreData.class, null);
+      if (data == null) {
         this.bootstrap();
         return;
       }
 
-      var document = DocumentFactory.json().parse(this.storagePath);
-      var data = document.toInstanceOf(PanelUserStoreData.class);
-      if (data != null) {
-        this.groups.clear();
-        this.groups.addAll(data.groups() == null ? this.defaultGroups(Instant.now().toString()) : data.groups());
-        this.users.clear();
-        if (data.users() != null) {
-          this.users.addAll(data.users());
-        }
-        this.passwordResetTokens.clear();
-        if (data.passwordResetTokens() != null) {
-          this.passwordResetTokens.addAll(data.passwordResetTokens());
-        }
+      this.groups.clear();
+      this.groups.addAll(data.groups() == null ? this.defaultGroups(Instant.now().toString()) : data.groups());
+      this.users.clear();
+      if (data.users() != null) {
+        this.users.addAll(data.users());
+      }
+      this.passwordResetTokens.clear();
+      if (data.passwordResetTokens() != null) {
+        this.passwordResetTokens.addAll(data.passwordResetTokens());
       }
 
       if (this.users.isEmpty()) {
@@ -583,13 +586,13 @@ public final class PanelUserStore {
   private void save() {
     try {
       Files.createDirectories(this.storagePath.getParent());
-      DocumentFactory.json()
-        .newDocument()
-        .appendTree(new PanelUserStoreData(
+      this.backend.save(
+        "panel-users",
+        this.storagePath,
+        new PanelUserStoreData(
           List.copyOf(this.users),
           List.copyOf(this.groups),
-          List.copyOf(this.passwordResetTokens)))
-        .writeTo(this.storagePath);
+          List.copyOf(this.passwordResetTokens)));
     } catch (Exception exception) {
       throw new IllegalStateException("Panel-Benutzer konnten nicht gespeichert werden.", exception);
     }

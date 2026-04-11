@@ -71,8 +71,10 @@
       <button data-page-target="cloudnet" data-permission="cloudnet.view" type="button">CloudNet</button>
       <button data-page-target="tickets" data-permission="tickets.view" type="button">Tickets</button>
       <button data-page-target="bans" data-permission="bans.view" type="button">Bans</button>
+      <button data-page-target="bans" data-ban-tab-target="appeals" data-permission="bans.view" type="button">Entbannungen</button>
       <button data-page-target="security" data-permission="users.manage" type="button">Rechte</button>
       <button data-page-target="luckperms" data-permission="permissions.proxy.manage,permissions.server.manage" type="button">LuckPerms</button>
+      <button data-page-target="settings" data-permission="settings.manage" type="button">Einstellungen</button>
     </nav>
 
     <section class="summary-grid hidden" id="summary-grid" data-permission="cloudnet.view">
@@ -660,6 +662,144 @@
               <tbody id="permission-audit-table"></tbody>
             </table>
           </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="page-settings" class="page-panel hidden" data-page="settings" data-permission="settings.manage">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">System</p>
+              <h2>Panel Einstellungen</h2>
+            </div>
+          </div>
+
+          <form id="settings-form" class="stack-form">
+            <div class="settings-columns">
+              <fieldset>
+                <legend>Panel-Speicher</legend>
+                <label>
+                  <span>Speicherart</span>
+                  <input name="panelStorageBackend" type="text" readonly>
+                </label>
+                <label>
+                  <span>Panel SQL JDBC</span>
+                  <input name="panelSqlJdbcUrl" type="text" readonly>
+                </label>
+                <label>
+                  <span>Panel SQL Benutzer</span>
+                  <input name="panelSqlUsername" type="text" readonly>
+                </label>
+                <label>
+                  <span>Panel SQL Tabelle</span>
+                  <input name="panelSqlTable" type="text" readonly>
+                </label>
+                <p class="muted">Die Panel-Speicherart wird beim Start geladen. Wechsel zwischen LOCAL und SQL erfolgt ueber die CloudNet-Modul-Konfiguration; lokale Daten werden beim SQL-Start automatisch migriert.</p>
+              </fieldset>
+
+              <fieldset>
+                <legend>Mailserver</legend>
+                <label class="inline-label">
+                  <input name="smtpEnabled" type="checkbox">
+                  <span>SMTP aktiv</span>
+                </label>
+                <label>
+                  <span>SMTP Host</span>
+                  <input name="smtpHost" type="text" placeholder="smtp.example.com">
+                </label>
+                <label>
+                  <span>SMTP Port</span>
+                  <input name="smtpPort" type="number" min="1" max="65535">
+                </label>
+                <label>
+                  <span>SMTP Benutzer</span>
+                  <input name="smtpUsername" type="text">
+                </label>
+                <label>
+                  <span>SMTP Passwort</span>
+                  <input name="smtpPassword" type="password" placeholder="leer lassen = behalten">
+                </label>
+                <label>
+                  <span>Absender</span>
+                  <input name="smtpFrom" type="email" placeholder="panel@example.com">
+                </label>
+                <div class="toggle-row">
+                  <label><input name="smtpStartTls" type="checkbox"> STARTTLS</label>
+                  <label><input name="smtpSsl" type="checkbox"> SSL</label>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>LiteBans Datenbank</legend>
+                <label class="inline-label">
+                  <input name="liteBansDatabaseEnabled" type="checkbox">
+                  <span>LiteBans MySQL aktiv</span>
+                </label>
+                <label>
+                  <span>JDBC URL</span>
+                  <input name="liteBansJdbcUrl" type="text" placeholder="jdbc:mysql://127.0.0.1:3306/litebans...">
+                </label>
+                <label>
+                  <span>Datenbank Benutzer</span>
+                  <input name="liteBansDatabaseUsername" type="text">
+                </label>
+                <label>
+                  <span>Datenbank Passwort</span>
+                  <input name="liteBansDatabasePassword" type="password" placeholder="leer lassen = behalten">
+                </label>
+                <label>
+                  <span>Tabellenprefix</span>
+                  <input name="liteBansTablePrefix" type="text" placeholder="litebans_">
+                </label>
+                <label>
+                  <span>Max. Bans lesen</span>
+                  <input name="liteBansDatabaseMaxRows" type="number" min="50" max="10000">
+                </label>
+                <label>
+                  <span>Velocity Bridge URL</span>
+                  <input name="liteBansBridgeBaseUrl" type="text" placeholder="http://127.0.0.1:9095">
+                </label>
+                <label>
+                  <span>Bridge Secret</span>
+                  <input name="liteBansBridgeSecret" type="password" placeholder="leer lassen = behalten/API Token">
+                </label>
+                <div class="form-grid">
+                  <label>
+                    <span>Connect Timeout ms</span>
+                    <input name="liteBansBridgeConnectTimeoutMillis" type="number" min="500" max="30000">
+                  </label>
+                  <label>
+                    <span>Read Timeout ms</span>
+                    <input name="liteBansBridgeReadTimeoutMillis" type="number" min="500" max="30000">
+                  </label>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="action-row">
+              <button type="submit">Einstellungen speichern</button>
+              <span id="settings-status" class="muted"></span>
+            </div>
+          </form>
+        </article>
+
+        <article class="panel-card">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Mailserver</p>
+              <h2>Testmail</h2>
+            </div>
+          </div>
+          <form id="test-mail-form" class="stack-form slim-form">
+            <label>
+              <span>Empfaenger</span>
+              <input name="recipient" type="email" placeholder="team@example.com">
+            </label>
+            <button type="submit">Testmail senden</button>
+            <p id="test-mail-status" class="muted"></p>
+          </form>
         </article>
       </div>
     </section>

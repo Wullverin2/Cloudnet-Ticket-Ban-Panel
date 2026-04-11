@@ -16,11 +16,17 @@ import java.util.UUID;
 public final class TicketStore {
 
   private final Path storagePath;
+  private final PanelDataBackend backend;
   private final List<TicketEntry> tickets = new ArrayList<>();
   private final List<TicketAuditEntry> auditLog = new ArrayList<>();
 
   public TicketStore(Path dataDirectory) {
+    this(dataDirectory, new LocalPanelDataBackend());
+  }
+
+  public TicketStore(Path dataDirectory, PanelDataBackend backend) {
     this.storagePath = dataDirectory.resolve("tickets.json");
+    this.backend = backend;
     this.load();
   }
 
@@ -176,13 +182,12 @@ public final class TicketStore {
   private void load() {
     try {
       Files.createDirectories(this.storagePath.getParent());
-      if (Files.notExists(this.storagePath)) {
+      var data = this.backend.load("tickets", this.storagePath, TicketStoreData.class, null);
+      if (data == null) {
         this.save();
         return;
       }
 
-      var document = DocumentFactory.json().parse(this.storagePath);
-      var data = document.toInstanceOf(TicketStoreData.class);
       if (data != null && data.tickets() != null) {
         this.tickets.clear();
         this.tickets.addAll(data.tickets());
@@ -199,10 +204,10 @@ public final class TicketStore {
   private void save() {
     try {
       Files.createDirectories(this.storagePath.getParent());
-      DocumentFactory.json()
-        .newDocument()
-        .appendTree(new TicketStoreData(List.copyOf(this.tickets), List.copyOf(this.auditLog)))
-        .writeTo(this.storagePath);
+      this.backend.save(
+        "tickets",
+        this.storagePath,
+        new TicketStoreData(List.copyOf(this.tickets), List.copyOf(this.auditLog)));
     } catch (Exception exception) {
       throw new IllegalStateException("Tickets konnten nicht gespeichert werden.", exception);
     }

@@ -1,6 +1,8 @@
 package de.speed.ticketconsolecloudban.auth;
 
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.settings.PanelSettings;
+import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -14,13 +16,20 @@ import javax.net.ssl.SSLSocketFactory;
 public final class SmtpMailService {
 
   private final PanelConfiguration configuration;
+  private final PanelSettingsStore settingsStore;
 
   public SmtpMailService(PanelConfiguration configuration) {
     this.configuration = configuration;
+    this.settingsStore = null;
+  }
+
+  public SmtpMailService(PanelConfiguration configuration, PanelSettingsStore settingsStore) {
+    this.configuration = configuration;
+    this.settingsStore = settingsStore;
   }
 
   public boolean enabled() {
-    return this.configuration.smtpEnabled();
+    return this.settings().smtpEnabled();
   }
 
   public void sendPasswordReset(String recipient, String resetUrl, String expiresAt) {
@@ -61,26 +70,28 @@ public final class SmtpMailService {
       session.expect(220);
       session.command("EHLO panel.local", 250);
 
-      if (this.configuration.smtpStartTls() && !this.configuration.smtpSsl()) {
+      var settings = this.settings();
+
+      if (settings.smtpStartTls() && !settings.smtpSsl()) {
         session.command("STARTTLS", 220);
         session = new Session(((SSLSocketFactory) SSLSocketFactory.getDefault()).createSocket(
           socket,
-          this.configuration.smtpHost(),
-          this.configuration.smtpPort(),
+          settings.smtpHost(),
+          settings.smtpPort(),
           true));
         session.command("EHLO panel.local", 250);
       }
 
-      if (this.configuration.smtpUsername() != null && !this.configuration.smtpUsername().isBlank()) {
+      if (settings.smtpUsername() != null && !settings.smtpUsername().isBlank()) {
         session.command("AUTH LOGIN", 334);
-        session.command(Base64.getEncoder().encodeToString(this.configuration.smtpUsername().getBytes(StandardCharsets.UTF_8)), 334);
-        session.command(Base64.getEncoder().encodeToString(this.configuration.smtpPassword().getBytes(StandardCharsets.UTF_8)), 235);
+        session.command(Base64.getEncoder().encodeToString(settings.smtpUsername().getBytes(StandardCharsets.UTF_8)), 334);
+        session.command(Base64.getEncoder().encodeToString(settings.smtpPassword().getBytes(StandardCharsets.UTF_8)), 235);
       }
 
-      session.command("MAIL FROM:<" + this.configuration.smtpFrom() + ">", 250);
+      session.command("MAIL FROM:<" + settings.smtpFrom() + ">", 250);
       session.command("RCPT TO:<" + recipient + ">", 250);
       session.command("DATA", 354);
-      session.write("From: " + this.configuration.smtpFrom() + "\r\n"
+      session.write("From: " + settings.smtpFrom() + "\r\n"
         + "To: " + recipient + "\r\n"
         + "Subject: " + subject + "\r\n"
         + messageContent(body, htmlBody)
@@ -114,10 +125,17 @@ public final class SmtpMailService {
   }
 
   private Socket openSocket() throws IOException {
-    if (this.configuration.smtpSsl()) {
-      return SSLSocketFactory.getDefault().createSocket(this.configuration.smtpHost(), this.configuration.smtpPort());
+    var settings = this.settings();
+    if (settings.smtpSsl()) {
+      return SSLSocketFactory.getDefault().createSocket(settings.smtpHost(), settings.smtpPort());
     }
-    return new Socket(this.configuration.smtpHost(), this.configuration.smtpPort());
+    return new Socket(settings.smtpHost(), settings.smtpPort());
+  }
+
+  private PanelSettings settings() {
+    return this.settingsStore == null
+      ? PanelSettings.fromConfiguration(this.configuration)
+      : this.settingsStore.current();
   }
 
   private static final class Session {

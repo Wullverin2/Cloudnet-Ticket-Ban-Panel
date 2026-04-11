@@ -1,6 +1,7 @@
 package de.speed.ticketconsolecloudban.ban;
 
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -22,21 +23,31 @@ public final class PunishmentIdBridgeClient {
   private static final Pattern VALUE_PATTERN = Pattern.compile("\"value\"\\s*:\\s*\"([^\"]+)\"");
 
   private final PanelConfiguration configuration;
+  private final PanelSettingsStore settingsStore;
   private final HttpClient httpClient;
   private final Map<String, String> cache = new ConcurrentHashMap<>();
 
   public PunishmentIdBridgeClient(PanelConfiguration configuration) {
     this.configuration = configuration;
+    this.settingsStore = null;
     this.httpClient = HttpClient.newBuilder()
       .connectTimeout(Duration.ofMillis(configuration.liteBansBridgeConnectTimeoutMillis()))
       .build();
   }
 
+  public PunishmentIdBridgeClient(PanelConfiguration configuration, PanelSettingsStore settingsStore) {
+    this.configuration = configuration;
+    this.settingsStore = settingsStore;
+    this.httpClient = HttpClient.newBuilder()
+      .connectTimeout(Duration.ofMillis(settingsStore.current().liteBansBridgeConnectTimeoutMillis()))
+      .build();
+  }
+
   public boolean configured() {
-    return this.configuration.liteBansBridgeBaseUrl() != null
-      && !this.configuration.liteBansBridgeBaseUrl().isBlank()
-      && this.configuration.effectiveLiteBansBridgeSecret() != null
-      && !this.configuration.effectiveLiteBansBridgeSecret().isBlank();
+    return this.bridgeBaseUrl() != null
+      && !this.bridgeBaseUrl().isBlank()
+      && this.bridgeSecret() != null
+      && !this.bridgeSecret().isBlank();
   }
 
   public Optional<String> fromDatabaseId(String databaseId, String playerUuid, String serverScope, String serverOrigin) {
@@ -51,15 +62,15 @@ public final class PunishmentIdBridgeClient {
     }
 
     try {
-      var uri = URI.create(this.configuration.liteBansBridgeBaseUrl()
+      var uri = URI.create(this.bridgeBaseUrl()
         + "/api/punishment-id/from-db?dbId=" + encode(databaseId)
         + "&playerUuid=" + encode(playerUuid)
         + "&serverScope=" + encode(serverScope)
         + "&serverOrigin=" + encode(serverOrigin));
       var request = HttpRequest.newBuilder(uri)
-        .timeout(Duration.ofMillis(this.configuration.liteBansBridgeReadTimeoutMillis()))
+        .timeout(Duration.ofMillis(this.bridgeReadTimeoutMillis()))
         .header("Accept", "application/json")
-        .header("X-Bridge-Secret", this.configuration.effectiveLiteBansBridgeSecret())
+        .header("X-Bridge-Secret", this.bridgeSecret())
         .GET()
         .build();
       var response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
@@ -95,5 +106,23 @@ public final class PunishmentIdBridgeClient {
 
   private static String nullSafe(String value) {
     return value == null ? "" : value.trim();
+  }
+
+  private String bridgeBaseUrl() {
+    return this.settingsStore == null
+      ? this.configuration.liteBansBridgeBaseUrl()
+      : this.settingsStore.current().liteBansBridgeBaseUrl();
+  }
+
+  private String bridgeSecret() {
+    return this.settingsStore == null
+      ? this.configuration.effectiveLiteBansBridgeSecret()
+      : this.settingsStore.effectiveLiteBansBridgeSecret();
+  }
+
+  private int bridgeReadTimeoutMillis() {
+    return this.settingsStore == null
+      ? this.configuration.liteBansBridgeReadTimeoutMillis()
+      : this.settingsStore.current().liteBansBridgeReadTimeoutMillis();
   }
 }

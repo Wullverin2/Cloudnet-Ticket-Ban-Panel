@@ -8,8 +8,10 @@ import de.speed.ticketconsolecloudban.appeal.EvidenceStorageFactory;
 import de.speed.ticketconsolecloudban.http.BanAppealHttpServer;
 import de.speed.ticketconsolecloudban.http.PanelHttpServer;
 import de.speed.ticketconsolecloudban.service.CloudNetFacade;
+import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
 import de.speed.ticketconsolecloudban.store.BanAppealStore;
 import de.speed.ticketconsolecloudban.store.BanStore;
+import de.speed.ticketconsolecloudban.store.PanelDataBackendFactory;
 import de.speed.ticketconsolecloudban.store.PanelUserStore;
 import de.speed.ticketconsolecloudban.store.PermissionBridgeStore;
 import de.speed.ticketconsolecloudban.store.TicketStore;
@@ -42,29 +44,33 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
       .normalize();
     this.writeConfig(DocumentFactory.json().newDocument().appendTree(configuration));
 
-    var userStore = new PanelUserStore(this.moduleWrapper().dataDirectory());
+    var panelDataBackend = PanelDataBackendFactory.create(configuration);
+    var settingsStore = new PanelSettingsStore(this.moduleWrapper().dataDirectory(), configuration, panelDataBackend);
+    var userStore = new PanelUserStore(this.moduleWrapper().dataDirectory(), panelDataBackend);
     var banStore = new BanStore(this.moduleWrapper().dataDirectory());
-    var banAppealStore = new BanAppealStore(this.moduleWrapper().dataDirectory());
-    var liteBansDatabaseSyncService = new LiteBansDatabaseSyncService(configuration, banStore);
+    var banAppealStore = new BanAppealStore(this.moduleWrapper().dataDirectory(), panelDataBackend);
+    var liteBansDatabaseSyncService = new LiteBansDatabaseSyncService(configuration, banStore, settingsStore);
     liteBansDatabaseSyncService.syncNow("module-start");
-    var security = new PanelSecurityService(userStore, configuration);
+    var security = new PanelSecurityService(userStore, configuration, settingsStore);
     var facade = new CloudNetFacade(
       cloudServiceProvider,
       serviceTaskProvider,
       cloudServiceFactory,
       clusterNodeProvider,
       configuration,
-      new TicketStore(this.moduleWrapper().dataDirectory()),
+      new TicketStore(this.moduleWrapper().dataDirectory(), panelDataBackend),
       banStore,
       banAppealStore,
       liteBansDatabaseSyncService,
-      new PermissionBridgeStore(this.moduleWrapper().dataDirectory()));
+      settingsStore,
+      new PermissionBridgeStore(this.moduleWrapper().dataDirectory(), panelDataBackend));
     var appealService = new BanAppealService(
       configuration,
       banStore,
       banAppealStore,
       liteBansDatabaseSyncService,
-      EvidenceStorageFactory.create(configuration, this.moduleWrapper().dataDirectory()));
+      EvidenceStorageFactory.create(configuration, this.moduleWrapper().dataDirectory()),
+      settingsStore);
 
     this.stopServer();
     this.httpServer = new PanelHttpServer(configuration, facade, security);

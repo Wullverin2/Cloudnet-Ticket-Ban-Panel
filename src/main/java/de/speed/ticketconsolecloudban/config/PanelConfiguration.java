@@ -11,6 +11,11 @@ public record PanelConfiguration(
   int consoleLineLimit,
   String brandName,
   List<String> apiTokens,
+  String panelStorageBackend,
+  String panelSqlJdbcUrl,
+  String panelSqlUsername,
+  String panelSqlPassword,
+  String panelSqlTable,
   String publicBaseUrl,
   boolean smtpEnabled,
   String smtpHost,
@@ -58,6 +63,11 @@ public record PanelConfiguration(
       250,
       "Network Control",
       List.of(generateToken()),
+      "SQL",
+      "jdbc:mysql://127.0.0.1:3306/tccb_panel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
+      "tccb_panel",
+      "",
+      "tccb_panel_data",
       "http://127.0.0.1:8088",
       false,
       "127.0.0.1",
@@ -101,6 +111,21 @@ public record PanelConfiguration(
     var normalizedPort = this.bindPort > 0 && this.bindPort <= 0xFFFF ? this.bindPort : 8088;
     var normalizedLimit = clamp(this.consoleLineLimit, 50, 1000);
     var normalizedBrand = this.brandName == null || this.brandName.isBlank() ? "Network Control" : this.brandName.trim();
+    var normalizedPanelStorage = this.panelStorageBackend == null || this.panelStorageBackend.isBlank()
+      ? "SQL"
+      : this.panelStorageBackend.trim().toUpperCase();
+    if (!"LOCAL".equals(normalizedPanelStorage) && !"SQL".equals(normalizedPanelStorage)) {
+      normalizedPanelStorage = "SQL";
+    }
+    var normalizedPanelSqlJdbcUrl = this.panelSqlJdbcUrl == null || this.panelSqlJdbcUrl.isBlank()
+      ? "jdbc:mysql://127.0.0.1:3306/tccb_panel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      : this.panelSqlJdbcUrl.trim();
+    var normalizedPanelSqlTable = this.panelSqlTable == null || this.panelSqlTable.isBlank()
+      ? "tccb_panel_data"
+      : this.panelSqlTable.trim();
+    if (!normalizedPanelSqlTable.matches("[A-Za-z0-9_]+")) {
+      normalizedPanelSqlTable = "tccb_panel_data";
+    }
     var normalizedBaseUrl = this.publicBaseUrl == null || this.publicBaseUrl.isBlank()
       ? "http://127.0.0.1:" + normalizedPort
       : this.publicBaseUrl.trim().replaceAll("/+$", "");
@@ -159,6 +184,11 @@ public record PanelConfiguration(
       normalizedLimit,
       normalizedBrand,
       List.copyOf(normalizedTokens),
+      normalizedPanelStorage,
+      normalizedPanelSqlJdbcUrl,
+      this.panelSqlUsername == null ? "" : this.panelSqlUsername.trim(),
+      this.panelSqlPassword == null ? "" : this.panelSqlPassword,
+      normalizedPanelSqlTable,
       normalizedBaseUrl,
       this.smtpEnabled,
       normalizedSmtpHost,

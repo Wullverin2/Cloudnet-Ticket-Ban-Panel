@@ -1,6 +1,7 @@
 package de.speed.ticketconsolecloudban.auth;
 
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
 import de.speed.ticketconsolecloudban.store.PanelUserStore;
 import eu.cloudnetservice.driver.document.Document;
 import java.security.SecureRandom;
@@ -25,9 +26,15 @@ public final class PanelSecurityService {
   private final Map<String, String> sessions = new ConcurrentHashMap<>();
 
   public PanelSecurityService(PanelUserStore userStore, PanelConfiguration configuration) {
+    this(userStore, configuration, null);
+  }
+
+  public PanelSecurityService(PanelUserStore userStore, PanelConfiguration configuration, PanelSettingsStore settingsStore) {
     this.userStore = userStore;
     this.configuration = configuration;
-    this.mailService = new SmtpMailService(configuration);
+    this.mailService = settingsStore == null
+      ? new SmtpMailService(configuration)
+      : new SmtpMailService(configuration, settingsStore);
   }
 
   public PanelPrincipal authenticate(String token, PanelConfiguration configuration) {

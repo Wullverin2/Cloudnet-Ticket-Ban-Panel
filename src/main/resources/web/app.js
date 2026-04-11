@@ -11,6 +11,7 @@ const PERMISSIONS = {
   USERS_MANAGE: "users.manage",
   PROXY_PERMISSIONS_MANAGE: "permissions.proxy.manage",
   SERVER_PERMISSIONS_MANAGE: "permissions.server.manage",
+  SETTINGS_MANAGE: "settings.manage",
 };
 
 const state = {
@@ -32,6 +33,7 @@ const state = {
   securityGroups: [],
   permissionSubjects: [],
   permissionAudit: [],
+  settings: null,
   selectedPermissionServer: localStorage.getItem("tccb-lp-server") || "proxy",
   selectedPermissionSubject: localStorage.getItem("tccb-lp-subject") || "",
   selectedService: null,
@@ -136,6 +138,10 @@ function bindElements() {
   elements.permissionNodeList = document.getElementById("permission-node-list");
   elements.permissionAuditTable = document.getElementById("permission-audit-table");
   elements.permissionStatus = document.getElementById("permission-status");
+  elements.settingsForm = document.getElementById("settings-form");
+  elements.settingsStatus = document.getElementById("settings-status");
+  elements.testMailForm = document.getElementById("test-mail-form");
+  elements.testMailStatus = document.getElementById("test-mail-status");
 }
 
 function bindEvents() {
@@ -198,6 +204,8 @@ function bindEvents() {
   elements.permissionSubjectSearch.addEventListener("input", renderPermissionSubjects);
   elements.permissionSubjectList.addEventListener("click", handlePermissionSubjectClick);
   elements.permissionNodeList.addEventListener("click", handlePermissionNodeClick);
+  elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
+  elements.testMailForm.addEventListener("submit", handleTestMailSubmit);
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
 }
@@ -405,6 +413,7 @@ function clearSession() {
   state.securityGroups = [];
   state.permissionSubjects = [];
   state.permissionAudit = [];
+  state.settings = null;
   state.selectedPermissionSubject = "";
   localStorage.removeItem("tccb-session");
   if (state.consoleTimer) {
@@ -425,6 +434,11 @@ function handlePageNavClick(event) {
     return;
   }
   switchPage(button.dataset.pageTarget);
+  if (button.dataset.banTabTarget) {
+    switchBanTab(button.dataset.banTabTarget);
+    elements.pageNav.querySelectorAll("button[data-page-target]").forEach(entry => entry.classList.remove("active"));
+    button.classList.add("active");
+  }
 }
 
 function switchPage(page) {
@@ -440,7 +454,7 @@ function switchPage(page) {
     panel.classList.toggle("hidden", panel.dataset.page !== target);
   });
   elements.pageNav.querySelectorAll("button[data-page-target]").forEach(button => {
-    button.classList.toggle("active", button.dataset.pageTarget === target);
+    button.classList.toggle("active", button.dataset.pageTarget === target && !button.dataset.banTabTarget);
   });
 }
 
@@ -532,6 +546,11 @@ async function refreshAll() {
     refreshPermissionServerSelect();
     renderPermissionSubjects();
     renderPermissionAudit();
+  }
+
+  if (hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
+    state.settings = await api("/api/settings");
+    renderSettings();
   }
 
   if (hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)) {
@@ -950,6 +969,52 @@ function renderPermissionAudit() {
   `).join("");
 }
 
+function renderSettings() {
+  const settings = state.settings;
+  if (!settings || !elements.settingsForm) {
+    return;
+  }
+
+  const form = elements.settingsForm.elements;
+  setFormValue(form, "panelStorageBackend", settings.panelStorageBackend || "SQL");
+  setFormValue(form, "panelSqlJdbcUrl", settings.panelSqlJdbcUrl || "");
+  setFormValue(form, "panelSqlUsername", settings.panelSqlUsername || "");
+  setFormValue(form, "panelSqlTable", settings.panelSqlTable || "");
+  setFormChecked(form, "smtpEnabled", settings.smtpEnabled);
+  setFormValue(form, "smtpHost", settings.smtpHost || "");
+  setFormValue(form, "smtpPort", settings.smtpPort || 587);
+  setFormValue(form, "smtpUsername", settings.smtpUsername || "");
+  setFormValue(form, "smtpPassword", "");
+  form.smtpPassword.placeholder = settings.smtpPasswordConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
+  setFormValue(form, "smtpFrom", settings.smtpFrom || "");
+  setFormChecked(form, "smtpStartTls", settings.smtpStartTls);
+  setFormChecked(form, "smtpSsl", settings.smtpSsl);
+  setFormChecked(form, "liteBansDatabaseEnabled", settings.liteBansDatabaseEnabled);
+  setFormValue(form, "liteBansJdbcUrl", settings.liteBansJdbcUrl || "");
+  setFormValue(form, "liteBansDatabaseUsername", settings.liteBansDatabaseUsername || "");
+  setFormValue(form, "liteBansDatabasePassword", "");
+  form.liteBansDatabasePassword.placeholder = settings.liteBansDatabasePasswordConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
+  setFormValue(form, "liteBansTablePrefix", settings.liteBansTablePrefix || "litebans_");
+  setFormValue(form, "liteBansDatabaseMaxRows", settings.liteBansDatabaseMaxRows || 1000);
+  setFormValue(form, "liteBansBridgeBaseUrl", settings.liteBansBridgeBaseUrl || "");
+  setFormValue(form, "liteBansBridgeSecret", "");
+  form.liteBansBridgeSecret.placeholder = settings.liteBansBridgeSecretConfigured ? "gesetzt, leer lassen = behalten" : "leer = API Token";
+  setFormValue(form, "liteBansBridgeConnectTimeoutMillis", settings.liteBansBridgeConnectTimeoutMillis || 2500);
+  setFormValue(form, "liteBansBridgeReadTimeoutMillis", settings.liteBansBridgeReadTimeoutMillis || 5000);
+}
+
+function setFormValue(form, name, value) {
+  if (form[name]) {
+    form[name].value = value;
+  }
+}
+
+function setFormChecked(form, name, value) {
+  if (form[name]) {
+    form[name].checked = Boolean(value);
+  }
+}
+
 function renderSelectedPermissionSubject() {
   const subject = selectedPermissionSubject();
   if (!subject) {
@@ -1303,6 +1368,77 @@ async function handlePermissionActionSubmit(event) {
     await refreshAll();
   } catch (error) {
     handleApiError(error, elements.permissionStatus);
+  }
+}
+
+async function handleSettingsSubmit(event) {
+  event.preventDefault();
+  if (!hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
+    return;
+  }
+
+  const form = new FormData(elements.settingsForm);
+  const payload = {
+    smtpEnabled: Boolean(form.get("smtpEnabled")),
+    smtpHost: String(form.get("smtpHost") || "").trim(),
+    smtpPort: Number(form.get("smtpPort") || 587),
+    smtpUsername: String(form.get("smtpUsername") || "").trim(),
+    smtpFrom: String(form.get("smtpFrom") || "").trim(),
+    smtpStartTls: Boolean(form.get("smtpStartTls")),
+    smtpSsl: Boolean(form.get("smtpSsl")),
+    liteBansDatabaseEnabled: Boolean(form.get("liteBansDatabaseEnabled")),
+    liteBansJdbcUrl: String(form.get("liteBansJdbcUrl") || "").trim(),
+    liteBansDatabaseUsername: String(form.get("liteBansDatabaseUsername") || "").trim(),
+    liteBansTablePrefix: String(form.get("liteBansTablePrefix") || "").trim(),
+    liteBansDatabaseMaxRows: Number(form.get("liteBansDatabaseMaxRows") || 1000),
+    liteBansBridgeBaseUrl: String(form.get("liteBansBridgeBaseUrl") || "").trim(),
+    liteBansBridgeConnectTimeoutMillis: Number(form.get("liteBansBridgeConnectTimeoutMillis") || 2500),
+    liteBansBridgeReadTimeoutMillis: Number(form.get("liteBansBridgeReadTimeoutMillis") || 5000),
+  };
+
+  const smtpPassword = String(form.get("smtpPassword") || "");
+  const liteBansDatabasePassword = String(form.get("liteBansDatabasePassword") || "");
+  const liteBansBridgeSecret = String(form.get("liteBansBridgeSecret") || "");
+  if (smtpPassword) {
+    payload.smtpPassword = smtpPassword;
+  }
+  if (liteBansDatabasePassword) {
+    payload.liteBansDatabasePassword = liteBansDatabasePassword;
+  }
+  if (liteBansBridgeSecret) {
+    payload.liteBansBridgeSecret = liteBansBridgeSecret;
+  }
+
+  try {
+    state.settings = await api("/api/settings", { method: "PUT", body: payload });
+    renderSettings();
+    setStatus(elements.settingsStatus, "Einstellungen gespeichert.", false);
+    await refreshAll();
+  } catch (error) {
+    handleApiError(error, elements.settingsStatus);
+  }
+}
+
+async function handleTestMailSubmit(event) {
+  event.preventDefault();
+  if (!hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
+    return;
+  }
+
+  const recipient = String(new FormData(elements.testMailForm).get("recipient") || "").trim();
+  if (!recipient) {
+    setStatus(elements.testMailStatus, "Bitte Empfaenger eintragen.", true);
+    return;
+  }
+
+  try {
+    const result = await api("/api/settings/test-mail", {
+      method: "POST",
+      body: { recipient },
+    });
+    setStatus(elements.testMailStatus, result.message || "Testmail wurde versendet.", false);
+  } catch (error) {
+    handleApiError(error, elements.testMailStatus);
   }
 }
 

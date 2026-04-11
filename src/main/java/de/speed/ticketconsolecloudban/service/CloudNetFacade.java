@@ -1,6 +1,7 @@
 package de.speed.ticketconsolecloudban.service;
 
 import de.speed.ticketconsolecloudban.auth.PanelPermission;
+import de.speed.ticketconsolecloudban.auth.SmtpMailService;
 import de.speed.ticketconsolecloudban.appeal.BanAppealEntry;
 import de.speed.ticketconsolecloudban.ban.BanActionRequest;
 import de.speed.ticketconsolecloudban.ban.BanAuditEntry;
@@ -15,6 +16,8 @@ import de.speed.ticketconsolecloudban.store.BanStore;
 import de.speed.ticketconsolecloudban.store.BanAppealStore;
 import de.speed.ticketconsolecloudban.store.PermissionBridgeStore;
 import de.speed.ticketconsolecloudban.store.TicketStore;
+import de.speed.ticketconsolecloudban.settings.PanelSettings;
+import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
 import de.speed.ticketconsolecloudban.ticket.TicketComment;
 import de.speed.ticketconsolecloudban.ticket.TicketAuditEntry;
 import de.speed.ticketconsolecloudban.ticket.TicketEntry;
@@ -65,6 +68,7 @@ public final class CloudNetFacade {
   private final BanStore banStore;
   private final BanAppealStore banAppealStore;
   private final LiteBansDatabaseSyncService liteBansDatabaseSyncService;
+  private final PanelSettingsStore settingsStore;
   private final PermissionBridgeStore permissionBridgeStore;
 
   public CloudNetFacade(
@@ -77,6 +81,7 @@ public final class CloudNetFacade {
     BanStore banStore,
     BanAppealStore banAppealStore,
     LiteBansDatabaseSyncService liteBansDatabaseSyncService,
+    PanelSettingsStore settingsStore,
     PermissionBridgeStore permissionBridgeStore
   ) {
     this.cloudServiceProvider = cloudServiceProvider;
@@ -88,6 +93,7 @@ public final class CloudNetFacade {
     this.banStore = banStore;
     this.banAppealStore = banAppealStore;
     this.liteBansDatabaseSyncService = liteBansDatabaseSyncService;
+    this.settingsStore = settingsStore;
     this.permissionBridgeStore = permissionBridgeStore;
   }
 
@@ -468,6 +474,65 @@ public final class CloudNetFacade {
 
   public List<PermissionAuditEntry> permissionAuditLog() {
     return this.permissionBridgeStore.auditLog();
+  }
+
+  public SettingsView settings() {
+    return this.settingsView(this.settingsStore.current());
+  }
+
+  public SettingsView updateSettings(Document request) {
+    return this.settingsView(this.settingsStore.update(request));
+  }
+
+  public TestMailView sendTestMail(Document request) {
+    var recipient = this.requiredText(request, "recipient");
+    var mailService = new SmtpMailService(this.configuration, this.settingsStore);
+    if (!mailService.enabled()) {
+      throw new IllegalArgumentException("SMTP ist deaktiviert.");
+    }
+    mailService.sendHtml(
+      recipient,
+      "Network Control Testmail",
+      "Das ist eine Testmail aus dem Network Control Panel.",
+      """
+        <html>
+          <body style="margin:0;background:#07131d;color:#f5f0e7;font-family:Segoe UI,Arial,sans-serif;padding:28px;">
+            <div style="max-width:620px;margin:auto;background:#0f1e2b;border:1px solid rgba(244,188,70,.35);border-radius:22px;padding:28px;">
+              <p style="margin:0 0 10px;color:#f4bc46;letter-spacing:.18em;text-transform:uppercase;font-size:12px;">Network Control</p>
+              <h1 style="margin:0 0 14px;font-size:28px;">Testmail erfolgreich</h1>
+              <p style="margin:0;color:#d7e2ea;">Deine SMTP-Einstellungen funktionieren. Diese Mail wurde direkt aus dem Einstellungstab gesendet.</p>
+            </div>
+          </body>
+        </html>
+        """);
+    return new TestMailView("Testmail wurde versendet.", recipient);
+  }
+
+  private SettingsView settingsView(PanelSettings settings) {
+    return new SettingsView(
+      this.configuration.panelStorageBackend(),
+      this.configuration.panelSqlJdbcUrl(),
+      this.configuration.panelSqlUsername(),
+      this.configuration.panelSqlPassword() != null && !this.configuration.panelSqlPassword().isBlank(),
+      this.configuration.panelSqlTable(),
+      settings.smtpEnabled(),
+      settings.smtpHost(),
+      settings.smtpPort(),
+      settings.smtpUsername(),
+      settings.smtpPassword() != null && !settings.smtpPassword().isBlank(),
+      settings.smtpFrom(),
+      settings.smtpStartTls(),
+      settings.smtpSsl(),
+      settings.liteBansDatabaseEnabled(),
+      settings.liteBansJdbcUrl(),
+      settings.liteBansDatabaseUsername(),
+      settings.liteBansDatabasePassword() != null && !settings.liteBansDatabasePassword().isBlank(),
+      settings.liteBansTablePrefix(),
+      settings.liteBansDatabaseMaxRows(),
+      settings.liteBansBridgeBaseUrl(),
+      settings.liteBansBridgeSecret() != null && !settings.liteBansBridgeSecret().isBlank(),
+      settings.liteBansBridgeConnectTimeoutMillis(),
+      settings.liteBansBridgeReadTimeoutMillis());
   }
 
   private TaskView taskView(ServiceTask task) {
@@ -896,6 +961,39 @@ public final class CloudNetFacade {
     boolean expired,
     String removedBy,
     String removedAt
+  ) {
+  }
+
+  public record SettingsView(
+    String panelStorageBackend,
+    String panelSqlJdbcUrl,
+    String panelSqlUsername,
+    boolean panelSqlPasswordConfigured,
+    String panelSqlTable,
+    boolean smtpEnabled,
+    String smtpHost,
+    int smtpPort,
+    String smtpUsername,
+    boolean smtpPasswordConfigured,
+    String smtpFrom,
+    boolean smtpStartTls,
+    boolean smtpSsl,
+    boolean liteBansDatabaseEnabled,
+    String liteBansJdbcUrl,
+    String liteBansDatabaseUsername,
+    boolean liteBansDatabasePasswordConfigured,
+    String liteBansTablePrefix,
+    int liteBansDatabaseMaxRows,
+    String liteBansBridgeBaseUrl,
+    boolean liteBansBridgeSecretConfigured,
+    int liteBansBridgeConnectTimeoutMillis,
+    int liteBansBridgeReadTimeoutMillis
+  ) {
+  }
+
+  public record TestMailView(
+    String message,
+    String recipient
   ) {
   }
 }

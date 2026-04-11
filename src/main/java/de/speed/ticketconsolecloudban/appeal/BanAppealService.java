@@ -3,6 +3,7 @@ package de.speed.ticketconsolecloudban.appeal;
 import de.speed.ticketconsolecloudban.auth.SmtpMailService;
 import de.speed.ticketconsolecloudban.ban.LiteBansDatabaseSyncService;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
 import de.speed.ticketconsolecloudban.store.BanAppealStore;
 import de.speed.ticketconsolecloudban.store.BanStore;
 import java.time.Duration;
@@ -32,12 +33,25 @@ public final class BanAppealService {
     LiteBansDatabaseSyncService liteBansDatabaseSyncService,
     EvidenceStorage evidenceStorage
   ) {
+    this(configuration, banStore, appealStore, liteBansDatabaseSyncService, evidenceStorage, null);
+  }
+
+  public BanAppealService(
+    PanelConfiguration configuration,
+    BanStore banStore,
+    BanAppealStore appealStore,
+    LiteBansDatabaseSyncService liteBansDatabaseSyncService,
+    EvidenceStorage evidenceStorage,
+    PanelSettingsStore settingsStore
+  ) {
     this.configuration = configuration;
     this.banStore = banStore;
     this.appealStore = appealStore;
     this.liteBansDatabaseSyncService = liteBansDatabaseSyncService;
     this.evidenceStorage = evidenceStorage;
-    this.mailService = new SmtpMailService(configuration);
+    this.mailService = settingsStore == null
+      ? new SmtpMailService(configuration)
+      : new SmtpMailService(configuration, settingsStore);
   }
 
   public AppealSubmittedView submit(AppealMultipartForm form) {

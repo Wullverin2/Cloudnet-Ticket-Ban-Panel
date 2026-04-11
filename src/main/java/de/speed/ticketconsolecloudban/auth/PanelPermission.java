@@ -17,6 +17,7 @@ public final class PanelPermission {
   public static final String USERS_MANAGE = "users.manage";
   public static final String PROXY_PERMISSIONS_MANAGE = "permissions.proxy.manage";
   public static final String SERVER_PERMISSIONS_MANAGE = "permissions.server.manage";
+  public static final String SETTINGS_MANAGE = "settings.manage";
 
   private static final List<PermissionView> CATALOG = List.of(
     new PermissionView(ALL, "System", "Alle Rechte", "Vollzugriff auf alle Panel-Funktionen."),
@@ -31,7 +32,8 @@ public final class PanelPermission {
     new PermissionView(BANS_MANAGE, "Bans", "Bans verwalten", "Cloud-Bans erstellen und deaktivieren."),
     new PermissionView(USERS_MANAGE, "Rechte", "Benutzer und Gruppen", "Panel-Benutzer, Gruppen und Rechte verwalten."),
     new PermissionView(PROXY_PERMISSIONS_MANAGE, "Rechte", "Proxy- und LuckPerms-Rechte", "LuckPerms-Subjects anzeigen und Permission-Aktionen ueber Velocity ausfuehren."),
-    new PermissionView(SERVER_PERMISSIONS_MANAGE, "Rechte", "Unterserver-Rechte", "Reserviertes Recht fuer spaetere server-spezifische LuckPerms-Kontexte."));
+    new PermissionView(SERVER_PERMISSIONS_MANAGE, "Rechte", "Unterserver-Rechte", "Reserviertes Recht fuer spaetere server-spezifische LuckPerms-Kontexte."),
+    new PermissionView(SETTINGS_MANAGE, "System", "Panel-Einstellungen", "Mailserver, LiteBans-DB und Panel-Speicher ansehen und bearbeiten."));
 
   private PanelPermission() {
   }

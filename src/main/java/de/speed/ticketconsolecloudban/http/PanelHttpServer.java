@@ -155,6 +155,11 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() >= 2 && "settings".equals(segments.get(1))) {
+      this.handleSettingsApi(exchange, segments, principal);
+      return;
+    }
+
     if (segments.size() == 2 && "overview".equals(segments.get(1)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
       if (!this.requirePermission(exchange, principal, PanelPermission.CLOUDNET_VIEW)) {
         return;
@@ -562,6 +567,30 @@ public final class PanelHttpServer {
     }
 
     HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Permission-Endpunkt nicht gefunden"));
+  }
+
+  private void handleSettingsApi(HttpExchange exchange, List<String> segments, PanelPrincipal principal) throws IOException {
+    if (!this.requirePermission(exchange, principal, PanelPermission.SETTINGS_MANAGE)) {
+      return;
+    }
+
+    if (segments.size() == 2) {
+      if (HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.settings());
+        return;
+      }
+      if (HttpExchangeUtils.matchesMethod(exchange, "PUT")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.updateSettings(HttpExchangeUtils.readJson(exchange)));
+        return;
+      }
+    }
+
+    if (segments.size() == 3 && "test-mail".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.sendTestMail(HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
+    HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Settings-Endpunkt nicht gefunden"));
   }
 
   private boolean requirePermissionForServer(HttpExchange exchange, PanelPrincipal principal, String serverId) throws IOException {
