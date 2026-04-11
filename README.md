@@ -119,6 +119,7 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemaess so aus:
   "bindPort": 8088,
   "consoleLineLimit": 250,
   "brandName": "Network Control",
+  "brandLogoUrl": "",
   "panelStorageBackend": "SQL",
   "panelSqlJdbcUrl": "jdbc:mysql://127.0.0.1:3306/tccb_panel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
   "panelSqlUsername": "tccb_panel",
@@ -161,6 +162,8 @@ Das Panel nutzt einen eigenen Login. Der alte API-Token-Zugang bleibt fuer exter
 Panel-Daten wie Tickets, Entbannungsantraege, Teampanel-Benutzer, Panelgruppen, Gruppenrechte und LuckPerms-Bridge-Daten werden bei `panelStorageBackend=SQL` in der Tabelle `panelSqlTable` gespeichert. `SQL` ist die Standard-Speicherart. Beim Wechsel von `LOCAL` auf `SQL` importiert das Modul vorhandene lokale JSON-Dateien automatisch in die MySQL-Tabelle.
 
 Mailserver- und LiteBans-Datenbankwerte koennen im Webpanel unter `Einstellungen` geaendert werden. Dort gibt es auch eine Testmail-Funktion. Die Panel-Speicherart selbst wird beim Modulstart geladen und bleibt deshalb in der Modul-Konfiguration.
+
+Panel-Titel und Logo-URL koennen ebenfalls im Einstellungstab geaendert werden. Das Logo wird als externe URL hinterlegt und direkt im Panel angezeigt.
 
 Wenn `smtpEnabled=false` ist, werden Passwort-Reset-Links nicht per Mail versendet, sondern sicherheitshalber im CloudNet-Log ausgegeben. Fuer produktiven Betrieb solltest du `publicBaseUrl` auf deine Panel-Domain setzen und SMTP aktivieren.
 

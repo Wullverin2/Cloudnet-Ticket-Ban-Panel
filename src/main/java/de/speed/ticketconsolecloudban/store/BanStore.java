@@ -124,9 +124,10 @@ public final class BanStore {
       if (entry == null || entry.id() == null || entry.id().isBlank()) {
         continue;
       }
+      var previous = byId.get(entry.id());
       var synced = new LiteBanEntry(
         entry.id(),
-        blankDefault(entry.publicId(), entry.id()),
+        this.effectivePublicId(entry, previous),
         entry.targetName(),
         entry.targetUniqueId(),
         entry.targetAddress(),
@@ -139,7 +140,7 @@ public final class BanStore {
         entry.removedBy(),
         entry.removedAt(),
         now);
-      var previous = byId.put(synced.id(), synced);
+      previous = byId.put(synced.id(), synced);
       if (previous == null) {
         this.audit("litebans", synced.id(), synced.publicId(), "SYNC_CREATE", actor, "LiteBans-Ban synchronisiert");
       } else if (previous.active() && !synced.active()) {
@@ -151,6 +152,20 @@ public final class BanStore {
     this.liteBans.addAll(byId.values());
     this.save();
     return this.listLiteBans();
+  }
+
+  private String effectivePublicId(LiteBanEntry incoming, LiteBanEntry previous) {
+    var incomingPublicId = blankDefault(incoming.publicId(), incoming.id());
+    if (previous == null || previous.publicId() == null || previous.publicId().isBlank()) {
+      return incomingPublicId;
+    }
+
+    // MySQL can only provide LiteBans' numeric DB id. If the Velocity bridge is
+    // temporarily unavailable, keep the last resolved random punishment id.
+    if (incomingPublicId.equals(incoming.id()) && !previous.publicId().equalsIgnoreCase(previous.id())) {
+      return previous.publicId();
+    }
+    return incomingPublicId;
   }
 
   public synchronized BanActionRequest requestLiteBanUnban(String banId, String actor, String reason) {

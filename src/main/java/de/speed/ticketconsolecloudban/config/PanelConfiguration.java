@@ -10,6 +10,7 @@ public record PanelConfiguration(
   int bindPort,
   int consoleLineLimit,
   String brandName,
+  String brandLogoUrl,
   List<String> apiTokens,
   String panelStorageBackend,
   String panelSqlJdbcUrl,
@@ -62,6 +63,7 @@ public record PanelConfiguration(
       8088,
       250,
       "Network Control",
+      "",
       List.of(generateToken()),
       "SQL",
       "jdbc:mysql://127.0.0.1:3306/tccb_panel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
@@ -100,7 +102,7 @@ public record PanelConfiguration(
       "",
       "litebans_",
       1000,
-      "",
+      "http://127.0.0.1:9095",
       "",
       2500,
       5000);
@@ -111,6 +113,7 @@ public record PanelConfiguration(
     var normalizedPort = this.bindPort > 0 && this.bindPort <= 0xFFFF ? this.bindPort : 8088;
     var normalizedLimit = clamp(this.consoleLineLimit, 50, 1000);
     var normalizedBrand = this.brandName == null || this.brandName.isBlank() ? "Network Control" : this.brandName.trim();
+    var normalizedBrandLogoUrl = this.brandLogoUrl == null ? "" : this.brandLogoUrl.trim();
     var normalizedPanelStorage = this.panelStorageBackend == null || this.panelStorageBackend.isBlank()
       ? "SQL"
       : this.panelStorageBackend.trim().toUpperCase();
@@ -183,6 +186,7 @@ public record PanelConfiguration(
       normalizedPort,
       normalizedLimit,
       normalizedBrand,
+      normalizedBrandLogoUrl,
       List.copyOf(normalizedTokens),
       normalizedPanelStorage,
       normalizedPanelSqlJdbcUrl,

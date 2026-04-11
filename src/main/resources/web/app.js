@@ -54,6 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function bindElements() {
   elements.brandName = document.getElementById("brand-name");
+  elements.brandLogo = document.getElementById("brand-logo");
   elements.authForm = document.getElementById("auth-form");
   elements.loginForm = document.getElementById("login-form");
   elements.authStatus = document.getElementById("auth-status");
@@ -215,7 +216,7 @@ async function boot() {
 
   try {
     state.meta = await api("/api/meta", { auth: false });
-    elements.brandName.textContent = state.meta.brandName;
+    applyBranding(state.meta);
     populateSelect(elements.environmentSelect, state.meta.environments);
     populateSelect(elements.runtimeSelect, state.meta.runtimes);
     populateSelect(elements.ticketCategorySelect, state.meta.ticketCategories);
@@ -771,9 +772,16 @@ function renderLiteBans() {
 }
 
 function liteBanActions(ban) {
-  if (!hasPermission(PERMISSIONS.BANS_MANAGE) || !ban.active) {
+  if (!hasPermission(PERMISSIONS.BANS_MANAGE)) {
     return `<span class="muted">-</span>`;
   }
+
+  if (!ban.active) {
+    return `
+      <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Neu setzen</button>
+    `;
+  }
+
   return `
     <button data-liteban-action="unban" data-ban-id="${escapeAttr(ban.id)}" type="button">Aufheben</button>
     <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Verlaengern</button>
@@ -976,6 +984,8 @@ function renderSettings() {
   }
 
   const form = elements.settingsForm.elements;
+  setFormValue(form, "brandName", settings.brandName || state.meta?.brandName || "Network Control");
+  setFormValue(form, "brandLogoUrl", settings.brandLogoUrl || "");
   setFormValue(form, "panelStorageBackend", settings.panelStorageBackend || "SQL");
   setFormValue(form, "panelSqlJdbcUrl", settings.panelSqlJdbcUrl || "");
   setFormValue(form, "panelSqlUsername", settings.panelSqlUsername || "");
@@ -1001,6 +1011,21 @@ function renderSettings() {
   form.liteBansBridgeSecret.placeholder = settings.liteBansBridgeSecretConfigured ? "gesetzt, leer lassen = behalten" : "leer = API Token";
   setFormValue(form, "liteBansBridgeConnectTimeoutMillis", settings.liteBansBridgeConnectTimeoutMillis || 2500);
   setFormValue(form, "liteBansBridgeReadTimeoutMillis", settings.liteBansBridgeReadTimeoutMillis || 5000);
+  applyBranding(settings);
+}
+
+function applyBranding(source) {
+  const brandName = source?.brandName || "Network Control";
+  const logoUrl = source?.brandLogoUrl || "";
+  elements.brandName.textContent = brandName;
+  document.title = brandName;
+  if (logoUrl) {
+    elements.brandLogo.src = logoUrl;
+    elements.brandLogo.classList.remove("hidden");
+  } else {
+    elements.brandLogo.removeAttribute("src");
+    elements.brandLogo.classList.add("hidden");
+  }
 }
 
 function setFormValue(form, name, value) {
@@ -1379,6 +1404,8 @@ async function handleSettingsSubmit(event) {
 
   const form = new FormData(elements.settingsForm);
   const payload = {
+    brandName: String(form.get("brandName") || "").trim(),
+    brandLogoUrl: String(form.get("brandLogoUrl") || "").trim(),
     smtpEnabled: Boolean(form.get("smtpEnabled")),
     smtpHost: String(form.get("smtpHost") || "").trim(),
     smtpPort: Number(form.get("smtpPort") || 587),

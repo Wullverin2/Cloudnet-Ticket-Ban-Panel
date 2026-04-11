@@ -14,6 +14,7 @@
   <main class="shell">
     <header class="hero">
       <div class="hero-copy">
+        <img id="brand-logo" class="brand-logo hidden" alt="Panel Logo">
         <p class="eyebrow">CloudNet v4 Panel</p>
         <h1 id="brand-name">Network Control</h1>
         <p class="hero-text">
@@ -678,6 +679,19 @@
 
           <form id="settings-form" class="stack-form">
             <div class="settings-columns">
+              <fieldset>
+                <legend>Panel Auftritt</legend>
+                <label>
+                  <span>Panel Titel</span>
+                  <input name="brandName" type="text" placeholder="Network Control">
+                </label>
+                <label>
+                  <span>Logo URL</span>
+                  <input name="brandLogoUrl" type="url" placeholder="https://example.com/logo.png">
+                </label>
+                <p class="muted">Titel und Logo werden sofort nach dem Speichern im Panel angezeigt. Das Logo sollte per HTTPS erreichbar sein.</p>
+              </fieldset>
+
               <fieldset>
                 <legend>Panel-Speicher</legend>
                 <label>

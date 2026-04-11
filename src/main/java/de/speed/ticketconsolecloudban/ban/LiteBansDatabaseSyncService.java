@@ -125,7 +125,7 @@ public final class LiteBansDatabaseSyncService {
     var serverScope = safeString(resultSet, "server_scope");
     var serverOrigin = safeString(resultSet, "server_origin");
     var publicId = this.bridgeClient.fromDatabaseId(databaseId, playerUuid, serverScope, serverOrigin)
-      .orElse(databaseId);
+      .orElse(null);
     var until = safeLong(resultSet, "until");
     var active = safeBoolean(resultSet, "active", true);
     var targetName = firstNonBlank(safeString(resultSet, "name"), historyNames.get(playerUuid), playerUuid);
@@ -212,7 +212,7 @@ public final class LiteBansDatabaseSyncService {
   }
 
   private static String stripMinecraftColorCodes(String text) {
-    return text == null ? null : text.replaceAll("(?i)§[0-9A-FK-OR]", "").trim();
+    return text == null ? null : text.replaceAll("(?i)\\u00A7[0-9A-FK-OR]", "").trim();
   }
 
   private static String firstNonBlank(String... values) {

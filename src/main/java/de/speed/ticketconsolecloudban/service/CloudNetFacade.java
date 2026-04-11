@@ -99,7 +99,8 @@ public final class CloudNetFacade {
 
   public MetaView meta() {
     return new MetaView(
-      this.configuration.brandName(),
+      this.brandName(),
+      this.brandLogoUrl(),
       ENVIRONMENT_CHOICES,
       List.of("jvm"),
       List.of("OPEN", "IN_PROGRESS", "CLOSED"),
@@ -130,7 +131,7 @@ public final class CloudNetFacade {
       .count();
 
     return new OverviewView(
-      this.configuration.brandName(),
+      this.brandName(),
       tasks.size(),
       services.size(),
       runningServices,
@@ -510,6 +511,8 @@ public final class CloudNetFacade {
 
   private SettingsView settingsView(PanelSettings settings) {
     return new SettingsView(
+      settings.brandName(),
+      settings.brandLogoUrl(),
       this.configuration.panelStorageBackend(),
       this.configuration.panelSqlJdbcUrl(),
       this.configuration.panelSqlUsername(),
@@ -823,8 +826,21 @@ public final class CloudNetFacade {
     return Math.max(min, Math.min(max, value));
   }
 
+  private String brandName() {
+    var settings = this.settingsStore.current();
+    return settings.brandName() == null || settings.brandName().isBlank()
+      ? this.configuration.brandName()
+      : settings.brandName();
+  }
+
+  private String brandLogoUrl() {
+    var settings = this.settingsStore.current();
+    return settings.brandLogoUrl() == null ? "" : settings.brandLogoUrl();
+  }
+
   public record MetaView(
     String brandName,
+    String brandLogoUrl,
     List<String> environments,
     List<String> runtimes,
     List<String> ticketStatuses,
@@ -965,6 +981,8 @@ public final class CloudNetFacade {
   }
 
   public record SettingsView(
+    String brandName,
+    String brandLogoUrl,
     String panelStorageBackend,
     String panelSqlJdbcUrl,
     String panelSqlUsername,

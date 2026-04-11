@@ -26,6 +26,7 @@ public final class PanelSettingsStore {
       this.storagePath,
       PanelSettings.class,
       PanelSettings.fromConfiguration(baseConfiguration));
+    this.settings = this.withDefaults(this.settings);
     this.save();
   }
 
@@ -36,6 +37,8 @@ public final class PanelSettingsStore {
   public synchronized PanelSettings update(Document request) {
     var existing = this.settings;
     this.settings = new PanelSettings(
+      textOrDefaultWhenBlank(request, "brandName", existing.brandName()),
+      text(request, "brandLogoUrl", existing.brandLogoUrl()),
       bool(request, "smtpEnabled", existing.smtpEnabled()),
       text(request, "smtpHost", existing.smtpHost()),
       integer(request, "smtpPort", existing.smtpPort(), 1, 65535),
@@ -70,6 +73,35 @@ public final class PanelSettingsStore {
     this.backend.save("panel-settings", this.storagePath, this.settings);
   }
 
+  private PanelSettings withDefaults(PanelSettings source) {
+    var defaults = PanelSettings.fromConfiguration(this.baseConfiguration);
+    return new PanelSettings(
+      defaultIfBlank(source.brandName(), defaults.brandName()),
+      source.brandLogoUrl() == null ? "" : source.brandLogoUrl(),
+      source.smtpEnabled(),
+      defaultIfBlank(source.smtpHost(), defaults.smtpHost()),
+      source.smtpPort() <= 0 ? defaults.smtpPort() : source.smtpPort(),
+      source.smtpUsername() == null ? "" : source.smtpUsername(),
+      source.smtpPassword() == null ? "" : source.smtpPassword(),
+      defaultIfBlank(source.smtpFrom(), defaults.smtpFrom()),
+      source.smtpStartTls(),
+      source.smtpSsl(),
+      source.liteBansDatabaseEnabled(),
+      defaultIfBlank(source.liteBansJdbcUrl(), defaults.liteBansJdbcUrl()),
+      source.liteBansDatabaseUsername() == null ? "" : source.liteBansDatabaseUsername(),
+      source.liteBansDatabasePassword() == null ? "" : source.liteBansDatabasePassword(),
+      defaultIfBlank(source.liteBansTablePrefix(), defaults.liteBansTablePrefix()),
+      source.liteBansDatabaseMaxRows() <= 0 ? defaults.liteBansDatabaseMaxRows() : source.liteBansDatabaseMaxRows(),
+      defaultIfBlank(source.liteBansBridgeBaseUrl(), defaults.liteBansBridgeBaseUrl()),
+      source.liteBansBridgeSecret() == null ? "" : source.liteBansBridgeSecret(),
+      source.liteBansBridgeConnectTimeoutMillis() <= 0 ? defaults.liteBansBridgeConnectTimeoutMillis() : source.liteBansBridgeConnectTimeoutMillis(),
+      source.liteBansBridgeReadTimeoutMillis() <= 0 ? defaults.liteBansBridgeReadTimeoutMillis() : source.liteBansBridgeReadTimeoutMillis());
+  }
+
+  private static String defaultIfBlank(String value, String fallback) {
+    return value == null || value.isBlank() ? fallback : value;
+  }
+
   private static boolean bool(Document request, String key, boolean fallback) {
     return request.contains(key) ? request.getBoolean(key) : fallback;
   }
@@ -87,6 +119,11 @@ public final class PanelSettingsStore {
     }
     var value = request.getString(key);
     return value == null ? "" : value.trim();
+  }
+
+  private static String textOrDefaultWhenBlank(Document request, String key, String fallback) {
+    var value = text(request, key, fallback);
+    return value == null || value.isBlank() ? fallback : value;
   }
 
   private static String password(Document request, String key, String fallback) {

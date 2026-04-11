@@ -3,6 +3,8 @@ package de.speed.ticketconsolecloudban.settings;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 
 public record PanelSettings(
+  String brandName,
+  String brandLogoUrl,
   boolean smtpEnabled,
   String smtpHost,
   int smtpPort,
@@ -25,6 +27,8 @@ public record PanelSettings(
 
   public static PanelSettings fromConfiguration(PanelConfiguration configuration) {
     return new PanelSettings(
+      configuration.brandName(),
+      configuration.brandLogoUrl(),
       configuration.smtpEnabled(),
       configuration.smtpHost(),
       configuration.smtpPort(),
