@@ -16,9 +16,20 @@ public final class PanelDataBackendFactory {
       try {
         return new SqlPanelDataBackend(configuration);
       } catch (RuntimeException exception) {
-        LOGGER.warn("SQL Panel-Speicher ist nicht verfuegbar, nutze lokalen JSON-Speicher als Fallback: {}", exception.getMessage());
+        LOGGER.warn(
+          "SQL Panel-Speicher ist nicht verfuegbar, nutze lokalen JSON-Speicher als Fallback: {}",
+          rootCauseMessage(exception),
+          exception);
       }
     }
     return new LocalPanelDataBackend();
+  }
+
+  private static String rootCauseMessage(Throwable throwable) {
+    var current = throwable;
+    while (current.getCause() != null) {
+      current = current.getCause();
+    }
+    return current.getClass().getSimpleName() + ": " + current.getMessage();
   }
 }

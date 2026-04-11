@@ -70,7 +70,16 @@ public final class SqlPanelDataBackend implements PanelDataBackend {
           + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
       }
     } catch (Exception exception) {
-      throw new IllegalStateException("SQL Panel-Speicher konnte nicht initialisiert werden.", exception);
+      throw new IllegalStateException(
+        "SQL Panel-Speicher konnte nicht initialisiert werden fuer "
+          + this.redactedJdbcUrl()
+          + ", user="
+          + this.configuration.panelSqlUsername()
+          + ", table="
+          + this.tableName
+          + ": "
+          + rootCauseMessage(exception),
+        exception);
     }
   }
 
@@ -99,6 +108,20 @@ public final class SqlPanelDataBackend implements PanelDataBackend {
       this.configuration.panelSqlJdbcUrl(),
       this.configuration.panelSqlUsername(),
       this.configuration.panelSqlPassword());
+  }
+
+  private String redactedJdbcUrl() {
+    return this.configuration.panelSqlJdbcUrl()
+      .replaceAll("(?i)(password=)[^&;]+", "$1***")
+      .replaceAll("(?i)(user=)[^&;]+", "$1***");
+  }
+
+  private static String rootCauseMessage(Throwable throwable) {
+    var current = throwable;
+    while (current.getCause() != null) {
+      current = current.getCause();
+    }
+    return current.getClass().getSimpleName() + ": " + current.getMessage();
   }
 
   private static String sanitizeTableName(String value) {

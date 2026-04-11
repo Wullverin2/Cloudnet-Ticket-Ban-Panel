@@ -197,6 +197,17 @@ Migration von lokalem Speicher nach MySQL:
 
 Wenn die SQL-Verbindung fehlschlaegt, nutzt das Modul als Sicherheitsfallback weiter lokalen JSON-Speicher und schreibt eine Warnung ins Log. Fuer produktiven Betrieb solltest du nach dem Start pruefen, dass keine Fallback-Warnung geloggt wurde.
 
+Wenn im CloudNet-Log `SQL Panel-Speicher ist nicht verfuegbar, nutze lokalen JSON-Speicher als Fallback` steht, ist das Panel nicht in MySQL, sondern wieder in JSON gestartet. Pruefe dann:
+
+- Kopiere wirklich `target/TicketConsoleCloudBan.jar` in CloudNet, nicht `target/original-TicketConsoleCloudBan.jar`. Nur das normale `TicketConsoleCloudBan.jar` enthaelt den MySQL-Treiber.
+- Die Datenbank aus `panelSqlJdbcUrl` muss existieren, z.B. `tccb_panel`.
+- `panelSqlUsername` und `panelSqlPassword` muessen fuer genau diesen Host erlaubt sein. Bei mehreren Rootservern ist `'tccb_panel'@'%'` oder die konkrete Rootserver-IP noetig, nicht nur `'tccb_panel'@'localhost'`.
+- MySQL muss von der CloudNet-Node erreichbar sein. Firewall, Docker/Rootserver-Bind-IP und MySQL `bind-address` pruefen.
+- Bei MySQL 8/9 sollte die JDBC-URL `allowPublicKeyRetrieval=true` enthalten, wenn kein SSL genutzt wird.
+- Nach Aenderungen Modul/Node neu starten, weil die Panel-Speicherart nur beim Modulstart geladen wird.
+
+Ab neueren Builds schreibt das Modul die echte Ursache mit Stacktrace ins CloudNet-Log, z.B. `Access denied`, `Unknown database`, `Communications link failure` oder `ClassNotFoundException`.
+
 Mailserver- und LiteBans-Datenbankwerte koennen im Webpanel unter `Einstellungen` geaendert werden. Dort gibt es auch eine Testmail-Funktion. Die Panel-Speicherart selbst wird beim Modulstart geladen und bleibt deshalb in der Modul-Konfiguration.
 
 Panel-Titel, Logo-URL und die Statustexte fuer Entbannungsantraege koennen ebenfalls im Einstellungstab geaendert werden. Das Logo wird als externe URL hinterlegt und direkt im Panel, auf der Entbannungsseite und in HTML-Mails verwendet.
