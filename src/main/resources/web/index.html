@@ -71,6 +71,7 @@
     </header>
 
     <nav id="page-nav" class="page-nav hidden" aria-label="Panel Bereiche">
+      <button data-page-target="home" type="button">Startseite</button>
       <button data-page-target="cloudnet" data-permission="cloudnet.view" type="button">CloudNet</button>
       <button data-page-target="tickets" data-permission="tickets.view" type="button">Tickets</button>
       <button data-page-target="bans" data-permission="bans.view" type="button">Bans</button>
@@ -96,6 +97,64 @@
         <span class="metric-label">Nodes online</span>
         <strong id="metric-nodes">-</strong>
       </article>
+    </section>
+
+    <section id="page-home" class="page-panel hidden" data-page="home">
+      <div class="panel-grid">
+        <article id="home-panel" class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Teamzentrale</p>
+              <h2>Startseite</h2>
+            </div>
+            <button id="home-refresh" class="ghost-button" type="button">Aktualisieren</button>
+          </div>
+
+          <div class="team-start-grid">
+            <article class="team-start-card">
+              <span class="metric-label">Willkommen</span>
+              <strong>Panel</strong>
+              <p class="muted">Deine zentrale Startseite fuer Tickets, Bans, CloudNet und Rechte. Sichtbar sind nur die Bereiche, fuer die dein Panel-Account Rechte hat.</p>
+            </article>
+            <article class="team-start-card" data-permission="tickets.view">
+              <span class="metric-label">Offene Tickets</span>
+              <strong id="home-open-tickets">-</strong>
+              <p class="muted">Aktive Anliegen, die noch bearbeitet werden muessen.</p>
+              <button data-home-page="tickets" type="button">Tickets oeffnen</button>
+            </article>
+            <article class="team-start-card" data-permission="tickets.view">
+              <span class="metric-label">Ticket Archiv</span>
+              <strong id="home-closed-tickets">-</strong>
+              <p class="muted">Geschlossene Tickets fuer Nachverfolgung und Teamuebersicht.</p>
+              <button data-home-page="tickets" data-ticket-tab-target="archive" type="button">Archiv ansehen</button>
+            </article>
+            <article class="team-start-card" data-permission="bans.view">
+              <span class="metric-label">Entbannungsantraege</span>
+              <strong id="home-open-appeals">-</strong>
+              <p class="muted">Neue oder laufende Antraege, die eine Entscheidung brauchen.</p>
+              <button data-home-page="bans" data-ban-tab-target="appeals" type="button">Antraege oeffnen</button>
+            </article>
+            <article class="team-start-card" data-permission="bans.view">
+              <span class="metric-label">Aktive LiteBans</span>
+              <strong id="home-active-litebans">-</strong>
+              <p class="muted">Aktive LiteBans-Eintraege mit Random-ID aus der Bridge.</p>
+              <button data-home-page="bans" data-ban-tab-target="litebans" type="button">LiteBans ansehen</button>
+            </article>
+            <article class="team-start-card" data-permission="cloudnet.view">
+              <span class="metric-label">Laufende Services</span>
+              <strong id="home-running-services">-</strong>
+              <p class="muted">CloudNet-Services, die gerade im Netzwerk laufen.</p>
+              <button data-home-page="cloudnet" type="button">CloudNet oeffnen</button>
+            </article>
+            <article class="team-start-card" data-permission="bans.view">
+              <span class="metric-label">Ban Archiv</span>
+              <strong id="home-archived-appeals">-</strong>
+              <p class="muted">Angenommene, abgelehnte und geschlossene Entbannungsantraege.</p>
+              <button data-home-page="bans" data-ban-tab-target="appeal-archive" type="button">Archiv ansehen</button>
+            </article>
+          </div>
+        </article>
+      </div>
     </section>
 
     <section id="page-cloudnet" class="page-panel hidden" data-page="cloudnet" data-permission="cloudnet.view">
@@ -459,7 +518,6 @@
                   <th>Random-ID</th>
                   <th>Ziel</th>
                   <th>Status</th>
-                  <th>Bandauer</th>
                   <th>Zeitraum</th>
                   <th>Grund</th>
                   <th>Aktionen</th>

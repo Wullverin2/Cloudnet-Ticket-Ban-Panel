@@ -201,6 +201,38 @@ button {
   margin-bottom: 22px;
 }
 
+.team-start-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+}
+
+.team-start-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(244, 188, 70, 0.18);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
+    rgba(6, 12, 18, 0.58);
+}
+
+.team-start-card strong {
+  font-size: 2.3rem;
+}
+
+.team-start-card p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.team-start-card button {
+  justify-self: start;
+}
+
 .metric-card {
   border-radius: 20px;
   padding: 20px;
@@ -555,22 +587,24 @@ button:hover {
 
 .checkbox-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 12px;
 }
 
 .checkbox-grid.compact {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
 }
 
 .check-card {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  min-width: 0;
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
   background: rgba(6, 12, 18, 0.58);
+  overflow: hidden;
 }
 
 .check-card input {
@@ -583,15 +617,25 @@ button:hover {
 .check-card span {
   display: grid;
   gap: 4px;
+  min-width: 0;
 }
 
+.check-card strong,
 .check-card small {
   color: var(--muted);
   line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.check-card strong {
+  color: var(--text);
 }
 
 .table-shell {
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: visible;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(6, 12, 18, 0.72);
@@ -603,14 +647,19 @@ button:hover {
 
 table {
   width: 100%;
+  min-width: 0;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 th,
 td {
   text-align: left;
   padding: 14px 16px;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  vertical-align: top;
 }
 
 thead {
@@ -630,11 +679,11 @@ tbody button {
 }
 
 .liteban-table {
-  min-width: 1120px;
+  min-width: 0;
 }
 
 .actions-cell {
-  min-width: 190px;
+  min-width: 0;
 }
 
 .action-buttons {

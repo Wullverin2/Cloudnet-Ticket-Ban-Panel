@@ -37,7 +37,7 @@ const state = {
   selectedPermissionServer: localStorage.getItem("tccb-lp-server") || "proxy",
   selectedPermissionSubject: localStorage.getItem("tccb-lp-subject") || "",
   selectedService: null,
-  activePage: localStorage.getItem("tccb-page") || "cloudnet",
+  activePage: localStorage.getItem("tccb-page") || "home",
   consoleTimer: null,
   consoleRequestInFlight: false,
   lastConsoleText: "",
@@ -77,6 +77,14 @@ function bindElements() {
   elements.metricServices = document.getElementById("metric-services");
   elements.metricRunning = document.getElementById("metric-running");
   elements.metricNodes = document.getElementById("metric-nodes");
+  elements.homePanel = document.getElementById("home-panel");
+  elements.homeRefresh = document.getElementById("home-refresh");
+  elements.homeOpenTickets = document.getElementById("home-open-tickets");
+  elements.homeClosedTickets = document.getElementById("home-closed-tickets");
+  elements.homeOpenAppeals = document.getElementById("home-open-appeals");
+  elements.homeArchivedAppeals = document.getElementById("home-archived-appeals");
+  elements.homeActiveLiteBans = document.getElementById("home-active-litebans");
+  elements.homeRunningServices = document.getElementById("home-running-services");
 
   elements.environmentSelect = document.getElementById("environment-select");
   elements.runtimeSelect = document.getElementById("runtime-select");
@@ -155,6 +163,8 @@ function bindEvents() {
   elements.profileForm.addEventListener("submit", handleProfileSubmit);
   elements.passwordForm.addEventListener("submit", handlePasswordSubmit);
   elements.pageNav.addEventListener("click", handlePageNavClick);
+  elements.homePanel.addEventListener("click", handleHomePanelClick);
+  elements.homeRefresh.addEventListener("click", refreshAll);
 
   elements.taskForm.addEventListener("submit", handleTaskSubmit);
   elements.taskReset.addEventListener("click", resetTaskForm);
@@ -466,13 +476,13 @@ function switchPage(page) {
 
 function firstAllowedPage() {
   const button = [...elements.pageNav.querySelectorAll("button[data-page-target]")]
-    .find(entry => hasPermission(entry.dataset.permission));
+    .find(entry => !entry.dataset.permission || hasPermission(entry.dataset.permission));
   return button?.dataset.pageTarget || null;
 }
 
 function allowedPage(page) {
   const button = elements.pageNav.querySelector(`button[data-page-target="${cssEscape(page)}"]`);
-  return Boolean(button && hasPermission(button.dataset.permission));
+  return Boolean(button && (!button.dataset.permission || hasPermission(button.dataset.permission)));
 }
 
 async function refreshAll() {
@@ -571,8 +581,40 @@ async function refreshAll() {
     await loadConsole();
   }
 
+  renderHome();
   applyPermissions();
   switchPage(state.activePage);
+}
+
+function renderHome() {
+  setHomeMetric(
+    elements.homeOpenTickets,
+    hasPermission(PERMISSIONS.TICKETS_VIEW),
+    state.tickets.filter(ticket => !isClosedTicket(ticket)).length);
+  setHomeMetric(
+    elements.homeClosedTickets,
+    hasPermission(PERMISSIONS.TICKETS_VIEW),
+    state.tickets.filter(isClosedTicket).length);
+  setHomeMetric(
+    elements.homeOpenAppeals,
+    hasPermission(PERMISSIONS.BANS_VIEW),
+    state.banAppeals.filter(appeal => !isArchivedAppeal(appeal)).length);
+  setHomeMetric(
+    elements.homeArchivedAppeals,
+    hasPermission(PERMISSIONS.BANS_VIEW),
+    state.banAppeals.filter(isArchivedAppeal).length);
+  setHomeMetric(
+    elements.homeActiveLiteBans,
+    hasPermission(PERMISSIONS.BANS_VIEW),
+    state.liteBans.filter(ban => ban.active).length);
+  setHomeMetric(
+    elements.homeRunningServices,
+    hasPermission(PERMISSIONS.CLOUDNET_VIEW),
+    state.overview?.runningServiceCount ?? 0);
+}
+
+function setHomeMetric(element, allowed, value) {
+  element.textContent = allowed ? String(value) : "-";
 }
 
 function renderOverview() {
@@ -779,7 +821,7 @@ function banActions(ban) {
 
 function renderLiteBans() {
   if (!state.liteBans.length) {
-    elements.liteBanTable.innerHTML = `<tr><td colspan="7" class="muted">Noch keine LiteBans synchronisiert.</td></tr>`;
+    elements.liteBanTable.innerHTML = `<tr><td colspan="6" class="muted">Noch keine LiteBans synchronisiert.</td></tr>`;
     return;
   }
 
@@ -795,7 +837,6 @@ function renderLiteBans() {
           ${ban.active ? "aktiv" : "inaktiv"}
         </span>
       </td>
-      <td>${escapeHtml(banDurationText(ban))}</td>
       <td>
         <span>${escapeHtml(formatDateTime(ban.createdAt))}</span><br>
         <span class="muted">bis ${escapeHtml(formatDateTime(ban.expiresAt) || "Permanent")}</span>
@@ -1805,6 +1846,21 @@ function switchTicketTab(tab) {
   });
 }
 
+function handleHomePanelClick(event) {
+  const button = event.target.closest("button[data-home-page]");
+  if (!button) {
+    return;
+  }
+
+  switchPage(button.dataset.homePage);
+  if (button.dataset.ticketTabTarget) {
+    switchTicketTab(button.dataset.ticketTabTarget);
+  }
+  if (button.dataset.banTabTarget) {
+    switchBanTab(button.dataset.banTabTarget);
+  }
+}
+
 async function handleBanTableClick(event) {
   const button = event.target.closest("button[data-ban-action]");
   if (!button || !hasPermission(PERMISSIONS.BANS_MANAGE)) {
@@ -2257,42 +2313,6 @@ function isResolvedPublicBanId(publicId, internalId) {
     return false;
   }
   return !/^\d+$/.test(value);
-}
-
-function banDurationText(ban) {
-  if (!ban?.expiresAt) {
-    return "Permanent";
-  }
-
-  const start = Date.parse(ban.createdAt || "");
-  const end = Date.parse(ban.expiresAt || "");
-  if (Number.isNaN(start) || Number.isNaN(end)) {
-    return `bis ${formatDateTime(ban.expiresAt) || ban.expiresAt}`;
-  }
-
-  const millis = end - start;
-  if (millis <= 0) {
-    return "abgelaufen";
-  }
-  return humanDuration(millis);
-}
-
-function humanDuration(millis) {
-  const totalMinutes = Math.max(1, Math.round(millis / 60000));
-  const days = Math.floor(totalMinutes / 1440);
-  const hours = Math.floor((totalMinutes % 1440) / 60);
-  const minutes = totalMinutes % 60;
-  const parts = [];
-  if (days) {
-    parts.push(`${days}d`);
-  }
-  if (hours) {
-    parts.push(`${hours}h`);
-  }
-  if (!days && minutes) {
-    parts.push(`${minutes}m`);
-  }
-  return parts.join(" ") || "unter 1m";
 }
 
 function formatDateTime(value) {
