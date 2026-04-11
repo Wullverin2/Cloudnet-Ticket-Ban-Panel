@@ -432,10 +432,12 @@ public final class CloudNetFacade {
   }
 
   public BanAppealEntry updateBanAppealStatus(String appealId, Document request) {
-    return this.banAppealStore.updateStatus(
+    var updated = this.banAppealStore.updateStatus(
       appealId,
       this.requiredText(request, "status"),
       this.nullableText(request.getString("teamNote")));
+    this.sendBanAppealStatusMail(updated);
+    return updated;
   }
 
   public List<PermissionSubject> listPermissionSubjects() {
@@ -493,19 +495,15 @@ public final class CloudNetFacade {
     }
     mailService.sendHtml(
       recipient,
-      "Network Control Testmail",
-      "Das ist eine Testmail aus dem Network Control Panel.",
-      """
-        <html>
-          <body style="margin:0;background:#07131d;color:#f5f0e7;font-family:Segoe UI,Arial,sans-serif;padding:28px;">
-            <div style="max-width:620px;margin:auto;background:#0f1e2b;border:1px solid rgba(244,188,70,.35);border-radius:22px;padding:28px;">
-              <p style="margin:0 0 10px;color:#f4bc46;letter-spacing:.18em;text-transform:uppercase;font-size:12px;">Network Control</p>
-              <h1 style="margin:0 0 14px;font-size:28px;">Testmail erfolgreich</h1>
-              <p style="margin:0;color:#d7e2ea;">Deine SMTP-Einstellungen funktionieren. Diese Mail wurde direkt aus dem Einstellungstab gesendet.</p>
-            </div>
-          </body>
-        </html>
-        """);
+      this.brandName() + " Testmail",
+      "Deine SMTP-Einstellungen funktionieren. Diese Mail wurde direkt aus dem Einstellungstab gesendet.",
+      this.craftplayMailHtml(
+        "Network Control",
+        "Testmail erfolgreich",
+        "<p style=\"margin:0;color:#d7e2ea;line-height:1.55;\">Deine SMTP-Einstellungen funktionieren. Diese Mail wurde direkt aus dem Einstellungstab gesendet.</p>",
+        null,
+        null,
+        "Craftplay Panel"));
     return new TestMailView("Testmail wurde versendet.", recipient);
   }
 
@@ -513,6 +511,11 @@ public final class CloudNetFacade {
     return new SettingsView(
       settings.brandName(),
       settings.brandLogoUrl(),
+      settings.appealStatusOpenText(),
+      settings.appealStatusInReviewText(),
+      settings.appealStatusAcceptedText(),
+      settings.appealStatusRejectedText(),
+      settings.appealStatusClosedText(),
       this.configuration.panelStorageBackend(),
       this.configuration.panelSqlJdbcUrl(),
       this.configuration.panelSqlUsername(),
@@ -536,6 +539,104 @@ public final class CloudNetFacade {
       settings.liteBansBridgeSecret() != null && !settings.liteBansBridgeSecret().isBlank(),
       settings.liteBansBridgeConnectTimeoutMillis(),
       settings.liteBansBridgeReadTimeoutMillis());
+  }
+
+  private void sendBanAppealStatusMail(BanAppealEntry appeal) {
+    if (appeal == null || appeal.email() == null || appeal.email().isBlank()) {
+      return;
+    }
+
+    var mailService = new SmtpMailService(this.configuration, this.settingsStore);
+    if (!mailService.enabled()) {
+      return;
+    }
+
+    var statusUrl = this.configuration.appealPublicBaseUrl() + "/status?token=" + appeal.statusToken();
+    var statusText = this.settingsStore.current().appealStatusText(appeal.status());
+    var text = "Hallo " + appeal.playerName() + ",\r\n\r\n"
+      + "der Status deines Entbannungsantrags fuer Ban-ID " + appeal.publicBanId() + " wurde aktualisiert.\r\n"
+      + "Status: " + appeal.status() + "\r\n"
+      + statusText + "\r\n"
+      + "Statusseite: " + statusUrl + "\r\n";
+    if (appeal.teamNote() != null && !appeal.teamNote().isBlank()) {
+      text += "\r\nTeam-Notiz: " + appeal.teamNote() + "\r\n";
+    }
+
+    var body = "<p style=\"margin:0 0 14px;color:#d7e2ea;\">Hallo <strong>"
+      + escapeHtml(appeal.playerName())
+      + "</strong>, der Status deines Entbannungsantrags wurde aktualisiert.</p>"
+      + "<div style=\"margin:18px 0;padding:16px;border-radius:18px;background:rgba(255,255,255,.045);border:1px solid rgba(244,188,70,.2);\">"
+      + "<p style=\"margin:0 0 8px;color:#f4bc46;font-weight:800;letter-spacing:.08em;text-transform:uppercase;\">"
+      + escapeHtml(appeal.status())
+      + "</p><p style=\"margin:0;color:#d7e2ea;line-height:1.55;\">"
+      + escapeHtml(statusText)
+      + "</p></div>"
+      + "<p style=\"margin:0 0 14px;color:#9eb0bc;\">Random Ban-ID: <strong style=\"color:#f5f0e7;\">"
+      + escapeHtml(appeal.publicBanId())
+      + "</strong></p>";
+    if (appeal.teamNote() != null && !appeal.teamNote().isBlank()) {
+      body += "<p style=\"margin:0 0 14px;color:#d7e2ea;\">Team-Notiz: "
+        + escapeHtml(appeal.teamNote())
+        + "</p>";
+    }
+
+    mailService.sendHtml(
+      appeal.email(),
+      "Entbannungsantrag aktualisiert: " + appeal.status(),
+      text,
+      this.craftplayMailHtml(
+        "Entbannungsantrag",
+        "Status aktualisiert",
+        body,
+        statusUrl,
+        "Status ansehen",
+        "Craftplay Support"));
+  }
+
+  private String craftplayMailHtml(String eyebrow, String title, String bodyHtml, String buttonUrl, String buttonLabel, String footer) {
+    var logo = this.brandLogoUrl();
+    var logoHtml = logo == null || logo.isBlank()
+      ? ""
+      : "<img src=\"" + escapeHtml(logo) + "\" alt=\"\" style=\"width:46px;height:46px;object-fit:contain;border-radius:12px;margin-right:12px;vertical-align:middle;\">";
+    var buttonHtml = buttonUrl == null || buttonUrl.isBlank()
+      ? ""
+      : "<p style=\"margin:24px 0 0;\"><a href=\"" + escapeHtml(buttonUrl) + "\" style=\"display:inline-block;background:linear-gradient(135deg,#f4bc46,#ff9f43);color:#1d1406;text-decoration:none;font-weight:800;padding:13px 18px;border-radius:14px;\">"
+        + escapeHtml(buttonLabel == null || buttonLabel.isBlank() ? "Oeffnen" : buttonLabel)
+        + "</a></p>";
+    return """
+      <html>
+        <body style="margin:0;background:#07131d;color:#f5f0e7;font-family:Segoe UI,Arial,sans-serif;">
+          <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#07131d;padding:30px;background-image:radial-gradient(circle at top left,rgba(244,188,70,.18),transparent 34%%),linear-gradient(180deg,#07131d,#081019);">
+            <tr>
+              <td align="center">
+                <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;background:#0f1e2b;border:1px solid rgba(244,188,70,.35);border-radius:24px;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.35);">
+                  <tr>
+                    <td style="height:5px;background:linear-gradient(90deg,#f4bc46,#ff9f43,#46c4a6);"></td>
+                  </tr>
+                  <tr>
+                    <td style="padding:30px;">
+                      <div style="margin:0 0 18px;">%s<span style="font-size:19px;font-weight:900;vertical-align:middle;">%s</span></div>
+                      <p style="margin:0 0 10px;color:#f4bc46;letter-spacing:.18em;text-transform:uppercase;font-size:12px;font-weight:800;">%s</p>
+                      <h1 style="margin:0 0 16px;font-size:30px;line-height:1.05;color:#f5f0e7;">%s</h1>
+                      %s
+                      %s
+                      <p style="margin:26px 0 0;color:#9eb0bc;font-size:13px;">%s</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>
+      """.formatted(
+        logoHtml,
+        escapeHtml(this.brandName()),
+        escapeHtml(eyebrow),
+        escapeHtml(title),
+        bodyHtml,
+        buttonHtml,
+        escapeHtml(footer));
   }
 
   private TaskView taskView(ServiceTask task) {
@@ -838,6 +939,15 @@ public final class CloudNetFacade {
     return settings.brandLogoUrl() == null ? "" : settings.brandLogoUrl();
   }
 
+  private static String escapeHtml(String value) {
+    return String.valueOf(value)
+      .replace("&", "&amp;")
+      .replace("<", "&lt;")
+      .replace(">", "&gt;")
+      .replace("\"", "&quot;")
+      .replace("'", "&#39;");
+  }
+
   public record MetaView(
     String brandName,
     String brandLogoUrl,
@@ -983,6 +1093,11 @@ public final class CloudNetFacade {
   public record SettingsView(
     String brandName,
     String brandLogoUrl,
+    String appealStatusOpenText,
+    String appealStatusInReviewText,
+    String appealStatusAcceptedText,
+    String appealStatusRejectedText,
+    String appealStatusClosedText,
     String panelStorageBackend,
     String panelSqlJdbcUrl,
     String panelSqlUsername,

@@ -103,7 +103,7 @@ final class LiteBansRandomIdResolver {
       try {
         method.setAccessible(true);
         var result = invokeNumericMethod(method, target, databaseId);
-        if (result instanceof String value && !value.isBlank()) {
+        if (result instanceof String value && isResolvedRandomId(value, databaseId)) {
           return Optional.of(value);
         }
       } catch (Throwable throwable) {
@@ -171,7 +171,7 @@ final class LiteBansRandomIdResolver {
       }
 
       if ("getban".equals(methodName) && method.getParameterCount() == 3) {
-        var result = this.tryGetBanWithUuid(apiObject, method, playerUuid, serverScope, serverOrigin);
+        var result = this.tryGetBanWithUuid(apiObject, method, databaseId, playerUuid, serverScope, serverOrigin);
         if (result.isPresent()) {
           return result;
         }
@@ -192,7 +192,7 @@ final class LiteBansRandomIdResolver {
         ? (int) databaseId
         : databaseId;
       var entry = method.invoke(apiObject, firstArg, serverScope);
-      return this.extractRandomIdFromObject(entry);
+      return this.extractRandomIdFromObject(entry, databaseId);
     } catch (Throwable throwable) {
       this.logger.debug("LiteBans getBan(DB-ID, Scope) konnte nicht verwendet werden: {}", throwable.toString());
       return Optional.empty();
@@ -201,6 +201,7 @@ final class LiteBansRandomIdResolver {
 
   private Optional<String> tryGetBanWithUuid(Object apiObject,
                                              Method method,
+                                             long databaseId,
                                              String playerUuid,
                                              String serverScope,
                                              String serverOrigin) {
@@ -219,7 +220,7 @@ final class LiteBansRandomIdResolver {
         try {
           method.setAccessible(true);
           var entry = method.invoke(apiObject, uuid, first, second);
-          var extracted = this.extractRandomIdFromObject(entry);
+          var extracted = this.extractRandomIdFromObject(entry, databaseId);
           if (extracted.isPresent()) {
             return extracted;
           }
@@ -241,7 +242,7 @@ final class LiteBansRandomIdResolver {
     return candidates;
   }
 
-  private Optional<String> extractRandomIdFromObject(Object object) {
+  private Optional<String> extractRandomIdFromObject(Object object, long databaseId) {
     if (object == null) {
       return Optional.empty();
     }
@@ -255,7 +256,7 @@ final class LiteBansRandomIdResolver {
       try {
         method.setAccessible(true);
         var result = method.invoke(object);
-        var extracted = this.extractStringOrNested(result);
+        var extracted = this.extractStringOrNested(result, databaseId);
         if (extracted.isPresent()) {
           return extracted;
         }
@@ -273,7 +274,7 @@ final class LiteBansRandomIdResolver {
       try {
         field.setAccessible(true);
         var result = field.get(object);
-        var extracted = this.extractStringOrNested(result);
+        var extracted = this.extractStringOrNested(result, databaseId);
         if (extracted.isPresent()) {
           return extracted;
         }
@@ -286,8 +287,8 @@ final class LiteBansRandomIdResolver {
     return Optional.empty();
   }
 
-  private Optional<String> extractStringOrNested(Object result) {
-    if (result instanceof String value && !value.isBlank()) {
+  private Optional<String> extractStringOrNested(Object result, long databaseId) {
+    if (result instanceof String value && isResolvedRandomId(value, databaseId)) {
       return Optional.of(value);
     }
 
@@ -295,7 +296,7 @@ final class LiteBansRandomIdResolver {
       && !(result instanceof Number)
       && !(result instanceof Boolean)
       && !result.getClass().getName().startsWith("java.")) {
-      return this.extractRandomIdFromObject(result);
+      return this.extractRandomIdFromObject(result, databaseId);
     }
 
     return Optional.empty();
@@ -342,6 +343,14 @@ final class LiteBansRandomIdResolver {
       || type.equals(Long.class)
       || type.equals(int.class)
       || type.equals(Integer.class);
+  }
+
+  private static boolean isResolvedRandomId(String value, long databaseId) {
+    if (value == null || value.isBlank()) {
+      return false;
+    }
+    var trimmed = value.trim();
+    return !trimmed.equalsIgnoreCase(String.valueOf(databaseId)) && !trimmed.matches("\\d+");
   }
 
   private static UUID parseUuid(String raw) {

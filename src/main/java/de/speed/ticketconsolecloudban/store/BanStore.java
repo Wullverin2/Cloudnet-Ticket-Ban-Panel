@@ -46,7 +46,8 @@ public final class BanStore {
     var normalizedName = normalize(targetName);
     return this.liteBans.stream()
       .filter(LiteBanEntry::active)
-      .filter(entry -> normalize(blankDefault(entry.publicId(), entry.id())).equals(normalizedId))
+      .filter(entry -> isResolvedPublicId(entry.publicId(), entry.id()))
+      .filter(entry -> normalize(entry.publicId()).equals(normalizedId))
       .filter(entry -> normalize(entry.targetName()).equals(normalizedName))
       .findFirst();
   }
@@ -155,14 +156,14 @@ public final class BanStore {
   }
 
   private String effectivePublicId(LiteBanEntry incoming, LiteBanEntry previous) {
-    var incomingPublicId = blankDefault(incoming.publicId(), incoming.id());
+    var incomingPublicId = isResolvedPublicId(incoming.publicId(), incoming.id()) ? incoming.publicId().trim() : null;
     if (previous == null || previous.publicId() == null || previous.publicId().isBlank()) {
       return incomingPublicId;
     }
 
     // MySQL can only provide LiteBans' numeric DB id. If the Velocity bridge is
     // temporarily unavailable, keep the last resolved random punishment id.
-    if (incomingPublicId.equals(incoming.id()) && !previous.publicId().equalsIgnoreCase(previous.id())) {
+    if (incomingPublicId == null && isResolvedPublicId(previous.publicId(), previous.id())) {
       return previous.publicId();
     }
     return incomingPublicId;
@@ -348,5 +349,16 @@ public final class BanStore {
 
   private static String normalize(String value) {
     return value == null ? "" : value.trim().toLowerCase();
+  }
+
+  private static boolean isResolvedPublicId(String publicId, String databaseId) {
+    if (publicId == null || publicId.isBlank()) {
+      return false;
+    }
+    var value = publicId.trim();
+    if (databaseId != null && value.equalsIgnoreCase(databaseId.trim())) {
+      return false;
+    }
+    return !value.matches("\\d+");
   }
 }

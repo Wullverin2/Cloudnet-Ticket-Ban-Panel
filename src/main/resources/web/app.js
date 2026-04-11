@@ -552,6 +552,7 @@ async function refreshAll() {
   if (hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
     state.settings = await api("/api/settings");
     renderSettings();
+    renderBanAppeals();
   }
 
   if (hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)) {
@@ -745,16 +746,13 @@ function banActions(ban) {
 
 function renderLiteBans() {
   if (!state.liteBans.length) {
-    elements.liteBanTable.innerHTML = `<tr><td colspan="6" class="muted">Noch keine LiteBans synchronisiert.</td></tr>`;
+    elements.liteBanTable.innerHTML = `<tr><td colspan="7" class="muted">Noch keine LiteBans synchronisiert.</td></tr>`;
     return;
   }
 
   elements.liteBanTable.innerHTML = state.liteBans.map(ban => `
     <tr>
-      <td>
-        <strong>${escapeHtml(ban.publicId || ban.id)}</strong><br>
-        <span class="muted">intern: ${escapeHtml(ban.id)}</span>
-      </td>
+      <td>${liteBanIdCell(ban)}</td>
       <td>
         <strong>${escapeHtml(ban.targetName || "-")}</strong><br>
         <span class="muted">${escapeHtml(ban.targetUniqueId || ban.targetAddress || "-")}</span>
@@ -764,27 +762,50 @@ function renderLiteBans() {
           ${ban.active ? "aktiv" : "inaktiv"}
         </span>
       </td>
+      <td>${escapeHtml(banDurationText(ban))}</td>
+      <td>
+        <span>${escapeHtml(formatDateTime(ban.createdAt))}</span><br>
+        <span class="muted">bis ${escapeHtml(formatDateTime(ban.expiresAt) || "Permanent")}</span>
+      </td>
       <td>${escapeHtml(ban.reason || "-")}</td>
-      <td>${escapeHtml(ban.expiresAt || "permanent")}</td>
-      <td>${liteBanActions(ban)}</td>
+      <td class="actions-cell">${liteBanActions(ban)}</td>
     </tr>
   `).join("");
 }
 
+function liteBanIdCell(ban) {
+  const publicId = String(ban.publicId || "").trim();
+  const internalId = String(ban.id || "").trim();
+  if (isResolvedPublicBanId(publicId, internalId)) {
+    return `
+      <strong>${escapeHtml(publicId)}</strong><br>
+      <span class="muted">intern: ${escapeHtml(internalId || "-")}</span>
+    `;
+  }
+  return `
+    <strong class="danger-text">Random-ID fehlt</strong><br>
+    <span class="muted">Bridge pruefen, intern: ${escapeHtml(internalId || "-")}</span>
+  `;
+}
+
 function liteBanActions(ban) {
   if (!hasPermission(PERMISSIONS.BANS_MANAGE)) {
-    return `<span class="muted">-</span>`;
+    return `<span class="muted">bans.manage fehlt</span>`;
   }
 
   if (!ban.active) {
     return `
-      <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Neu setzen</button>
+      <div class="action-buttons">
+        <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Neu setzen</button>
+      </div>
     `;
   }
 
   return `
-    <button data-liteban-action="unban" data-ban-id="${escapeAttr(ban.id)}" type="button">Aufheben</button>
-    <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Verlaengern</button>
+    <div class="action-buttons">
+      <button data-liteban-action="unban" data-ban-id="${escapeAttr(ban.id)}" type="button">Aufheben</button>
+      <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Verlaengern</button>
+    </div>
   `;
 }
 
@@ -796,7 +817,10 @@ function renderBanAppeals() {
 
   elements.banAppealTable.innerHTML = state.banAppeals.map(appeal => `
     <tr>
-      <td><span class="badge ${appealStatusClass(appeal.status)}">${escapeHtml(appeal.status || "-")}</span></td>
+      <td>
+        <span class="badge ${appealStatusClass(appeal.status)}">${escapeHtml(appeal.status || "-")}</span><br>
+        <span class="muted">${escapeHtml(appealStatusText(appeal.status))}</span>
+      </td>
       <td>
         <strong>${escapeHtml(appeal.publicBanId || "-")}</strong><br>
         <span class="muted">intern: ${escapeHtml(appeal.liteBanId || "-")}</span>
@@ -813,6 +837,22 @@ function renderBanAppeals() {
 
 function appealStatusClass(status) {
   return status === "ACCEPTED" ? "badge-success" : status === "REJECTED" ? "badge-danger" : "";
+}
+
+function appealStatusText(status) {
+  const settings = state.settings || {};
+  switch (String(status || "").toUpperCase()) {
+    case "IN_REVIEW":
+      return settings.appealStatusInReviewText || "";
+    case "ACCEPTED":
+      return settings.appealStatusAcceptedText || "";
+    case "REJECTED":
+      return settings.appealStatusRejectedText || "";
+    case "CLOSED":
+      return settings.appealStatusClosedText || "";
+    default:
+      return settings.appealStatusOpenText || "";
+  }
 }
 
 function appealEvidence(appeal) {
@@ -986,6 +1026,11 @@ function renderSettings() {
   const form = elements.settingsForm.elements;
   setFormValue(form, "brandName", settings.brandName || state.meta?.brandName || "Network Control");
   setFormValue(form, "brandLogoUrl", settings.brandLogoUrl || "");
+  setFormValue(form, "appealStatusOpenText", settings.appealStatusOpenText || "");
+  setFormValue(form, "appealStatusInReviewText", settings.appealStatusInReviewText || "");
+  setFormValue(form, "appealStatusAcceptedText", settings.appealStatusAcceptedText || "");
+  setFormValue(form, "appealStatusRejectedText", settings.appealStatusRejectedText || "");
+  setFormValue(form, "appealStatusClosedText", settings.appealStatusClosedText || "");
   setFormValue(form, "panelStorageBackend", settings.panelStorageBackend || "SQL");
   setFormValue(form, "panelSqlJdbcUrl", settings.panelSqlJdbcUrl || "");
   setFormValue(form, "panelSqlUsername", settings.panelSqlUsername || "");
@@ -1406,6 +1451,11 @@ async function handleSettingsSubmit(event) {
   const payload = {
     brandName: String(form.get("brandName") || "").trim(),
     brandLogoUrl: String(form.get("brandLogoUrl") || "").trim(),
+    appealStatusOpenText: String(form.get("appealStatusOpenText") || "").trim(),
+    appealStatusInReviewText: String(form.get("appealStatusInReviewText") || "").trim(),
+    appealStatusAcceptedText: String(form.get("appealStatusAcceptedText") || "").trim(),
+    appealStatusRejectedText: String(form.get("appealStatusRejectedText") || "").trim(),
+    appealStatusClosedText: String(form.get("appealStatusClosedText") || "").trim(),
     smtpEnabled: Boolean(form.get("smtpEnabled")),
     smtpHost: String(form.get("smtpHost") || "").trim(),
     smtpPort: Number(form.get("smtpPort") || 587),
@@ -2099,6 +2149,67 @@ function shortId(id) {
 function shortText(value, maxLength) {
   const text = String(value || "-");
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
+}
+
+function isResolvedPublicBanId(publicId, internalId) {
+  const value = String(publicId || "").trim();
+  if (!value) {
+    return false;
+  }
+  if (String(internalId || "").trim().toLowerCase() === value.toLowerCase()) {
+    return false;
+  }
+  return !/^\d+$/.test(value);
+}
+
+function banDurationText(ban) {
+  if (!ban?.expiresAt) {
+    return "Permanent";
+  }
+
+  const start = Date.parse(ban.createdAt || "");
+  const end = Date.parse(ban.expiresAt || "");
+  if (Number.isNaN(start) || Number.isNaN(end)) {
+    return `bis ${formatDateTime(ban.expiresAt) || ban.expiresAt}`;
+  }
+
+  const millis = end - start;
+  if (millis <= 0) {
+    return "abgelaufen";
+  }
+  return humanDuration(millis);
+}
+
+function humanDuration(millis) {
+  const totalMinutes = Math.max(1, Math.round(millis / 60000));
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+  if (days) {
+    parts.push(`${days}d`);
+  }
+  if (hours) {
+    parts.push(`${hours}h`);
+  }
+  if (!days && minutes) {
+    parts.push(`${minutes}m`);
+  }
+  return parts.join(" ") || "unter 1m";
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "";
+  }
+  const time = Date.parse(value);
+  if (Number.isNaN(time)) {
+    return String(value);
+  }
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(time));
 }
 
 function handleApiError(error, statusElement) {

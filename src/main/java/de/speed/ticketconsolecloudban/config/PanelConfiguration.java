@@ -159,7 +159,7 @@ public record PanelConfiguration(
     }
     var normalizedLiteBansMaxRows = this.liteBansDatabaseMaxRows <= 0 ? 1000 : clamp(this.liteBansDatabaseMaxRows, 50, 10_000);
     var normalizedLiteBansBridgeBaseUrl = this.liteBansBridgeBaseUrl == null || this.liteBansBridgeBaseUrl.isBlank()
-      ? ""
+      ? "http://127.0.0.1:9095"
       : this.liteBansBridgeBaseUrl.trim().replaceAll("/+$", "");
     var normalizedLiteBansBridgeConnectTimeout = this.liteBansBridgeConnectTimeoutMillis <= 0
       ? 2500

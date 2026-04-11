@@ -39,6 +39,11 @@ public final class PanelSettingsStore {
     this.settings = new PanelSettings(
       textOrDefaultWhenBlank(request, "brandName", existing.brandName()),
       text(request, "brandLogoUrl", existing.brandLogoUrl()),
+      textOrDefaultWhenBlank(request, "appealStatusOpenText", existing.appealStatusOpenText()),
+      textOrDefaultWhenBlank(request, "appealStatusInReviewText", existing.appealStatusInReviewText()),
+      textOrDefaultWhenBlank(request, "appealStatusAcceptedText", existing.appealStatusAcceptedText()),
+      textOrDefaultWhenBlank(request, "appealStatusRejectedText", existing.appealStatusRejectedText()),
+      textOrDefaultWhenBlank(request, "appealStatusClosedText", existing.appealStatusClosedText()),
       bool(request, "smtpEnabled", existing.smtpEnabled()),
       text(request, "smtpHost", existing.smtpHost()),
       integer(request, "smtpPort", existing.smtpPort(), 1, 65535),
@@ -78,6 +83,11 @@ public final class PanelSettingsStore {
     return new PanelSettings(
       defaultIfBlank(source.brandName(), defaults.brandName()),
       source.brandLogoUrl() == null ? "" : source.brandLogoUrl(),
+      defaultIfBlank(source.appealStatusOpenText(), defaults.appealStatusOpenText()),
+      defaultIfBlank(source.appealStatusInReviewText(), defaults.appealStatusInReviewText()),
+      defaultIfBlank(source.appealStatusAcceptedText(), defaults.appealStatusAcceptedText()),
+      defaultIfBlank(source.appealStatusRejectedText(), defaults.appealStatusRejectedText()),
+      defaultIfBlank(source.appealStatusClosedText(), defaults.appealStatusClosedText()),
       source.smtpEnabled(),
       defaultIfBlank(source.smtpHost(), defaults.smtpHost()),
       source.smtpPort() <= 0 ? defaults.smtpPort() : source.smtpPort(),

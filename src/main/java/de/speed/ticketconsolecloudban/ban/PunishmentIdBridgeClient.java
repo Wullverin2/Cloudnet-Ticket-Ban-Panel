@@ -86,7 +86,11 @@ public final class PunishmentIdBridgeClient {
 
       var matcher = VALUE_PATTERN.matcher(body);
       if (matcher.find()) {
-        var value = matcher.group(1);
+        var value = matcher.group(1).trim();
+        if (!isResolvedPublicId(value, databaseId)) {
+          LOGGER.warn("LiteBans Punishment-ID-Bridge lieferte nur die interne DB-ID {}. Random-ID wird nicht ueberschrieben.", databaseId);
+          return Optional.empty();
+        }
         this.cache.put(cacheKey, value);
         return Optional.of(value);
       }
@@ -106,6 +110,17 @@ public final class PunishmentIdBridgeClient {
 
   private static String nullSafe(String value) {
     return value == null ? "" : value.trim();
+  }
+
+  private static boolean isResolvedPublicId(String value, String databaseId) {
+    if (value == null || value.isBlank()) {
+      return false;
+    }
+    var trimmed = value.trim();
+    if (databaseId != null && trimmed.equalsIgnoreCase(databaseId.trim())) {
+      return false;
+    }
+    return !trimmed.matches("\\d+");
   }
 
   private String bridgeBaseUrl() {

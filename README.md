@@ -163,7 +163,7 @@ Panel-Daten wie Tickets, Entbannungsantraege, Teampanel-Benutzer, Panelgruppen, 
 
 Mailserver- und LiteBans-Datenbankwerte koennen im Webpanel unter `Einstellungen` geaendert werden. Dort gibt es auch eine Testmail-Funktion. Die Panel-Speicherart selbst wird beim Modulstart geladen und bleibt deshalb in der Modul-Konfiguration.
 
-Panel-Titel und Logo-URL koennen ebenfalls im Einstellungstab geaendert werden. Das Logo wird als externe URL hinterlegt und direkt im Panel angezeigt.
+Panel-Titel, Logo-URL und die Statustexte fuer Entbannungsantraege koennen ebenfalls im Einstellungstab geaendert werden. Das Logo wird als externe URL hinterlegt und direkt im Panel, auf der Entbannungsseite und in HTML-Mails verwendet.
 
 Wenn `smtpEnabled=false` ist, werden Passwort-Reset-Links nicht per Mail versendet, sondern sicherheitshalber im CloudNet-Log ausgegeben. Fuer produktiven Betrieb solltest du `publicBaseUrl` auf deine Panel-Domain setzen und SMTP aktivieren.
 
@@ -184,7 +184,7 @@ Spieler geben dort ein:
 - optionalen Video-Link
 - optionale Beweisdateien
 
-Das Formular akzeptiert einen Antrag nur, wenn die Random Ban-ID (`publicId`) und der Spielername zu einem aktiven LiteBans-Ban passen. Pro Random Ban-ID und Spielername ist maximal ein Antrag moeglich. Nach dem Absenden bekommt der Spieler eine HTML-Bestaetigungsmail mit einem persoenlichen Statuslink.
+Das Formular akzeptiert einen Antrag nur, wenn die Random Ban-ID (`publicId`) und der Spielername zu einem aktiven LiteBans-Ban passen. Numerische LiteBans-Datenbank-IDs werden dabei bewusst nicht als Random-ID akzeptiert. Pro Random Ban-ID und Spielername ist maximal ein Antrag moeglich. Nach dem Absenden bekommt der Spieler eine HTML-Bestaetigungsmail mit einem persoenlichen Statuslink.
 
 Evidence-Speicher:
 
@@ -389,6 +389,7 @@ Fuer dein Setup mit mehreren Rootservern gilt:
 - `GET /api/ban-appeals`
 - `POST /api/ban-appeals/{id}/status`
 - `POST http://APPEAL-HOST:APPEAL-PORT/api/appeals`
+- `GET http://APPEAL-HOST:APPEAL-PORT/api/appeals/meta`
 - `GET http://APPEAL-HOST:APPEAL-PORT/api/appeals/status?token=<token>`
 - `GET /api/permissions/subjects`
 - `POST /api/permissions/sync`

@@ -72,6 +72,14 @@ public final class BanAppealHttpServer {
       if (segments.size() == 3
         && "api".equals(segments.get(0))
         && "appeals".equals(segments.get(1))
+        && "meta".equals(segments.get(2))
+        && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.appealService.meta());
+        return;
+      }
+      if (segments.size() == 3
+        && "api".equals(segments.get(0))
+        && "appeals".equals(segments.get(1))
         && "status".equals(segments.get(2))
         && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
         var query = HttpExchangeUtils.queryParameters(exchange);
@@ -122,15 +130,21 @@ public final class BanAppealHttpServer {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Entbannungsantrag</title>
         <style>
-          :root{--bg:#07131d;--card:#0f1e2b;--line:rgba(244,188,70,.26);--text:#f5f0e7;--muted:#9eb0bc;--accent:#f4bc46;--danger:#ff7268;--success:#7cd7b0}
-          *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at top left,rgba(244,188,70,.16),transparent 34%),linear-gradient(180deg,#07131d,#081019);color:var(--text);font-family:Bahnschrift,Segoe UI,Trebuchet MS,sans-serif}
-          main{width:min(880px,calc(100vw - 28px));margin:0 auto;padding:42px 0}.card{border:1px solid var(--line);border-radius:28px;background:linear-gradient(180deg,rgba(15,30,43,.92),rgba(8,17,26,.96));box-shadow:0 24px 80px rgba(0,0,0,.35);padding:28px}
-          .eyebrow{margin:0 0 8px;color:var(--accent);letter-spacing:.2em;text-transform:uppercase;font-size:.75rem}h1{margin:0 0 12px;font-size:clamp(2rem,5vw,3.8rem);line-height:.95}.muted{color:var(--muted)}form{display:grid;gap:16px;margin-top:22px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}label{display:grid;gap:8px}input,textarea,button{border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:13px 14px;background:rgba(6,11,17,.72);color:var(--text);font:inherit}textarea{min-height:140px;resize:vertical}.full{grid-column:1/-1}button{cursor:pointer;border:0;background:linear-gradient(135deg,var(--accent),#ff9f43);color:#1d1406;font-weight:800}.status{margin-top:16px}.error{color:var(--danger)}.success{color:var(--success)}.hidden{display:none!important}.status-box{display:grid;gap:10px;margin-top:20px;padding:18px;border-radius:18px;background:rgba(255,255,255,.04)}
-          @media(max-width:720px){.grid{grid-template-columns:1fr}.card{padding:20px}}
+          :root{--bg:#07131d;--bg2:#081019;--card:#0f1e2b;--card2:#08111a;--line:rgba(244,188,70,.26);--text:#f5f0e7;--muted:#9eb0bc;--accent:#f4bc46;--accent2:#ff9f43;--green:#46c4a6;--danger:#ff7268;--success:#7cd7b0;--radius:28px}
+          *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at top left,rgba(244,188,70,.18),transparent 34%),radial-gradient(circle at bottom right,rgba(70,196,166,.14),transparent 32%),linear-gradient(180deg,var(--bg),var(--bg2));color:var(--text);font-family:Bahnschrift,"Segoe UI Variable Text","Trebuchet MS",sans-serif;overflow-x:hidden}
+          body:before{content:"";position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:34px 34px;mask-image:linear-gradient(180deg,rgba(0,0,0,.72),transparent 92%);pointer-events:none}
+          main{position:relative;width:min(980px,calc(100vw - 28px));margin:0 auto;padding:34px 0 50px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;padding:12px 14px;border:1px solid var(--line);border-radius:22px;background:rgba(6,12,18,.72);box-shadow:0 18px 70px rgba(0,0,0,.32);backdrop-filter:blur(18px)}.brand{display:flex;align-items:center;gap:12px;font-weight:900}.brand img{width:42px;height:42px;object-fit:contain;border-radius:12px;filter:drop-shadow(0 10px 22px rgba(0,0,0,.32))}.brand span{font-size:1.05rem}.pill{color:#1d1406;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:999px;padding:9px 12px;font-weight:900}
+          .card{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,rgba(15,30,43,.94),rgba(8,17,26,.97));box-shadow:0 24px 80px rgba(0,0,0,.38);padding:30px;animation:rise .5s ease both}.card:before{content:"";position:absolute;inset:0 0 auto;height:5px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--green))}
+          .eyebrow{margin:0 0 8px;color:var(--accent);letter-spacing:.22em;text-transform:uppercase;font-size:.74rem;font-weight:900}h1{margin:0 0 12px;font-size:clamp(2.1rem,5vw,4rem);line-height:.95}.muted{color:var(--muted);line-height:1.55}form{display:grid;gap:16px;margin-top:24px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}label{display:grid;gap:8px}input,textarea,button{border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:13px 14px;background:rgba(6,11,17,.74);color:var(--text);font:inherit;outline:none}input:focus,textarea:focus{border-color:rgba(244,188,70,.48);background:rgba(10,18,27,.95)}textarea{min-height:150px;resize:vertical}.full{grid-column:1/-1}button{cursor:pointer;border:0;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#1d1406;font-weight:900}.status{margin-top:16px}.error{color:var(--danger)}.success{color:var(--success)}.hidden{display:none!important}.status-box{display:grid;gap:12px;margin-top:20px;padding:20px;border-radius:20px;background:rgba(255,255,255,.045);border:1px solid rgba(244,188,70,.18)}.status-box strong{font-size:1.1rem}.status-message{color:#d7e2ea;line-height:1.55}.meta-row{display:grid;gap:5px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)}
+          @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@media(max-width:720px){main{width:min(100vw - 20px,980px);padding-top:14px}.topbar{align-items:flex-start;flex-direction:column}.grid{grid-template-columns:1fr}.card{padding:22px}}
         </style>
       </head>
       <body>
         <main>
+          <nav class="topbar" aria-label="Craftplay">
+            <div class="brand"><img id="brand-logo" class="hidden" alt=""><span id="brand-name">Craftplay.de</span></div>
+            <span class="pill">craftplay.de</span>
+          </nav>
           <section class="card" id="form-card">
             <p class="eyebrow">Ban Appeal</p>
             <h1>Entbannungsantrag</h1>
@@ -155,11 +169,14 @@ public final class BanAppealHttpServer {
           </section>
         </main>
         <script>
-          const formCard=document.getElementById('form-card');const statusCard=document.getElementById('status-card');const form=document.getElementById('appeal-form');const formStatus=document.getElementById('form-status');const output=document.getElementById('status-output');
+          const formCard=document.getElementById('form-card');const statusCard=document.getElementById('status-card');const form=document.getElementById('appeal-form');const formStatus=document.getElementById('form-status');const output=document.getElementById('status-output');const brandName=document.getElementById('brand-name');const brandLogo=document.getElementById('brand-logo');
           const params=new URLSearchParams(location.search);const token=params.get('token');
+          loadMeta();
           if(token){formCard.classList.add('hidden');statusCard.classList.remove('hidden');loadStatus(token);}
           form.addEventListener('submit',async event=>{event.preventDefault();formStatus.textContent='Antrag wird gesendet...';formStatus.className='status muted';try{const response=await fetch('/api/appeals',{method:'POST',body:new FormData(form)});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Antrag konnte nicht gesendet werden.');form.reset();formStatus.textContent=data.message||'Antrag wurde eingereicht.';formStatus.className='status success';if(data.statusUrl){history.replaceState(null,'',data.statusUrl);}}catch(error){formStatus.textContent=error.message;formStatus.className='status error';}});
-          async function loadStatus(token){try{const response=await fetch('/api/appeals/status?token='+encodeURIComponent(token));const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Status konnte nicht geladen werden.');output.innerHTML='<strong>Status: '+escapeHtml(data.status||'-')+'</strong><span>Random Ban-ID: '+escapeHtml(data.publicBanId||'-')+'</span><span>Spieler: '+escapeHtml(data.playerName||'-')+'</span><span>Eingereicht: '+escapeHtml(data.createdAt||'-')+'</span>'+(data.teamNote?'<span>Team-Notiz: '+escapeHtml(data.teamNote)+'</span>':'');}catch(error){output.textContent=error.message;output.className='status-box error';}}
+          async function loadMeta(){try{const response=await fetch('/api/appeals/meta');const data=await response.json().catch(()=>({}));if(data.brandName){brandName.textContent=data.brandName;document.title='Entbannungsantrag - '+data.brandName;}if(data.brandLogoUrl){brandLogo.src=data.brandLogoUrl;brandLogo.classList.remove('hidden');}}catch(error){}}
+          async function loadStatus(token){try{const response=await fetch('/api/appeals/status?token='+encodeURIComponent(token));const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Status konnte nicht geladen werden.');output.innerHTML='<strong>Status: '+escapeHtml(data.status||'-')+'</strong><span class="status-message">'+escapeHtml(data.statusText||'')+'</span><div class="meta-row"><span>Random Ban-ID: '+escapeHtml(data.publicBanId||'-')+'</span><span>Spieler: '+escapeHtml(data.playerName||'-')+'</span><span>Eingereicht: '+formatDate(data.createdAt)+'</span></div>'+(data.teamNote?'<span>Team-Notiz: '+escapeHtml(data.teamNote)+'</span>':'');}catch(error){output.textContent=error.message;output.className='status-box error';}}
+          function formatDate(value){const time=Date.parse(value||'');if(Number.isNaN(time))return escapeHtml(value||'-');return new Intl.DateTimeFormat('de-DE',{dateStyle:'medium',timeStyle:'short'}).format(new Date(time));}
           function escapeHtml(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;");}
         </script>
       </body>

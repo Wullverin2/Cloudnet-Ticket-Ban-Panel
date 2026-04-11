@@ -11,6 +11,7 @@
   --accent-strong: #ff9f43;
   --success: #7cd7b0;
   --danger: #ff7268;
+  --green: #46c4a6;
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
   --radius: 24px;
 }
@@ -107,13 +108,41 @@ body {
 .hero-copy {
   border-radius: calc(var(--radius) + 4px);
   padding: 34px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-copy::before,
+.panel-card::before,
+.auth-card::before,
+.metric-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong), var(--green));
+  opacity: 0.9;
+}
+
+.auth-card,
+.metric-card,
+.panel-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.brand-title {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 14px;
 }
 
 .brand-logo {
-  max-width: 180px;
-  max-height: 82px;
+  width: clamp(54px, 7vw, 86px);
+  height: clamp(54px, 7vw, 86px);
   object-fit: contain;
-  margin-bottom: 16px;
+  flex: 0 0 auto;
   filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.28));
 }
 
@@ -141,7 +170,7 @@ h1, h2 {
 h1 {
   font-size: clamp(2.4rem, 4vw, 4.5rem);
   line-height: 0.94;
-  max-width: 11ch;
+  max-width: 14ch;
 }
 
 h2 {
@@ -238,6 +267,10 @@ button {
   gap: 16px;
 }
 
+.settings-wide {
+  grid-column: span 2;
+}
+
 fieldset {
   display: grid;
   gap: 14px;
@@ -290,6 +323,7 @@ button {
   font-weight: 700;
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
   color: #1d1406;
+  box-shadow: 0 10px 26px rgba(244, 188, 70, 0.12);
 }
 
 button:hover {
@@ -329,6 +363,17 @@ button:hover {
   background: rgba(6, 12, 18, 0.68);
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
+}
+
+.page-nav::before {
+  content: "craftplay.de";
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  color: var(--accent);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
 }
 
 .page-nav button {
@@ -584,6 +629,28 @@ tbody button {
   margin-bottom: 6px;
 }
 
+.liteban-table {
+  min-width: 1120px;
+}
+
+.actions-cell {
+  min-width: 190px;
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.action-buttons button {
+  margin: 0;
+}
+
+.danger-text {
+  color: var(--danger);
+}
+
 .console-output {
   height: 420px;
   max-height: 420px;
@@ -685,6 +752,10 @@ tbody button {
     grid-template-columns: 1fr;
   }
 
+  .settings-wide {
+    grid-column: auto;
+  }
+
   .auth-row,
   .action-row,
   .inline-controls,
@@ -697,5 +768,10 @@ tbody button {
   .luckperms-toolbar,
   .luckperms-editor {
     grid-template-columns: 1fr;
+  }
+
+  .brand-title {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
