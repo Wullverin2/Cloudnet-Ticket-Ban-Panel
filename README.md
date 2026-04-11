@@ -4,7 +4,7 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel fuer:
 
 - Task erstellen, bearbeiten und loeschen
 - Services aus Tasks erstellen
-- Services starten, stoppen, neustarten und loeschen
+- Services starten, stoppen, neustarten und löschen
 - Konsolen-Logs pro Service ansehen und Befehle senden
 - Cluster-Nodes im Panel anzeigen
 - Tickets erstellen, kommentieren, zuweisen und abschliessen
@@ -22,14 +22,14 @@ Zusaetzlich enthaelt das Repository ein Velocity-Companion-Plugin fuer Ingame-Ti
 
 ## Architektur
 
-Das Modul ist fuer ein CloudNet-Cluster gedacht, in dem Velocity als Proxy und Purpur als Spielserver laufen. Du installierst das Modul auf einer CloudNet-Node, die den Cluster voll sehen kann. Ueber die CloudNet-v4-APIs werden dann clusterweit Tasks und Services verwaltet.
+Das Modul ist für ein CloudNet-Cluster gedacht, in dem Velocity als Proxy und Purpur als Spielserver laufen. Du installierst das Modul auf einer CloudNet-Node, die den Cluster voll sehen kann. Ueber die CloudNet-v4-APIs werden dann clusterweit Tasks und Services verwaltet.
 
 Das Panel ist bewusst als MVP gebaut:
 
 - CloudNet Task-CRUD ist vorhanden
 - Service-Management ist vorhanden
 - Service-Konsole ist vorhanden
-- Node-Uebersicht ist vorhanden
+- Node-Übersicht ist vorhanden
 - Ticket-System ist vorhanden und speichert den Unterserver/Service, auf dem ein Ticket erstellt wurde
 - Cloud-Ban-Verwaltung ist vorhanden
 - Panel-Login mit Gruppenrechten ist vorhanden
