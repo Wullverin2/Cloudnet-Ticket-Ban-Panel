@@ -437,6 +437,10 @@
             </div>
           </form>
 
+          <div class="action-row ticket-tab-panel" data-ticket-panel="active">
+            <button id="ticket-refresh" class="ghost-button" type="button">Offene Tickets aktualisieren</button>
+          </div>
+
           <div class="table-shell ticket-tab-panel" data-ticket-panel="active">
             <table>
               <thead>
@@ -530,17 +534,14 @@
                 <input name="targetAddress" type="text" placeholder="optional">
               </label>
               <label>
-                <span>Ausgeführt von</span>
-                <input name="issuedBy" type="text" placeholder="Konsole oder Teammitglied">
-              </label>
-              <label>
                 <span>Dauer in Minuten</span>
                 <input name="durationMinutes" type="number" min="0" value="0">
               </label>
             </div>
+            <p class="muted">Ausgeführt von wird automatisch auf den eingeloggten Panel-Benutzer gesetzt.</p>
             <label>
               <span>Grund</span>
-              <textarea name="reason" rows="3" placeholder="z.B. Netzwerkweiter Cheat-Verdacht / Botting / schwere Stoerung"></textarea>
+              <textarea name="reason" rows="3" placeholder="z.B. Netzwerkweiter Cheat-Verdacht / Botting / schwere Störung"></textarea>
             </label>
             <div class="action-row">
               <button type="submit">Ban erstellen</button>
@@ -593,6 +594,10 @@
               </thead>
               <tbody id="ban-audit-table"></tbody>
             </table>
+          </div>
+
+          <div class="action-row ban-tab-panel hidden" data-ban-panel="appeals">
+            <button id="ban-appeal-refresh" class="ghost-button" type="button">Entbannungsanträge aktualisieren</button>
           </div>
 
           <div class="table-shell ban-tab-panel hidden" data-ban-panel="appeals">

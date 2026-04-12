@@ -128,6 +128,7 @@ function bindElements() {
 
   elements.ticketForm = document.getElementById("ticket-form");
   elements.ticketStatus = document.getElementById("ticket-status");
+  elements.ticketRefresh = document.getElementById("ticket-refresh");
   elements.ticketTable = document.getElementById("ticket-table");
   elements.ticketArchiveTable = document.getElementById("ticket-archive-table");
   elements.ticketAuditTable = document.getElementById("ticket-audit-table");
@@ -139,6 +140,7 @@ function bindElements() {
   elements.banStatus = document.getElementById("ban-status");
   elements.banTable = document.getElementById("ban-table");
   elements.liteBanTable = document.getElementById("liteban-table");
+  elements.banAppealRefresh = document.getElementById("ban-appeal-refresh");
   elements.banAppealTable = document.getElementById("ban-appeal-table");
   elements.banAppealArchiveTable = document.getElementById("ban-appeal-archive-table");
   elements.banAuditTable = document.getElementById("ban-audit-table");
@@ -216,6 +218,7 @@ function bindEvents() {
   elements.consoleCommandForm.addEventListener("submit", handleConsoleCommandSubmit);
 
   elements.ticketForm.addEventListener("submit", handleTicketSubmit);
+  elements.ticketRefresh.addEventListener("click", refreshTicketsOnly);
   elements.ticketTable.addEventListener("click", handleTicketTableClick);
   document.querySelectorAll("button[data-ticket-tab]").forEach(button => {
     button.addEventListener("click", () => switchTicketTab(button.dataset.ticketTab));
@@ -224,6 +227,7 @@ function bindEvents() {
   elements.banForm.addEventListener("submit", handleBanSubmit);
   elements.banTable.addEventListener("click", handleBanTableClick);
   elements.liteBanTable.addEventListener("click", handleLiteBanTableClick);
+  elements.banAppealRefresh.addEventListener("click", refreshBanAppealsOnly);
   elements.banAppealTable.addEventListener("click", handleBanAppealTableClick);
   document.querySelectorAll("button[data-ban-tab]").forEach(button => {
     button.addEventListener("click", () => switchBanTab(button.dataset.banTab));
@@ -754,6 +758,44 @@ async function refreshAll() {
   switchPage(state.activePage);
 }
 
+async function refreshTicketsOnly() {
+  if (!hasPermission(PERMISSIONS.TICKETS_VIEW)) {
+    return;
+  }
+
+  try {
+    const [tickets, ticketAudit] = await Promise.all([
+      api("/api/tickets"),
+      api("/api/tickets/audit"),
+    ]);
+    state.tickets = asArray(tickets);
+    state.ticketAudit = asArray(ticketAudit);
+    renderTickets();
+    renderTicketArchive();
+    renderTicketAudit();
+    renderHome();
+    setStatus(elements.ticketStatus, "Tickets wurden aktualisiert.", false);
+  } catch (error) {
+    handleApiError(error, elements.ticketStatus);
+  }
+}
+
+async function refreshBanAppealsOnly() {
+  if (!hasPermission(PERMISSIONS.BANS_VIEW)) {
+    return;
+  }
+
+  try {
+    state.banAppeals = asArray(await api("/api/ban-appeals"));
+    renderBanAppeals();
+    renderBanAppealArchive();
+    renderHome();
+    setStatus(elements.banStatus, "Entbannungsanträge wurden aktualisiert.", false);
+  } catch (error) {
+    handleApiError(error, elements.banStatus);
+  }
+}
+
 function renderHome() {
   setHomeMetric(
     elements.homeOpenTickets,
@@ -944,9 +986,9 @@ function ticketActions(ticket) {
 
   return `
     <button data-ticket-action="teleport" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Teleport</button>
-    <button data-ticket-action="open" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Open</button>
-    <button data-ticket-action="progress" data-ticket-id="${escapeAttr(ticket.id)}" type="button">In Progress</button>
-    <button data-ticket-action="close" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Close</button>
+    <button data-ticket-action="open" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Öffnen</button>
+    <button data-ticket-action="progress" data-ticket-id="${escapeAttr(ticket.id)}" type="button">In Bearbeitung</button>
+    <button data-ticket-action="close" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Schließen</button>
     <button data-ticket-action="assign" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Zuweisen</button>
     <button data-ticket-action="comment" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Kommentar</button>
   `;
@@ -1011,7 +1053,8 @@ function renderLiteBans() {
       <td>${liteBanIdCell(ban)}</td>
       <td>
         <strong>${escapeHtml(ban.targetName || "-")}</strong><br>
-        <span class="muted">${escapeHtml(ban.targetUniqueId || ban.targetAddress || "-")}</span>
+        <span class="muted">${escapeHtml(ban.targetUniqueId || ban.targetAddress || "-")}</span><br>
+        <span class="muted">Gebannt von: ${escapeHtml(ban.issuedBy || "-")}</span>
       </td>
       <td>
         <span class="badge ${ban.active ? "badge-danger" : "badge-success"}">
@@ -1716,7 +1759,7 @@ async function handleBanSubmit(event) {
     targetName: String(form.get("targetName") || "").trim(),
     targetUniqueId: String(form.get("targetUniqueId") || "").trim(),
     targetAddress: String(form.get("targetAddress") || "").trim(),
-    issuedBy: String(form.get("issuedBy") || "").trim(),
+    issuedBy: currentActor(),
     durationMinutes: Number(form.get("durationMinutes") || 0),
     reason: String(form.get("reason") || "").trim(),
   };
@@ -1817,7 +1860,7 @@ async function handlePermissionActionSubmit(event) {
     permission: nodeType === "permission" ? nodeValue : "",
     parent: nodeType === "parent" ? nodeValue : "",
     value: String(form.get("nodeValueState") || "true") === "true",
-    actor: state.currentUser?.displayName || state.currentUser?.username || "Panel",
+    actor: currentActor(),
   };
 
   if (!subject) {
@@ -1964,7 +2007,7 @@ async function handlePermissionNodeClick(event) {
     permission: action === "REMOVE_PERMISSION" ? value : "",
     parent: action === "REMOVE_PARENT" ? value : "",
     value: button.dataset.nodeState !== "false",
-    actor: state.currentUser?.displayName || state.currentUser?.username || "Panel",
+    actor: currentActor(),
   };
 
   try {
@@ -2034,32 +2077,29 @@ async function handleTicketTableClick(event) {
 
   try {
     if (action === "assign") {
-      const assignedTo = prompt("An wen soll das Ticket zugewiesen werden?");
-      const actor = prompt("Wer führt die Zuweisung aus?", state.currentUser?.displayName || state.currentUser?.username || "");
-      if (!assignedTo || !actor) {
+      const assignedTo = prompt("An wen soll das Ticket zugewiesen werden?", currentActor());
+      if (!assignedTo) {
         return;
       }
       await api(`/api/tickets/${encodeURIComponent(ticketId)}/assign`, {
         method: "POST",
-        body: { assignedTo, actor },
+        body: { assignedTo, actor: currentActor() },
       });
     } else if (action === "comment") {
-      const author = prompt("Autor des Kommentars?", state.currentUser?.displayName || state.currentUser?.username || "");
       const message = prompt("Kommentartext?");
       const internal = confirm("Interner Kommentar?");
-      if (!author || !message) {
+      if (!message) {
         return;
       }
       await api(`/api/tickets/${encodeURIComponent(ticketId)}/comments`, {
         method: "POST",
-        body: { author, message, internal },
+        body: { author: currentActor(), message, internal },
       });
     } else if (action === "teleport") {
       const ticket = state.tickets.find(entry => entry.id === ticketId);
-      const staffName = prompt(
-        "Welcher Teamler soll teleportiert werden? Das muss dein Minecraft-Name sein.",
-        state.currentUser?.minecraftName || state.currentUser?.displayName || state.currentUser?.username || "");
+      const staffName = currentMinecraftName();
       if (!ticket || !staffName) {
+        setStatus(elements.ticketStatus, "Bitte hinterlege in deinem Profil deinen Minecraft-Namen.", true);
         return;
       }
       await api("/api/player-actions/teleport", {
@@ -2070,19 +2110,15 @@ async function handleTicketTableClick(event) {
           targetUniqueId: ticket.creatorUniqueId || "",
           targetServer: ticket.sourceServer || ticket.serviceName || "",
           ticketId,
-          actor: state.currentUser?.displayName || state.currentUser?.username || staffName,
+          actor: currentActor(),
         },
       });
       setStatus(elements.ticketStatus, "Teleport wurde an Velocity übergeben.", false);
     } else {
-      const actor = prompt("Wer ändert den Ticket-Status?", state.currentUser?.displayName || state.currentUser?.username || "");
-      if (!actor) {
-        return;
-      }
       const status = action === "open" ? "OPEN" : action === "progress" ? "IN_PROGRESS" : "CLOSED";
       await api(`/api/tickets/${encodeURIComponent(ticketId)}/status`, {
         method: "POST",
-        body: { actor, status },
+        body: { actor: currentActor(), status },
       });
     }
 
@@ -2130,10 +2166,7 @@ async function handleBanTableClick(event) {
     return;
   }
 
-  const removedBy = prompt("Wer hebt den Ban auf?", state.currentUser?.displayName || state.currentUser?.username || "");
-  if (!removedBy) {
-    return;
-  }
+  const removedBy = currentActor();
 
   try {
     await api(`/api/bans/${encodeURIComponent(banId)}/deactivate`, {
@@ -2154,7 +2187,7 @@ async function handleLiteBanTableClick(event) {
 
   const banId = button.dataset.banId;
   const action = button.dataset.litebanAction;
-  const actor = state.currentUser?.displayName || state.currentUser?.username || "Panel";
+  const actor = currentActor();
 
   try {
     if (action === "unban") {
@@ -2209,7 +2242,7 @@ async function handleBanAppealTableClick(event) {
       body: {
         status: button.dataset.appealAction,
         teamNote,
-        actor: state.currentUser?.displayName || state.currentUser?.username || "Panel",
+        actor: currentActor(),
       },
     });
     await refreshAll();
@@ -2824,6 +2857,14 @@ function hasPermission(permission) {
     .map(entry => entry.trim())
     .filter(Boolean);
   return permissions.includes("*") || allowed.some(entry => permissions.includes(entry));
+}
+
+function currentActor() {
+  return state.currentUser?.displayName || state.currentUser?.username || "Panel";
+}
+
+function currentMinecraftName() {
+  return state.currentUser?.minecraftName || "";
 }
 
 function summarizePermissions(permissions) {
