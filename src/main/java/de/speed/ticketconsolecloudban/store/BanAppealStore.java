@@ -44,6 +44,15 @@ public final class BanAppealStore {
       .findFirst();
   }
 
+  public synchronized Optional<BanAppealEntry> findById(String id) {
+    if (id == null || id.isBlank()) {
+      return Optional.empty();
+    }
+    return this.appeals.stream()
+      .filter(appeal -> appeal.id().equals(id))
+      .findFirst();
+  }
+
   public synchronized Optional<BanAppealEntry> findByBanAndPlayer(String publicBanId, String playerName) {
     var normalizedBanId = normalize(publicBanId);
     var normalizedPlayer = normalize(playerName);

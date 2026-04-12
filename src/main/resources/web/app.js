@@ -2209,6 +2209,7 @@ async function handleBanAppealTableClick(event) {
       body: {
         status: button.dataset.appealAction,
         teamNote,
+        actor: state.currentUser?.displayName || state.currentUser?.username || "Panel",
       },
     });
     await refreshAll();

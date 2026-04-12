@@ -463,10 +463,22 @@ public final class CloudNetFacade {
   }
 
   public BanAppealEntry updateBanAppealStatus(String appealId, Document request) {
+    var requestedStatus = this.requiredText(request, "status").toUpperCase();
+    var existing = this.banAppealStore.findById(appealId)
+      .orElseThrow(() -> new IllegalArgumentException("Der Entbannungsantrag wurde nicht gefunden."));
+    var queueUnban = this.isAcceptedStatus(requestedStatus) && !this.isAcceptedStatus(existing.status());
+    var unbanBanId = queueUnban ? this.resolveAppealLiteBanId(existing) : null;
+
     var updated = this.banAppealStore.updateStatus(
       appealId,
-      this.requiredText(request, "status"),
+      requestedStatus,
       this.nullableText(request.getString("teamNote")));
+    if (queueUnban) {
+      this.banStore.requestLiteBanUnban(
+        unbanBanId,
+        this.textOrDefault(request, "actor", "Panel"),
+        this.acceptedAppealUnbanReason(updated));
+    }
     this.sendBanAppealStatusMail(updated);
     return updated;
   }
@@ -629,6 +641,32 @@ public final class CloudNetFacade {
         statusUrl,
         "Status ansehen",
         "Craftplay Support"));
+  }
+
+  private boolean isAcceptedStatus(String status) {
+    return "ACCEPTED".equalsIgnoreCase(this.nullableText(status));
+  }
+
+  private String resolveAppealLiteBanId(BanAppealEntry appeal) {
+    var liteBanId = this.nullableText(appeal.liteBanId());
+    if (liteBanId != null) {
+      return liteBanId;
+    }
+    return this.banStore.findLiteBanByPublicIdAndTargetName(appeal.publicBanId(), appeal.playerName())
+      .map(LiteBanEntry::id)
+      .orElseThrow(() -> new IllegalArgumentException(
+        "Für diesen Entbannungsantrag wurde kein aktiver LiteBans-Ban mit passender Random Ban-ID gefunden."));
+  }
+
+  private String acceptedAppealUnbanReason(BanAppealEntry appeal) {
+    var reason = "Entbannungsantrag angenommen";
+    if (appeal.publicBanId() != null && !appeal.publicBanId().isBlank()) {
+      reason += " (Ban-ID " + appeal.publicBanId() + ")";
+    }
+    if (appeal.teamNote() != null && !appeal.teamNote().isBlank()) {
+      reason += ": " + appeal.teamNote();
+    }
+    return reason.replace('\r', ' ').replace('\n', ' ');
   }
 
   private String craftplayMailHtml(String eyebrow, String title, String bodyHtml, String buttonUrl, String buttonLabel, String footer) {
