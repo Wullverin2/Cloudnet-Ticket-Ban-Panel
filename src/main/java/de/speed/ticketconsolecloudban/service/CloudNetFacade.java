@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.TreeMap;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public final class CloudNetFacade {
@@ -295,19 +296,36 @@ public final class CloudNetFacade {
 
   public CloudNetConsoleView cloudNetConsole(int requestedLimit) {
     var effectiveLimit = this.clamp(requestedLimit, 25, this.configuration.consoleLineLimit());
+    var screenName = this.nullableText(this.settingsStore.current().cloudNetScreenName());
+    if (screenName != null) {
+      var screenCapture = this.cloudNetScreenOutput(screenName, effectiveLimit);
+      if (screenCapture.success()) {
+        return new CloudNetConsoleView(
+          effectiveLimit,
+          screenCapture.lines(),
+          "screen:" + screenName,
+          Instant.now().toString());
+      }
+      var fallback = this.cloudNetFileConsoleLines(effectiveLimit);
+      var lines = new ArrayList<String>();
+      lines.add("GNU Screen '" + screenName + "' konnte nicht gelesen werden: " + screenCapture.message());
+      lines.add("Fallback auf CloudNet-Logdatei.");
+      lines.addAll(fallback.lines());
+      return new CloudNetConsoleView(effectiveLimit, lines, fallback.source(), Instant.now().toString());
+    }
+    return this.cloudNetFileConsoleLines(effectiveLimit).toView(effectiveLimit);
+  }
+
+  private ConsoleSnapshot cloudNetFileConsoleLines(int effectiveLimit) {
     var logPath = this.cloudNetLogPath();
     if (logPath == null) {
-      return new CloudNetConsoleView(
-        effectiveLimit,
+      return new ConsoleSnapshot(
         List.of("CloudNet-Logdatei nicht gefunden. Geprüft wurden: " + String.join(", ", this.cloudNetLogPathCandidates().stream().map(Path::toString).toList())),
-        null,
-        Instant.now().toString());
+        null);
     }
-    return new CloudNetConsoleView(
-      effectiveLimit,
+    return new ConsoleSnapshot(
       this.readFileTail(logPath, effectiveLimit),
-      logPath.toAbsolutePath().normalize().toString(),
-      Instant.now().toString());
+      logPath.toAbsolutePath().normalize().toString());
   }
 
   public CloudNetCommandView runCloudNetCommand(Document request) {
@@ -600,6 +618,7 @@ public final class CloudNetFacade {
       settings.brandName(),
       settings.brandLogoUrl(),
       settings.ticketCategories(),
+      settings.cloudNetScreenName(),
       settings.appealStatusOpenLabel(),
       settings.appealStatusInReviewLabel(),
       settings.appealStatusAcceptedLabel(),
@@ -1096,6 +1115,49 @@ public final class CloudNetFacade {
       .orElse(null);
   }
 
+  private ScreenCapture cloudNetScreenOutput(String screenName, int limit) {
+    Path tempFile = null;
+    try {
+      tempFile = Files.createTempFile("tccb-cloudnet-screen-", ".log");
+      var process = new ProcessBuilder(
+        "screen",
+        "-S",
+        screenName,
+        "-X",
+        "hardcopy",
+        "-h",
+        tempFile.toString())
+        .redirectErrorStream(true)
+        .start();
+      var finished = process.waitFor(3, TimeUnit.SECONDS);
+      if (!finished) {
+        process.destroyForcibly();
+        return ScreenCapture.failed("Timeout beim Lesen der Screen-Session.");
+      }
+
+      var processOutput = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+      if (process.exitValue() != 0) {
+        return ScreenCapture.failed(processOutput.isBlank() ? "screen hat mit Exit-Code " + process.exitValue() + " beendet." : processOutput);
+      }
+      if (!Files.isRegularFile(tempFile) || Files.size(tempFile) == 0) {
+        return ScreenCapture.failed(processOutput.isBlank() ? "Screen-Hardcopy ist leer." : processOutput);
+      }
+      return ScreenCapture.success(this.readFileTail(tempFile, limit));
+    } catch (IOException exception) {
+      return ScreenCapture.failed(exception.getMessage());
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      return ScreenCapture.failed("Screen-Auslesen wurde unterbrochen.");
+    } finally {
+      if (tempFile != null) {
+        try {
+          Files.deleteIfExists(tempFile);
+        } catch (IOException ignored) {
+        }
+      }
+    }
+  }
+
   private List<Path> cloudNetLogPathCandidates() {
     return List.of(
       Path.of("logs", "latest.log"),
@@ -1165,6 +1227,31 @@ public final class CloudNetFacade {
       case "service", "services", "ser", "srv" -> true;
       default -> false;
     };
+  }
+
+  private record ConsoleSnapshot(
+    List<String> lines,
+    String source
+  ) {
+
+    private CloudNetConsoleView toView(int limit) {
+      return new CloudNetConsoleView(limit, this.lines(), this.source(), Instant.now().toString());
+    }
+  }
+
+  private record ScreenCapture(
+    boolean success,
+    List<String> lines,
+    String message
+  ) {
+
+    private static ScreenCapture success(List<String> lines) {
+      return new ScreenCapture(true, lines, "");
+    }
+
+    private static ScreenCapture failed(String message) {
+      return new ScreenCapture(false, List.of(), message == null || message.isBlank() ? "Unbekannter Fehler." : message);
+    }
   }
 
   public record MetaView(
@@ -1329,6 +1416,7 @@ public final class CloudNetFacade {
     String brandName,
     String brandLogoUrl,
     List<String> ticketCategories,
+    String cloudNetScreenName,
     String appealStatusOpenLabel,
     String appealStatusInReviewLabel,
     String appealStatusAcceptedLabel,
