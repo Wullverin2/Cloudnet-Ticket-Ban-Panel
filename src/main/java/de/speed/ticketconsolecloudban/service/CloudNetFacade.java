@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.TreeMap;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
 public final class CloudNetFacade {
@@ -290,9 +291,15 @@ public final class CloudNetFacade {
 
   public CloudNetCommandView runCloudNetCommand(Document request) {
     var command = this.requiredText(request, "command");
-    var source = new PanelCommandSource();
-    this.commandProvider.execute(source, command).join();
-    return new CloudNetCommandView(command, source.messages(), Instant.now().toString());
+    try {
+      this.commandProvider.execute(CommandSource.console(), command).join();
+    } catch (CompletionException exception) {
+      throw new IllegalArgumentException(this.cloudNetCommandErrorMessage(exception), exception);
+    }
+    return new CloudNetCommandView(
+      command,
+      List.of("Befehl wurde an die echte CloudNet-Konsole übergeben: " + command),
+      Instant.now().toString());
   }
 
   public List<NodeView> listNodes() {
@@ -1038,48 +1045,22 @@ public final class CloudNetFacade {
       .replace("'", "&#39;");
   }
 
-  private static final class PanelCommandSource implements CommandSource {
-
-    private final List<String> messages = new ArrayList<>();
-
-    @Override
-    public String name() {
-      return "Panel";
+  private String cloudNetCommandErrorMessage(Throwable exception) {
+    var current = exception;
+    while (current instanceof CompletionException && current.getCause() != null) {
+      current = current.getCause();
     }
 
-    @Override
-    public void sendMessage(String message) {
+    for (var cursor = current; cursor != null; cursor = cursor.getCause()) {
+      var message = cursor.getMessage();
       if (message != null && !message.isBlank()) {
-        this.messages.add(message);
+        if ("That service doesn't exist".equalsIgnoreCase(message)) {
+          return "Dieser Service existiert nicht. Bitte nutze den exakten Servicenamen aus der aktiven Service-Liste.";
+        }
+        return message;
       }
     }
-
-    @Override
-    public void sendMessage(String... messages) {
-      if (messages == null) {
-        return;
-      }
-      for (var message : messages) {
-        this.sendMessage(message);
-      }
-    }
-
-    @Override
-    public void sendMessage(Collection<String> messages) {
-      if (messages == null) {
-        return;
-      }
-      messages.forEach(this::sendMessage);
-    }
-
-    @Override
-    public boolean checkPermission(String permission) {
-      return true;
-    }
-
-    public List<String> messages() {
-      return List.copyOf(this.messages);
-    }
+    return "CloudNet-Befehl konnte nicht ausgeführt werden.";
   }
 
   public record MetaView(
