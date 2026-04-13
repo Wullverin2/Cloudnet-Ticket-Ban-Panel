@@ -37,6 +37,8 @@ const state = {
   selectedPermissionServer: localStorage.getItem("tccb-lp-server") || "proxy",
   selectedPermissionSubject: localStorage.getItem("tccb-lp-subject") || "",
   selectedTaskName: localStorage.getItem("tccb-task") || "",
+  activeCloudNetSection: localStorage.getItem("tccb-cloudnet-section") || "cloud",
+  activeCloudNetView: "overview",
   selectedService: null,
   twoFactorChallengeId: "",
   activePage: localStorage.getItem("tccb-page") || "home",
@@ -110,6 +112,9 @@ function bindElements() {
   elements.taskCreateOpen = document.getElementById("task-create-open");
   elements.taskSpawnSelected = document.getElementById("task-spawn-selected");
   elements.taskDeleteSelected = document.getElementById("task-delete-selected");
+  elements.cloudCommandForm = document.getElementById("cloud-command-form");
+  elements.cloudCommandInput = document.getElementById("cloud-command-input");
+  elements.cloudCommandOutput = document.getElementById("cloud-command-output");
 
   elements.serviceCreateForm = document.getElementById("service-create-form");
   elements.serviceCreateStatus = document.getElementById("service-create-status");
@@ -134,6 +139,7 @@ function bindElements() {
   elements.ticketAuditTable = document.getElementById("ticket-audit-table");
   elements.ticketCategorySelect = document.getElementById("ticket-category-select");
   elements.ticketPrioritySelect = document.getElementById("ticket-priority-select");
+  elements.ticketCategorySettingsList = document.getElementById("ticket-category-settings-list");
   elements.serviceNameList = document.getElementById("service-name-list");
 
   elements.banForm = document.getElementById("ban-form");
@@ -196,10 +202,14 @@ function bindEvents() {
   elements.taskCreateOpen.addEventListener("click", openTaskCreate);
   elements.taskSpawnSelected.addEventListener("click", spawnSelectedTask);
   elements.taskDeleteSelected.addEventListener("click", deleteSelectedTask);
+  document.querySelectorAll("button[data-cloudnet-section-target]").forEach(button => {
+    button.addEventListener("click", () => switchCloudNetSection(button.dataset.cloudnetSectionTarget));
+  });
   document.querySelectorAll("button[data-cloudnet-view-target]").forEach(button => {
     button.addEventListener("click", () => switchCloudNetView(button.dataset.cloudnetViewTarget));
   });
 
+  elements.cloudCommandForm.addEventListener("submit", handleCloudCommandSubmit);
   elements.serviceCreateForm.addEventListener("submit", handleServiceCreateSubmit);
   elements.serviceRefresh.addEventListener("click", refreshAll);
   elements.serviceTable.addEventListener("click", handleServiceTableClick);
@@ -606,7 +616,7 @@ function handlePageNavClick(event) {
   }
   switchPage(button.dataset.pageTarget);
   if (button.dataset.pageTarget === "cloudnet") {
-    switchCloudNetView("overview");
+    switchCloudNetSection(state.activeCloudNetSection || "cloud");
   }
   if (button.dataset.banTabTarget) {
     switchBanTab(button.dataset.banTabTarget);
@@ -630,16 +640,42 @@ function switchPage(page) {
   elements.pageNav.querySelectorAll("button[data-page-target]").forEach(button => {
     button.classList.toggle("active", button.dataset.pageTarget === target && !button.dataset.banTabTarget);
   });
+  if (target === "cloudnet") {
+    updateCloudNetVisibility();
+  }
 }
 
 function switchCloudNetView(view) {
   const target = view || "overview";
-  document.querySelectorAll(".cloudnet-view").forEach(panel => {
-    panel.classList.toggle("hidden", panel.dataset.cloudnetView !== target);
-  });
+  state.activeCloudNetView = target;
+  updateCloudNetVisibility();
   if (target === "overview") {
     setStatus(elements.taskStatus, "", false);
   }
+}
+
+function switchCloudNetSection(section) {
+  const target = section || "cloud";
+  state.activeCloudNetSection = target;
+  state.activeCloudNetView = "overview";
+  localStorage.setItem("tccb-cloudnet-section", target);
+  document.querySelectorAll("button[data-cloudnet-section-target]").forEach(button => {
+    button.classList.toggle("active", button.dataset.cloudnetSectionTarget === target);
+  });
+  updateCloudNetVisibility();
+}
+
+function updateCloudNetVisibility() {
+  const section = state.activeCloudNetSection || "cloud";
+  const view = state.activeCloudNetView || "overview";
+  document.querySelectorAll("button[data-cloudnet-section-target]").forEach(button => {
+    button.classList.toggle("active", button.dataset.cloudnetSectionTarget === section);
+  });
+  document.querySelectorAll(".cloudnet-view").forEach(panel => {
+    const sectionMatches = !panel.dataset.cloudnetSection || panel.dataset.cloudnetSection === section;
+    const viewMatches = !panel.dataset.cloudnetView || panel.dataset.cloudnetView === view;
+    panel.classList.toggle("hidden", !sectionMatches || !viewMatches);
+  });
 }
 
 function firstAllowedPage() {
@@ -740,6 +776,7 @@ async function refreshAll() {
 
   if (hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
     state.settings = await api("/api/settings");
+    syncTicketCategoriesFromSettings();
     renderSettings();
     renderBanAppeals();
     renderBanAppealArchive();
@@ -1377,6 +1414,11 @@ function renderSettings() {
   const form = elements.settingsForm.elements;
   setFormValue(form, "brandName", settings.brandName || state.meta?.brandName || "Network Control");
   setFormValue(form, "brandLogoUrl", settings.brandLogoUrl || "");
+  const ticketCategories = asArray(settings.ticketCategories).length ? asArray(settings.ticketCategories) : asArray(state.meta?.ticketCategories);
+  setFormValue(form, "ticketCategories", ticketCategories.join("\n"));
+  elements.ticketCategorySettingsList.innerHTML = ticketCategories.map(category => (
+    `<span class="badge">${escapeHtml(category)}</span>`
+  )).join("") || `<span class="muted">Keine Ticket-Arten hinterlegt.</span>`;
   setFormValue(form, "appealStatusOpenLabel", settings.appealStatusOpenLabel || "Offen");
   setFormValue(form, "appealStatusInReviewLabel", settings.appealStatusInReviewLabel || "In Prüfung");
   setFormValue(form, "appealStatusAcceptedLabel", settings.appealStatusAcceptedLabel || "Angenommen");
@@ -1594,6 +1636,7 @@ function openTaskCreate() {
     return;
   }
   resetTaskForm();
+  switchCloudNetSection("tasks");
   switchCloudNetView("task-form");
 }
 
@@ -1607,6 +1650,7 @@ function openSelectedTaskEditor() {
     return;
   }
   fillTaskForm(task);
+  switchCloudNetSection("tasks");
   switchCloudNetView("task-form");
 }
 
@@ -1706,6 +1750,33 @@ async function handleConsoleCommandSubmit(event) {
   } catch (error) {
     handleApiError(error, elements.authStatus);
     elements.consoleOutput.textContent = error.message;
+  }
+}
+
+async function handleCloudCommandSubmit(event) {
+  event.preventDefault();
+  if (!hasPermission(PERMISSIONS.CLOUDNET_COMMAND)) {
+    return;
+  }
+
+  const command = elements.cloudCommandInput.value.trim();
+  if (!command) {
+    return;
+  }
+
+  try {
+    elements.cloudCommandOutput.textContent = "CloudNet-Befehl wird ausgeführt...";
+    const result = await api("/api/cloudnet/command", {
+      method: "POST",
+      body: { command },
+    });
+    elements.cloudCommandInput.value = "";
+    elements.cloudCommandOutput.textContent = asArray(result.output).length
+      ? asArray(result.output).join("\n")
+      : `Befehl ausgeführt: ${result.command || command}`;
+  } catch (error) {
+    handleApiError(error, elements.authStatus);
+    elements.cloudCommandOutput.textContent = error.message;
   }
 }
 
@@ -1898,6 +1969,7 @@ async function handleSettingsSubmit(event) {
   const payload = {
     brandName: String(form.get("brandName") || "").trim(),
     brandLogoUrl: String(form.get("brandLogoUrl") || "").trim(),
+    ticketCategories: splitLinesOrCsv(form.get("ticketCategories")),
     appealStatusOpenLabel: String(form.get("appealStatusOpenLabel") || "").trim(),
     appealStatusInReviewLabel: String(form.get("appealStatusInReviewLabel") || "").trim(),
     appealStatusAcceptedLabel: String(form.get("appealStatusAcceptedLabel") || "").trim(),
@@ -1940,6 +2012,7 @@ async function handleSettingsSubmit(event) {
 
   try {
     state.settings = await api("/api/settings", { method: "PUT", body: payload });
+    syncTicketCategoriesFromSettings();
     renderSettings();
     setStatus(elements.settingsStatus, "Einstellungen gespeichert.", false);
     await refreshAll();
@@ -2043,6 +2116,7 @@ async function handleServiceTableClick(event) {
       state.selectedService = serviceName;
       elements.consoleServiceSelect.value = serviceName;
       switchPage("cloudnet");
+      switchCloudNetSection("service-consoles");
       await loadConsole();
       return;
     }
@@ -2145,7 +2219,7 @@ function handleHomePanelClick(event) {
 
   switchPage(button.dataset.homePage);
   if (button.dataset.homePage === "cloudnet") {
-    switchCloudNetView("overview");
+    switchCloudNetSection("cloud");
   }
   if (button.dataset.ticketTabTarget) {
     switchTicketTab(button.dataset.ticketTabTarget);
@@ -2533,6 +2607,26 @@ function splitCsv(value) {
     .split(",")
     .map(entry => entry.trim())
     .filter(Boolean);
+}
+
+function splitLinesOrCsv(value) {
+  return String(value || "")
+    .split(/[\n,]+/)
+    .map(entry => entry.trim())
+    .filter(Boolean);
+}
+
+function syncTicketCategoriesFromSettings() {
+  const categories = asArray(state.settings?.ticketCategories);
+  if (!categories.length) {
+    return;
+  }
+  state.meta = {
+    ...(state.meta || {}),
+    ticketCategories: categories,
+  };
+  const selected = elements.ticketCategorySelect.value || categories[0];
+  populateSelect(elements.ticketCategorySelect, categories, selected);
 }
 
 function asArray(value) {

@@ -5,6 +5,9 @@ import de.speed.ticketconsolecloudban.store.LocalPanelDataBackend;
 import de.speed.ticketconsolecloudban.store.PanelDataBackend;
 import eu.cloudnetservice.driver.document.Document;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
 
 public final class PanelSettingsStore {
 
@@ -39,6 +42,7 @@ public final class PanelSettingsStore {
     this.settings = new PanelSettings(
       textOrDefaultWhenBlank(request, "brandName", existing.brandName()),
       text(request, "brandLogoUrl", existing.brandLogoUrl()),
+      ticketCategories(request, existing.ticketCategories()),
       textOrDefaultWhenBlank(request, "appealStatusOpenLabel", existing.appealStatusOpenLabel()),
       textOrDefaultWhenBlank(request, "appealStatusInReviewLabel", existing.appealStatusInReviewLabel()),
       textOrDefaultWhenBlank(request, "appealStatusAcceptedLabel", existing.appealStatusAcceptedLabel()),
@@ -88,6 +92,7 @@ public final class PanelSettingsStore {
     return new PanelSettings(
       defaultIfBlank(source.brandName(), defaults.brandName()),
       source.brandLogoUrl() == null ? "" : source.brandLogoUrl(),
+      sanitizeTicketCategories(source.ticketCategories(), defaults.ticketCategories()),
       defaultIfBlank(source.appealStatusOpenLabel(), defaults.appealStatusOpenLabel()),
       defaultIfBlank(source.appealStatusInReviewLabel(), defaults.appealStatusInReviewLabel()),
       defaultIfBlank(source.appealStatusAcceptedLabel(), defaults.appealStatusAcceptedLabel()),
@@ -152,6 +157,50 @@ public final class PanelSettingsStore {
     }
     var value = request.getString(key);
     return value == null || value.isBlank() ? fallback == null ? "" : fallback : value;
+  }
+
+  private static List<String> ticketCategories(Document request, List<String> fallback) {
+    if (!request.contains("ticketCategories")) {
+      return sanitizeTicketCategories(fallback, PanelSettings.DEFAULT_TICKET_CATEGORIES);
+    }
+    var values = request.readObject("ticketCategories", String[].class, new String[0]);
+    return sanitizeTicketCategories(List.of(values), fallback);
+  }
+
+  private static List<String> sanitizeTicketCategories(List<String> values, List<String> fallback) {
+    var categories = new LinkedHashSet<String>();
+    if (values != null) {
+      for (var value : values) {
+        var normalized = normalizeTicketCategory(value);
+        if (normalized != null) {
+          categories.add(normalized);
+        }
+      }
+    }
+    if (categories.isEmpty() && fallback != null) {
+      for (var value : fallback) {
+        var normalized = normalizeTicketCategory(value);
+        if (normalized != null) {
+          categories.add(normalized);
+        }
+      }
+    }
+    if (categories.isEmpty()) {
+      categories.addAll(PanelSettings.DEFAULT_TICKET_CATEGORIES);
+    }
+    return List.copyOf(categories);
+  }
+
+  private static String normalizeTicketCategory(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    var normalized = value.trim()
+      .replace(' ', '_')
+      .replace('-', '_')
+      .toUpperCase(Locale.ROOT)
+      .replaceAll("[^A-Z0-9_]", "");
+    return normalized.isBlank() ? null : normalized;
   }
 
   private static String safeTablePrefix(String value) {

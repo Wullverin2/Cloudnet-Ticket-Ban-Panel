@@ -24,6 +24,7 @@ import eu.cloudnetservice.driver.provider.CloudServiceFactory;
 import eu.cloudnetservice.driver.provider.CloudServiceProvider;
 import eu.cloudnetservice.driver.provider.ClusterNodeProvider;
 import eu.cloudnetservice.driver.provider.ServiceTaskProvider;
+import eu.cloudnetservice.node.command.CommandProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +40,8 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
     CloudServiceProvider cloudServiceProvider,
     ServiceTaskProvider serviceTaskProvider,
     CloudServiceFactory cloudServiceFactory,
-    ClusterNodeProvider clusterNodeProvider
+    ClusterNodeProvider clusterNodeProvider,
+    CommandProvider commandProvider
   ) {
     var configuration = this.readConfig(PanelConfiguration.class, PanelConfiguration::createDefault, DocumentFactory.json())
       .normalize();
@@ -59,6 +61,7 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
       serviceTaskProvider,
       cloudServiceFactory,
       clusterNodeProvider,
+      commandProvider,
       configuration,
       new TicketStore(this.moduleWrapper().dataDirectory(), panelDataBackend),
       banStore,
@@ -101,9 +104,10 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
     CloudServiceProvider cloudServiceProvider,
     ServiceTaskProvider serviceTaskProvider,
     CloudServiceFactory cloudServiceFactory,
-    ClusterNodeProvider clusterNodeProvider
+    ClusterNodeProvider clusterNodeProvider,
+    CommandProvider commandProvider
   ) {
-    this.startModule(cloudServiceProvider, serviceTaskProvider, cloudServiceFactory, clusterNodeProvider);
+    this.startModule(cloudServiceProvider, serviceTaskProvider, cloudServiceFactory, clusterNodeProvider, commandProvider);
   }
 
   @ModuleTask(lifecycle = ModuleLifeCycle.STOPPED)

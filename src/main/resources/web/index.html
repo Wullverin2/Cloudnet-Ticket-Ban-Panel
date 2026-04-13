@@ -161,7 +161,7 @@
     </section>
 
     <section id="page-cloudnet" class="page-panel hidden" data-page="cloudnet" data-permission="cloudnet.view">
-      <section class="summary-grid hidden cloudnet-view" id="summary-grid" data-cloudnet-view="overview" data-permission="cloudnet.view">
+      <section class="summary-grid hidden cloudnet-view" id="summary-grid" data-cloudnet-section="cloud" data-cloudnet-view="overview" data-permission="cloudnet.view">
         <article class="metric-card">
           <span class="metric-label">Tasks</span>
           <strong id="metric-tasks">-</strong>
@@ -180,8 +180,14 @@
         </article>
       </section>
 
+      <div class="sub-nav" aria-label="CloudNet Unterkategorien">
+        <button data-cloudnet-section-target="cloud" class="active" type="button">Cloud</button>
+        <button data-cloudnet-section-target="service-consoles" type="button">Service Konsolen</button>
+        <button data-cloudnet-section-target="tasks" type="button">Tasks</button>
+      </div>
+
       <div class="panel-grid">
-        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-view="overview">
+        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-section="tasks" data-cloudnet-view="overview">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Tasks</p>
@@ -204,7 +210,7 @@
           <div id="task-selected-summary" class="task-summary-card muted">Noch kein Task ausgewählt.</div>
         </article>
 
-        <article class="panel-card panel-wide cloudnet-view hidden" data-cloudnet-view="task-form" data-permission="cloudnet.manage">
+        <article class="panel-card panel-wide cloudnet-view hidden" data-cloudnet-section="tasks" data-cloudnet-view="task-form" data-permission="cloudnet.manage">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Tasks</p>
@@ -287,7 +293,7 @@
           </form>
         </article>
 
-        <article class="panel-card panel-wide cloudnet-view service-create-card" data-cloudnet-view="overview" data-permission="cloudnet.manage">
+        <article class="panel-card panel-wide cloudnet-view service-create-card cloud-order-4" data-cloudnet-section="cloud" data-cloudnet-view="overview" data-permission="cloudnet.manage">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Services</p>
@@ -322,7 +328,7 @@
           </form>
         </article>
 
-        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-view="overview">
+        <article class="panel-card panel-wide cloudnet-view cloud-order-3" data-cloudnet-section="cloud" data-cloudnet-view="overview">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Services</p>
@@ -348,7 +354,24 @@
           </div>
         </article>
 
-        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-view="overview" data-permission="cloudnet.console">
+        <article class="panel-card panel-wide cloudnet-view cloud-order-2" data-cloudnet-section="cloud" data-cloudnet-view="overview" data-permission="cloudnet.command">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">CloudNet</p>
+              <h2>CloudNet Console</h2>
+              <p class="muted">Führe CloudNet-Befehle direkt auf dem Node aus, auf dem das Panel-Modul läuft.</p>
+            </div>
+          </div>
+
+          <form id="cloud-command-form" class="console-form">
+            <input id="cloud-command-input" name="command" type="text" placeholder="tasks">
+            <button type="submit">Ausführen</button>
+          </form>
+
+          <pre id="cloud-command-output" class="console-output">Noch kein CloudNet-Befehl ausgeführt.</pre>
+        </article>
+
+        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-section="service-consoles" data-cloudnet-view="overview" data-permission="cloudnet.console">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Konsole</p>
@@ -372,7 +395,7 @@
           <pre id="console-output" class="console-output">Noch keine Logs geladen.</pre>
         </article>
 
-        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-view="overview">
+        <article class="panel-card panel-wide cloudnet-view cloud-order-1" data-cloudnet-section="cloud" data-cloudnet-view="overview">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Nodes</p>
@@ -847,6 +870,17 @@
                   <input name="brandLogoUrl" type="url" placeholder="https://example.com/logo.png">
                 </label>
                 <p class="muted">Titel und Logo werden sofort nach dem Speichern im Panel angezeigt. Das Logo sollte per HTTPS erreichbar sein.</p>
+              </fieldset>
+
+              <fieldset>
+                <legend>Ticket-Arten</legend>
+                <p class="muted">Diese Arten werden im Panel und als Tab-Vervollständigung für /ticket create verwendet.</p>
+                <div id="ticket-category-settings-list" class="category-pill-list"></div>
+                <label>
+                  <span>Arten</span>
+                  <textarea name="ticketCategories" rows="5" placeholder="SUPPORT&#10;BUG&#10;MELDEN&#10;SONSTIGES"></textarea>
+                </label>
+                <p class="muted">Eine Art pro Zeile oder per Komma getrennt. Sonderzeichen werden automatisch bereinigt.</p>
               </fieldset>
 
               <fieldset class="settings-wide">

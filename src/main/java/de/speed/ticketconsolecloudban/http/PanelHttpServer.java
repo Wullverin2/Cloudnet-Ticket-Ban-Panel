@@ -186,6 +186,17 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() == 3
+      && "cloudnet".equals(segments.get(1))
+      && "command".equals(segments.get(2))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.CLOUDNET_COMMAND)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.runCloudNetCommand(HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
     if (segments.size() == 2 && "tasks".equals(segments.get(1))) {
       if (HttpExchangeUtils.matchesMethod(exchange, "GET")) {
         if (!this.requirePermission(exchange, principal, PanelPermission.CLOUDNET_VIEW)) {

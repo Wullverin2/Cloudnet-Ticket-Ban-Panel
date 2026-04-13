@@ -84,6 +84,20 @@ public final class PanelApiClient {
     return this.toTicket(this.send("POST", "/api/tickets/" + encode(id) + "/comments", request).getAsJsonObject());
   }
 
+  public List<String> ticketCategories() {
+    var response = this.send("GET", "/api/meta", null).getAsJsonObject();
+    var categories = new ArrayList<String>();
+    if (response.has("ticketCategories") && response.get("ticketCategories").isJsonArray()) {
+      for (var element : response.getAsJsonArray("ticketCategories")) {
+        var category = element.getAsString();
+        if (category != null && !category.isBlank()) {
+          categories.add(category.trim());
+        }
+      }
+    }
+    return List.copyOf(categories);
+  }
+
   public void syncLiteBans(List<LiteBanSnapshot> bans) {
     var request = new JsonObject();
     request.addProperty("actor", "velocity-sync");

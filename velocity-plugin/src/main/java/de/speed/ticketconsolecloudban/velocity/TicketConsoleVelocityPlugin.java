@@ -38,6 +38,8 @@ import org.slf4j.Logger;
 public final class TicketConsoleVelocityPlugin {
 
   private static final String PREFIX = "[Panel] ";
+  private static final List<String> DEFAULT_TICKET_CATEGORIES = List.of("SUPPORT", "BUG", "MELDEN", "SONSTIGES");
+  private static final long TICKET_CATEGORY_CACHE_MILLIS = 30_000L;
 
   private final ProxyServer server;
   private final Logger logger;
@@ -49,6 +51,8 @@ public final class TicketConsoleVelocityPlugin {
   private LuckPermsBridge luckPermsBridge;
   private LiteBansBridge liteBansBridge;
   private LiteBansPunishmentBridgeServer punishmentBridgeServer;
+  private volatile List<String> ticketCategories = DEFAULT_TICKET_CATEGORIES;
+  private volatile long ticketCategoriesLoadedAt;
 
   @Inject
   public TicketConsoleVelocityPlugin(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
@@ -109,6 +113,7 @@ public final class TicketConsoleVelocityPlugin {
     if (!this.config.hasPanelToken()) {
       this.logger.warn("panel.api-token ist noch CHANGE_ME. Ticket-Befehle funktionieren erst nach Konfiguration.");
     }
+    this.refreshTicketCategoriesAsync();
     if (this.config.liteBansEnabled() && !this.liteBansBridge.available()) {
       this.logger.warn("LiteBans API ist nicht verfuegbar. Ban-Pruefung und BanInfo sind eingeschraenkt.");
     }
@@ -133,6 +138,31 @@ public final class TicketConsoleVelocityPlugin {
       metaBuilder.aliases(aliases.toArray(String[]::new));
     }
     this.server.getCommandManager().register(metaBuilder.build(), handler);
+  }
+
+  private List<String> ticketCategories() {
+    var now = System.currentTimeMillis();
+    if (now - this.ticketCategoriesLoadedAt > TICKET_CATEGORY_CACHE_MILLIS) {
+      this.ticketCategoriesLoadedAt = now;
+      this.refreshTicketCategoriesAsync();
+    }
+    return this.ticketCategories;
+  }
+
+  private void refreshTicketCategoriesAsync() {
+    if (this.panelApi == null || !this.config.hasPanelToken()) {
+      return;
+    }
+    this.executor.execute(() -> {
+      try {
+        var categories = this.panelApi.ticketCategories();
+        if (!categories.isEmpty()) {
+          this.ticketCategories = categories;
+        }
+      } catch (Exception exception) {
+        this.logger.debug("Ticket-Arten konnten nicht aus dem Panel geladen werden: {}", exception.getMessage());
+      }
+    });
   }
 
   private void scheduleLiteBansBridge() {
@@ -303,7 +333,7 @@ public final class TicketConsoleVelocityPlugin {
         return;
       }
       if (invocation.arguments().length == 0) {
-        send(player, "Nutzung: /ticket create <Grund> [Support|Bug|Melden|Sonstiges], /ticket list, /ticket view <id>", NamedTextColor.YELLOW);
+        send(player, "Nutzung: /ticket create [Art] <Grund>, /ticket list, /ticket view <id>", NamedTextColor.YELLOW);
         return;
       }
 
@@ -351,11 +381,11 @@ public final class TicketConsoleVelocityPlugin {
         return;
       }
       if (args.length <= startIndex) {
-        send(player, "Nutzung: /ticket create <Grund> [Support|Bug|Melden|Sonstiges]", NamedTextColor.YELLOW);
+        send(player, "Nutzung: /ticket create [Art] <Grund>", NamedTextColor.YELLOW);
         return;
       }
 
-      var input = parseTicketCreate(args, startIndex);
+      var input = TicketConsoleVelocityPlugin.this.parseTicketCreate(args, startIndex);
       if (input.message().isBlank()) {
         send(player, "Bitte gib einen Grund bzw. eine Beschreibung fuer das Ticket an.", NamedTextColor.YELLOW);
         return;
@@ -370,6 +400,24 @@ public final class TicketConsoleVelocityPlugin {
           input.message());
         send(player, "Ticket erstellt: " + ticket.id() + " auf " + sourceServer + ". Mit /ticket view " + ticket.id() + " kannst du Antworten lesen.", NamedTextColor.GREEN);
       });
+    }
+
+    @Override
+    public List<String> suggest(Invocation invocation) {
+      var args = invocation.arguments();
+      if (args.length == 0) {
+        return List.of("create", "list", "view");
+      }
+      if (args.length == 1) {
+        var suggestions = new java.util.ArrayList<String>();
+        suggestions.addAll(suggestMatching(List.of("create", "list", "view"), args[0]));
+        suggestions.addAll(suggestMatching(TicketConsoleVelocityPlugin.this.ticketCategories(), args[0]));
+        return suggestions;
+      }
+      if ("create".equalsIgnoreCase(args[0]) && args.length == 2) {
+        return suggestMatching(TicketConsoleVelocityPlugin.this.ticketCategories(), args[1]);
+      }
+      return List.of();
     }
   }
 
@@ -695,13 +743,14 @@ public final class TicketConsoleVelocityPlugin {
     return String.join(" ", Arrays.copyOfRange(arguments, startIndex, endIndex)).trim();
   }
 
-  private static TicketCreateInput parseTicketCreate(String[] arguments, int startIndex) {
-    var firstCategory = category(arguments[startIndex]);
+  private TicketCreateInput parseTicketCreate(String[] arguments, int startIndex) {
+    var categories = this.ticketCategories();
+    var firstCategory = category(arguments[startIndex], categories);
     if (firstCategory != null && arguments.length > startIndex + 1) {
       return new TicketCreateInput(firstCategory, join(arguments, startIndex + 1));
     }
 
-    var lastCategory = category(arguments[arguments.length - 1]);
+    var lastCategory = category(arguments[arguments.length - 1], categories);
     if (lastCategory != null && arguments.length > startIndex + 1) {
       return new TicketCreateInput(lastCategory, join(arguments, startIndex, arguments.length - 1));
     }
@@ -709,17 +758,47 @@ public final class TicketConsoleVelocityPlugin {
     return new TicketCreateInput(null, join(arguments, startIndex));
   }
 
-  private static String category(String value) {
+  private static String category(String value, List<String> categories) {
     if (value == null) {
       return null;
     }
-    return switch (value.toLowerCase(Locale.ROOT)) {
-      case "support" -> "SUPPORT";
-      case "bug", "fehler" -> "BUG";
-      case "melden", "report", "meldung" -> "REPORT";
-      case "sonstiges", "other" -> "OTHER";
-      default -> null;
+    var normalized = normalizeCategory(value);
+    for (var category : categories) {
+      if (normalizeCategory(category).equals(normalized)) {
+        return category;
+      }
+    }
+    var aliases = switch (normalized) {
+      case "FEHLER" -> List.of("BUG");
+      case "MELDEN", "REPORT", "MELDUNG" -> List.of("MELDEN", "REPORT");
+      case "SONSTIGES", "OTHER" -> List.of("SONSTIGES", "OTHER");
+      default -> List.<String>of();
     };
+    for (var alias : aliases) {
+      var match = categories.stream()
+        .filter(category -> normalizeCategory(category).equals(alias))
+        .findFirst();
+      if (match.isPresent()) {
+        return match.get();
+      }
+    }
+    return null;
+  }
+
+  private static List<String> suggestMatching(List<String> values, String prefix) {
+    var normalizedPrefix = normalizeCategory(prefix);
+    return values.stream()
+      .filter(value -> normalizeCategory(value).startsWith(normalizedPrefix))
+      .toList();
+  }
+
+  private static String normalizeCategory(String value) {
+    return String.valueOf(value)
+      .trim()
+      .replace(" ", "_")
+      .replace("-", "_")
+      .toUpperCase(Locale.ROOT)
+      .replaceAll("[^A-Z0-9_]", "");
   }
 
   private static boolean isOwnTicket(PanelTicket ticket, Player player) {

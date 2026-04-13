@@ -37,6 +37,8 @@ import eu.cloudnetservice.driver.service.ServiceEnvironmentType;
 import eu.cloudnetservice.driver.service.ServiceInfoSnapshot;
 import eu.cloudnetservice.driver.service.ServiceLifeCycle;
 import eu.cloudnetservice.driver.service.ServiceTask;
+import eu.cloudnetservice.node.command.CommandProvider;
+import eu.cloudnetservice.node.command.source.CommandSource;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -65,6 +67,7 @@ public final class CloudNetFacade {
   private final ServiceTaskProvider serviceTaskProvider;
   private final CloudServiceFactory cloudServiceFactory;
   private final ClusterNodeProvider clusterNodeProvider;
+  private final CommandProvider commandProvider;
   private final PanelConfiguration configuration;
   private final TicketStore ticketStore;
   private final BanStore banStore;
@@ -79,6 +82,7 @@ public final class CloudNetFacade {
     ServiceTaskProvider serviceTaskProvider,
     CloudServiceFactory cloudServiceFactory,
     ClusterNodeProvider clusterNodeProvider,
+    CommandProvider commandProvider,
     PanelConfiguration configuration,
     TicketStore ticketStore,
     BanStore banStore,
@@ -92,6 +96,7 @@ public final class CloudNetFacade {
     this.serviceTaskProvider = serviceTaskProvider;
     this.cloudServiceFactory = cloudServiceFactory;
     this.clusterNodeProvider = clusterNodeProvider;
+    this.commandProvider = commandProvider;
     this.configuration = configuration;
     this.ticketStore = ticketStore;
     this.banStore = banStore;
@@ -110,7 +115,7 @@ public final class CloudNetFacade {
       List.of("jvm"),
       List.of("OPEN", "IN_PROGRESS", "CLOSED"),
       List.of("LOW", "NORMAL", "HIGH", "URGENT"),
-      List.of("SUPPORT", "BUG", "REPORT", "BAN_APPEAL", "OTHER"),
+      this.settingsStore.current().ticketCategories(),
       PanelPermission.catalog(),
       Instant.now().toString());
   }
@@ -281,6 +286,13 @@ public final class CloudNetFacade {
     var command = this.requiredText(request, "command");
     var provider = this.requireServiceProvider(serviceName);
     provider.runCommand(command);
+  }
+
+  public CloudNetCommandView runCloudNetCommand(Document request) {
+    var command = this.requiredText(request, "command");
+    var source = new PanelCommandSource();
+    this.commandProvider.execute(source, command).join();
+    return new CloudNetCommandView(command, source.messages(), Instant.now().toString());
   }
 
   public List<NodeView> listNodes() {
@@ -554,6 +566,7 @@ public final class CloudNetFacade {
     return new SettingsView(
       settings.brandName(),
       settings.brandLogoUrl(),
+      settings.ticketCategories(),
       settings.appealStatusOpenLabel(),
       settings.appealStatusInReviewLabel(),
       settings.appealStatusAcceptedLabel(),
@@ -1025,6 +1038,50 @@ public final class CloudNetFacade {
       .replace("'", "&#39;");
   }
 
+  private static final class PanelCommandSource implements CommandSource {
+
+    private final List<String> messages = new ArrayList<>();
+
+    @Override
+    public String name() {
+      return "Panel";
+    }
+
+    @Override
+    public void sendMessage(String message) {
+      if (message != null && !message.isBlank()) {
+        this.messages.add(message);
+      }
+    }
+
+    @Override
+    public void sendMessage(String... messages) {
+      if (messages == null) {
+        return;
+      }
+      for (var message : messages) {
+        this.sendMessage(message);
+      }
+    }
+
+    @Override
+    public void sendMessage(Collection<String> messages) {
+      if (messages == null) {
+        return;
+      }
+      messages.forEach(this::sendMessage);
+    }
+
+    @Override
+    public boolean checkPermission(String permission) {
+      return true;
+    }
+
+    public List<String> messages() {
+      return List.copyOf(this.messages);
+    }
+  }
+
   public record MetaView(
     String brandName,
     String brandLogoUrl,
@@ -1113,6 +1170,13 @@ public final class CloudNetFacade {
   ) {
   }
 
+  public record CloudNetCommandView(
+    String command,
+    List<String> output,
+    String executedAt
+  ) {
+  }
+
   public record NodeView(
     String uniqueId,
     boolean connected,
@@ -1171,6 +1235,7 @@ public final class CloudNetFacade {
   public record SettingsView(
     String brandName,
     String brandLogoUrl,
+    List<String> ticketCategories,
     String appealStatusOpenLabel,
     String appealStatusInReviewLabel,
     String appealStatusAcceptedLabel,

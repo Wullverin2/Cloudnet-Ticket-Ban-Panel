@@ -1,10 +1,12 @@
 package de.speed.ticketconsolecloudban.settings;
 
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import java.util.List;
 
 public record PanelSettings(
   String brandName,
   String brandLogoUrl,
+  List<String> ticketCategories,
   String appealStatusOpenLabel,
   String appealStatusInReviewLabel,
   String appealStatusAcceptedLabel,
@@ -35,6 +37,8 @@ public record PanelSettings(
   int liteBansBridgeReadTimeoutMillis
 ) {
 
+  public static final List<String> DEFAULT_TICKET_CATEGORIES = List.of("SUPPORT", "BUG", "MELDEN", "SONSTIGES");
+
   public static final String DEFAULT_APPEAL_STATUS_OPEN_LABEL = "Offen";
   public static final String DEFAULT_APPEAL_STATUS_IN_REVIEW_LABEL = "In Prüfung";
   public static final String DEFAULT_APPEAL_STATUS_ACCEPTED_LABEL = "Angenommen";
@@ -56,6 +60,7 @@ public record PanelSettings(
     return new PanelSettings(
       configuration.brandName(),
       configuration.brandLogoUrl(),
+      DEFAULT_TICKET_CATEGORIES,
       DEFAULT_APPEAL_STATUS_OPEN_LABEL,
       DEFAULT_APPEAL_STATUS_IN_REVIEW_LABEL,
       DEFAULT_APPEAL_STATUS_ACCEPTED_LABEL,
