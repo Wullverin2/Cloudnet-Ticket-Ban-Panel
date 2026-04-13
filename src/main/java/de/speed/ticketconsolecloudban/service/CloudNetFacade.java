@@ -291,6 +291,11 @@ public final class CloudNetFacade {
 
   public CloudNetCommandView runCloudNetCommand(Document request) {
     var command = this.requiredText(request, "command");
+    var screenOutput = this.serviceScreenOutput(command);
+    if (screenOutput != null) {
+      return new CloudNetCommandView(command, screenOutput, Instant.now().toString());
+    }
+
     try {
       this.commandProvider.execute(CommandSource.console(), command).join();
     } catch (CompletionException exception) {
@@ -298,7 +303,9 @@ public final class CloudNetFacade {
     }
     return new CloudNetCommandView(
       command,
-      List.of("Befehl wurde an die echte CloudNet-Konsole übergeben: " + command),
+      List.of(
+        "Befehl wurde an die echte CloudNet-Konsole übergeben: " + command,
+        "Hinweis: Interaktive Ausgaben erscheinen in der CloudNet-Konsole. Für Service-Logs nutze im Panel z.B. 'service Lobby-1 screen' oder die Unterseite 'Service Konsolen'."),
       Instant.now().toString());
   }
 
@@ -1061,6 +1068,54 @@ public final class CloudNetFacade {
       }
     }
     return "CloudNet-Befehl konnte nicht ausgeführt werden.";
+  }
+
+  private List<String> serviceScreenOutput(String command) {
+    var parts = List.of(command.trim().split("\\s+"));
+    if (parts.size() < 3 || !this.isServiceCommand(parts.get(0))) {
+      return null;
+    }
+
+    var selector = "";
+    if ("screen".equalsIgnoreCase(parts.get(2))) {
+      selector = parts.get(1);
+    } else if ("screen".equalsIgnoreCase(parts.get(1))) {
+      selector = parts.get(2);
+    }
+    if (selector.isBlank()) {
+      return null;
+    }
+
+    var limit = this.clamp(this.configuration.consoleLineLimit(), 25, 500);
+    if ("*".equals(selector)) {
+      var output = new ArrayList<String>();
+      var services = this.cloudServiceProvider.services().stream()
+        .sorted(Comparator.comparing(ServiceInfoSnapshot::name))
+        .toList();
+      if (services.isEmpty()) {
+        return List.of("Keine aktiven Services gefunden.");
+      }
+      for (var service : services) {
+        output.add("===== " + service.name() + " =====");
+        var lines = this.tail(this.cloudServiceProvider.serviceProviderByName(service.name()).cachedLogMessages(), limit);
+        output.addAll(lines.isEmpty() ? List.of("Keine Log-Ausgabe im Cache.") : lines);
+      }
+      return output;
+    }
+
+    var provider = this.requireServiceProvider(selector);
+    var lines = this.tail(provider.cachedLogMessages(), limit);
+    if (lines.isEmpty()) {
+      return List.of("Keine Log-Ausgabe im Cache für " + selector + ".");
+    }
+    return lines;
+  }
+
+  private boolean isServiceCommand(String command) {
+    return switch (command.toLowerCase()) {
+      case "service", "services", "ser", "srv" -> true;
+      default -> false;
+    };
   }
 
   public record MetaView(
