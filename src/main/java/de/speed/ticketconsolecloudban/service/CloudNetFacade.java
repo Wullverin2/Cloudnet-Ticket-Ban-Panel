@@ -39,6 +39,10 @@ import eu.cloudnetservice.driver.service.ServiceLifeCycle;
 import eu.cloudnetservice.driver.service.ServiceTask;
 import eu.cloudnetservice.node.command.CommandProvider;
 import eu.cloudnetservice.node.command.source.CommandSource;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -289,6 +293,23 @@ public final class CloudNetFacade {
     provider.runCommand(command);
   }
 
+  public CloudNetConsoleView cloudNetConsole(int requestedLimit) {
+    var effectiveLimit = this.clamp(requestedLimit, 25, this.configuration.consoleLineLimit());
+    var logPath = this.cloudNetLogPath();
+    if (logPath == null) {
+      return new CloudNetConsoleView(
+        effectiveLimit,
+        List.of("CloudNet-Logdatei nicht gefunden. Geprüft wurden: " + String.join(", ", this.cloudNetLogPathCandidates().stream().map(Path::toString).toList())),
+        null,
+        Instant.now().toString());
+    }
+    return new CloudNetConsoleView(
+      effectiveLimit,
+      this.readFileTail(logPath, effectiveLimit),
+      logPath.toAbsolutePath().normalize().toString(),
+      Instant.now().toString());
+  }
+
   public CloudNetCommandView runCloudNetCommand(Document request) {
     var command = this.requiredText(request, "command");
     var screenOutput = this.serviceScreenOutput(command);
@@ -303,9 +324,7 @@ public final class CloudNetFacade {
     }
     return new CloudNetCommandView(
       command,
-      List.of(
-        "Befehl wurde an die echte CloudNet-Konsole übergeben: " + command,
-        "Hinweis: Interaktive Ausgaben erscheinen in der CloudNet-Konsole. Für Service-Logs nutze im Panel z.B. 'service Lobby-1 screen' oder die Unterseite 'Service Konsolen'."),
+      this.cloudNetConsole(this.configuration.consoleLineLimit()).lines(),
       Instant.now().toString());
   }
 
@@ -1070,6 +1089,36 @@ public final class CloudNetFacade {
     return "CloudNet-Befehl konnte nicht ausgeführt werden.";
   }
 
+  private Path cloudNetLogPath() {
+    return this.cloudNetLogPathCandidates().stream()
+      .filter(Files::isRegularFile)
+      .findFirst()
+      .orElse(null);
+  }
+
+  private List<Path> cloudNetLogPathCandidates() {
+    return List.of(
+      Path.of("logs", "latest.log"),
+      Path.of("local", "logs", "latest.log"),
+      Path.of("log", "latest.log"),
+      Path.of("latest.log"));
+  }
+
+  private List<String> readFileTail(Path path, int limit) {
+    try (var lines = Files.lines(path, StandardCharsets.UTF_8)) {
+      var allLines = lines.toList();
+      if (allLines.isEmpty()) {
+        return List.of("CloudNet-Logdatei ist aktuell leer: " + path.toAbsolutePath().normalize());
+      }
+      var skip = Math.max(0, allLines.size() - limit);
+      return allLines.stream()
+        .skip(skip)
+        .toList();
+    } catch (IOException exception) {
+      throw new IllegalArgumentException("CloudNet-Logdatei konnte nicht gelesen werden: " + exception.getMessage(), exception);
+    }
+  }
+
   private List<String> serviceScreenOutput(String command) {
     var parts = List.of(command.trim().split("\\s+"));
     if (parts.size() < 3 || !this.isServiceCommand(parts.get(0))) {
@@ -1202,6 +1251,14 @@ public final class CloudNetFacade {
     String state,
     int limit,
     List<String> lines,
+    String generatedAt
+  ) {
+  }
+
+  public record CloudNetConsoleView(
+    int limit,
+    List<String> lines,
+    String logPath,
     String generatedAt
   ) {
   }

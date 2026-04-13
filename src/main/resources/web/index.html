@@ -354,21 +354,28 @@
           </div>
         </article>
 
-        <article class="panel-card panel-wide cloudnet-view cloud-order-2" data-cloudnet-section="cloud" data-cloudnet-view="overview" data-permission="cloudnet.command">
+        <article class="panel-card panel-wide cloudnet-view cloud-order-2" data-cloudnet-section="cloud" data-cloudnet-view="overview" data-permission="cloudnet.console">
           <div class="panel-head">
             <div>
               <p class="eyebrow">CloudNet</p>
               <h2>CloudNet Console</h2>
               <p class="muted">Führe CloudNet-Befehle direkt auf dem Node aus, auf dem das Panel-Modul läuft.</p>
             </div>
+            <div class="inline-controls">
+              <label class="inline-label">
+                <input id="cloud-console-auto-refresh" type="checkbox" checked>
+                <span>Auto-Refresh</span>
+              </label>
+              <button id="cloud-console-refresh" class="ghost-button" type="button">Console laden</button>
+            </div>
           </div>
 
-          <form id="cloud-command-form" class="console-form">
+          <form id="cloud-command-form" class="console-form" data-permission="cloudnet.command">
             <input id="cloud-command-input" name="command" type="text" placeholder="tasks">
             <button type="submit">Ausführen</button>
           </form>
 
-          <pre id="cloud-command-output" class="console-output">Noch kein CloudNet-Befehl ausgeführt.</pre>
+          <pre id="cloud-command-output" class="console-output">CloudNet-Console wird geladen...</pre>
         </article>
 
         <article class="panel-card panel-wide cloudnet-view" data-cloudnet-section="service-consoles" data-cloudnet-view="overview" data-permission="cloudnet.console">

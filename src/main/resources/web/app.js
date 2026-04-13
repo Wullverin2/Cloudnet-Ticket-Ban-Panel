@@ -46,6 +46,9 @@ const state = {
   consoleRequestInFlight: false,
   lastConsoleText: "",
   consoleAutoRefresh: true,
+  cloudConsoleRequestInFlight: false,
+  lastCloudConsoleText: "",
+  cloudConsoleAutoRefresh: true,
 };
 
 const elements = {};
@@ -115,6 +118,8 @@ function bindElements() {
   elements.cloudCommandForm = document.getElementById("cloud-command-form");
   elements.cloudCommandInput = document.getElementById("cloud-command-input");
   elements.cloudCommandOutput = document.getElementById("cloud-command-output");
+  elements.cloudConsoleAutoRefresh = document.getElementById("cloud-console-auto-refresh");
+  elements.cloudConsoleRefresh = document.getElementById("cloud-console-refresh");
 
   elements.serviceCreateForm = document.getElementById("service-create-form");
   elements.serviceCreateStatus = document.getElementById("service-create-status");
@@ -210,6 +215,13 @@ function bindEvents() {
   });
 
   elements.cloudCommandForm.addEventListener("submit", handleCloudCommandSubmit);
+  elements.cloudConsoleRefresh.addEventListener("click", loadCloudConsole);
+  elements.cloudConsoleAutoRefresh.addEventListener("change", () => {
+    state.cloudConsoleAutoRefresh = elements.cloudConsoleAutoRefresh.checked;
+    if (state.cloudConsoleAutoRefresh) {
+      loadCloudConsole();
+    }
+  });
   elements.serviceCreateForm.addEventListener("submit", handleServiceCreateSubmit);
   elements.serviceRefresh.addEventListener("click", refreshAll);
   elements.serviceTable.addEventListener("click", handleServiceTableClick);
@@ -676,6 +688,9 @@ function updateCloudNetVisibility() {
     const viewMatches = !panel.dataset.cloudnetView || panel.dataset.cloudnetView === view;
     panel.classList.toggle("hidden", !sectionMatches || !viewMatches);
   });
+  if (state.activePage === "cloudnet" && section === "cloud" && view === "overview") {
+    loadCloudConsole();
+  }
 }
 
 function firstAllowedPage() {
@@ -1564,6 +1579,34 @@ async function loadConsole() {
   }
 }
 
+async function loadCloudConsole() {
+  if (!hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)) {
+    return;
+  }
+
+  if (state.cloudConsoleRequestInFlight) {
+    return;
+  }
+
+  try {
+    state.cloudConsoleRequestInFlight = true;
+    const consoleData = await api("/api/cloudnet/console?limit=220");
+    const nextText = asArray(consoleData.lines).length
+      ? asArray(consoleData.lines).join("\n")
+      : "Noch keine CloudNet-Console-Ausgabe gefunden.";
+
+    if (nextText !== state.lastCloudConsoleText) {
+      state.lastCloudConsoleText = nextText;
+      elements.cloudCommandOutput.textContent = nextText;
+    }
+  } catch (error) {
+    handleApiError(error, elements.authStatus);
+    elements.cloudCommandOutput.textContent = error.message;
+  } finally {
+    state.cloudConsoleRequestInFlight = false;
+  }
+}
+
 async function handleTaskSubmit(event) {
   event.preventDefault();
   if (!hasPermission(PERMISSIONS.CLOUDNET_MANAGE)) {
@@ -1771,9 +1814,12 @@ async function handleCloudCommandSubmit(event) {
       body: { command },
     });
     elements.cloudCommandInput.value = "";
-    elements.cloudCommandOutput.textContent = asArray(result.output).length
+    const nextText = asArray(result.output).length
       ? asArray(result.output).join("\n")
       : `Befehl ausgeführt: ${result.command || command}`;
+    state.lastCloudConsoleText = nextText;
+    elements.cloudCommandOutput.textContent = nextText;
+    setTimeout(loadCloudConsole, 700);
   } catch (error) {
     handleApiError(error, elements.authStatus);
     elements.cloudCommandOutput.textContent = error.message;
@@ -2931,6 +2977,14 @@ function startConsolePolling() {
       && state.selectedService) {
       loadConsole();
     }
+    if (state.cloudConsoleAutoRefresh
+      && hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)
+      && !document.hidden
+      && state.token
+      && state.activePage === "cloudnet"
+      && state.activeCloudNetSection === "cloud") {
+      loadCloudConsole();
+    }
   }, 5000);
 }
 
@@ -2941,6 +2995,14 @@ function handleVisibilityChange() {
     && state.token
     && state.selectedService) {
     loadConsole();
+  }
+  if (state.cloudConsoleAutoRefresh
+    && hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)
+    && !document.hidden
+    && state.token
+    && state.activePage === "cloudnet"
+    && state.activeCloudNetSection === "cloud") {
+    loadCloudConsole();
   }
 }
 

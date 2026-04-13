@@ -188,6 +188,22 @@ public final class PanelHttpServer {
 
     if (segments.size() == 3
       && "cloudnet".equals(segments.get(1))
+      && "console".equals(segments.get(2))
+      && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.CLOUDNET_CONSOLE)) {
+        return;
+      }
+      var limit = 200;
+      var query = exchange.getRequestURI().getQuery();
+      if (query != null && query.startsWith("limit=")) {
+        limit = Integer.parseInt(query.substring("limit=".length()));
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.cloudNetConsole(limit));
+      return;
+    }
+
+    if (segments.size() == 3
+      && "cloudnet".equals(segments.get(1))
       && "command".equals(segments.get(2))
       && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
       if (!this.requirePermission(exchange, principal, PanelPermission.CLOUDNET_COMMAND)) {
