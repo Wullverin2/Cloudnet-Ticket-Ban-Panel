@@ -10,15 +10,19 @@ import java.util.UUID;
 
 public final class SftpEvidenceStorage implements EvidenceStorage {
 
-  private final PanelConfiguration configuration;
+  private final AppealEvidenceConfiguration configuration;
 
   public SftpEvidenceStorage(PanelConfiguration configuration) {
+    this(AppealEvidenceConfiguration.from(configuration));
+  }
+
+  public SftpEvidenceStorage(AppealEvidenceConfiguration configuration) {
     this.configuration = configuration;
   }
 
   @Override
   public StoredEvidence store(String appealId, AppealMultipartForm.UploadFile file) {
-    if (this.configuration.appealEvidenceSftpHost().isBlank() || this.configuration.appealEvidenceSftpUsername().isBlank()) {
+    if (this.configuration.sftpHost().isBlank() || this.configuration.sftpUsername().isBlank()) {
       throw new IllegalStateException("SFTP-Speicher ist nicht vollstaendig konfiguriert.");
     }
 
@@ -26,15 +30,15 @@ public final class SftpEvidenceStorage implements EvidenceStorage {
     ChannelSftp channel = null;
     try {
       var jsch = new JSch();
-      if (!this.configuration.appealEvidenceSftpPrivateKeyPath().isBlank()) {
-        jsch.addIdentity(this.configuration.appealEvidenceSftpPrivateKeyPath());
+      if (!this.configuration.sftpPrivateKeyPath().isBlank()) {
+        jsch.addIdentity(this.configuration.sftpPrivateKeyPath());
       }
       session = jsch.getSession(
-        this.configuration.appealEvidenceSftpUsername(),
-        this.configuration.appealEvidenceSftpHost(),
-        this.configuration.appealEvidenceSftpPort());
-      if (!this.configuration.appealEvidenceSftpPassword().isBlank()) {
-        session.setPassword(this.configuration.appealEvidenceSftpPassword());
+        this.configuration.sftpUsername(),
+        this.configuration.sftpHost(),
+        this.configuration.sftpPort());
+      if (!this.configuration.sftpPassword().isBlank()) {
+        session.setPassword(this.configuration.sftpPassword());
       }
       var properties = new Properties();
       properties.setProperty("StrictHostKeyChecking", "no");
@@ -43,7 +47,7 @@ public final class SftpEvidenceStorage implements EvidenceStorage {
       channel = (ChannelSftp) session.openChannel("sftp");
       channel.connect(10_000);
 
-      var directory = remotePath(this.configuration.appealEvidenceSftpRemoteDirectory(), safeName(appealId));
+      var directory = remotePath(this.configuration.sftpRemoteDirectory(), safeName(appealId));
       mkdirs(channel, directory);
       var storedName = UUID.randomUUID() + "-" + safeName(file.fileName());
       var target = remotePath(directory, storedName);

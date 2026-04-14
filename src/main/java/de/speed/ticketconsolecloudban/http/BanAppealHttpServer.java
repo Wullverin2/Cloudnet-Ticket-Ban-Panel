@@ -106,7 +106,7 @@ public final class BanAppealHttpServer {
       return;
     }
 
-    var maxRequestBytes = (this.configuration.appealMaxFileBytes() * Math.max(1, this.configuration.appealMaxFiles())) + 512_000L;
+    var maxRequestBytes = this.appealService.maxRequestBytes();
     var body = exchange.getRequestBody().readNBytes((int) Math.min(maxRequestBytes + 1, Integer.MAX_VALUE));
     if (body.length > maxRequestBytes) {
       HttpExchangeUtils.writeJson(exchange, 413, new HttpExchangeUtils.ApiError("Upload ist zu gross."));
@@ -173,9 +173,10 @@ public final class BanAppealHttpServer {
           const params=new URLSearchParams(location.search);const token=params.get('token');
           loadMeta();
           if(token){formCard.classList.add('hidden');statusCard.classList.remove('hidden');loadStatus(token);}
-          form.addEventListener('submit',async event=>{event.preventDefault();formStatus.textContent='Antrag wird gesendet...';formStatus.className='status muted';try{const response=await fetch('/api/appeals',{method:'POST',body:new FormData(form)});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Antrag konnte nicht gesendet werden.');form.reset();formStatus.textContent=data.message||'Antrag wurde eingereicht.';formStatus.className='status success';if(data.statusUrl){history.replaceState(null,'',data.statusUrl);}}catch(error){formStatus.textContent=error.message;formStatus.className='status error';}});
+          form.addEventListener('submit',async event=>{event.preventDefault();formStatus.textContent='Antrag wird gesendet...';formStatus.className='status muted';try{const response=await fetch('/api/appeals',{method:'POST',body:new FormData(form)});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Antrag konnte nicht gesendet werden.');form.reset();formStatus.textContent=data.message||'Antrag wurde eingereicht.';formStatus.className='status success';const statusPath=relativeStatusPath(data.statusUrl);if(statusPath){history.replaceState(null,'',statusPath);formCard.classList.add('hidden');statusCard.classList.remove('hidden');loadStatus(new URL(statusPath,location.origin).searchParams.get('token'));}}catch(error){formStatus.textContent=error.message;formStatus.className='status error';}});
           async function loadMeta(){try{const response=await fetch('/api/appeals/meta');const data=await response.json().catch(()=>({}));if(data.brandName){brandName.textContent=data.brandName;document.title='Entbannungsantrag - '+data.brandName;}if(data.brandLogoUrl){brandLogo.src=data.brandLogoUrl;brandLogo.classList.remove('hidden');}}catch(error){}}
           async function loadStatus(token){try{const response=await fetch('/api/appeals/status?token='+encodeURIComponent(token));const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Status konnte nicht geladen werden.');output.innerHTML='<strong>Status: '+escapeHtml(data.statusLabel||data.status||'-')+'</strong><span class="status-message">'+escapeHtml(data.statusText||'')+'</span><div class="meta-row"><span>Random Ban-ID: '+escapeHtml(data.publicBanId||'-')+'</span><span>Spieler: '+escapeHtml(data.playerName||'-')+'</span><span>Eingereicht: '+formatDate(data.createdAt)+'</span></div>'+(data.teamNote?'<span>Team-Notiz: '+escapeHtml(data.teamNote)+'</span>':'');}catch(error){output.textContent=error.message;output.className='status-box error';}}
+          function relativeStatusPath(value){try{const url=new URL(value||'',location.origin);const token=url.searchParams.get('token');return token?'/status?token='+encodeURIComponent(token):'';}catch(error){return '';}}
           function formatDate(value){const time=Date.parse(value||'');if(Number.isNaN(time))return escapeHtml(value||'-');return new Intl.DateTimeFormat('de-DE',{dateStyle:'medium',timeStyle:'short'}).format(new Date(time));}
           function escapeHtml(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;");}
         </script>

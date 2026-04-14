@@ -12,31 +12,35 @@ import java.util.UUID;
 
 public final class OneDriveEvidenceStorage implements EvidenceStorage {
 
-  private final PanelConfiguration configuration;
+  private final AppealEvidenceConfiguration configuration;
   private final HttpClient httpClient = HttpClient.newBuilder()
     .connectTimeout(Duration.ofSeconds(10))
     .build();
 
   public OneDriveEvidenceStorage(PanelConfiguration configuration) {
+    this(AppealEvidenceConfiguration.from(configuration));
+  }
+
+  public OneDriveEvidenceStorage(AppealEvidenceConfiguration configuration) {
     this.configuration = configuration;
   }
 
   @Override
   public StoredEvidence store(String appealId, AppealMultipartForm.UploadFile file) {
-    if (this.configuration.appealEvidenceOneDriveUploadUrlTemplate().isBlank()
-      || this.configuration.appealEvidenceOneDriveBearerToken().isBlank()) {
+    if (this.configuration.oneDriveUploadUrlTemplate().isBlank()
+      || this.configuration.oneDriveBearerToken().isBlank()) {
       throw new IllegalStateException("OneDrive-Speicher ist nicht vollstaendig konfiguriert.");
     }
 
     var storedName = safeName(appealId) + "/" + UUID.randomUUID() + "-" + safeName(file.fileName());
-    var uploadUrl = this.configuration.appealEvidenceOneDriveUploadUrlTemplate()
+    var uploadUrl = this.configuration.oneDriveUploadUrlTemplate()
       .replace("{filename}", URLEncoder.encode(storedName, StandardCharsets.UTF_8));
 
     try {
       var request = HttpRequest.newBuilder()
         .uri(URI.create(uploadUrl))
         .timeout(Duration.ofSeconds(30))
-        .header("Authorization", "Bearer " + this.configuration.appealEvidenceOneDriveBearerToken())
+        .header("Authorization", "Bearer " + this.configuration.oneDriveBearerToken())
         .header("Content-Type", file.contentType() == null || file.contentType().isBlank() ? "application/octet-stream" : file.contentType())
         .PUT(HttpRequest.BodyPublishers.ofByteArray(file.content()))
         .build();

@@ -77,7 +77,8 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
       banAppealStore,
       liteBansDatabaseSyncService,
       EvidenceStorageFactory.create(configuration, this.moduleWrapper().dataDirectory()),
-      settingsStore);
+      settingsStore,
+      this.moduleWrapper().dataDirectory());
 
     this.stopServer();
     this.httpServer = new PanelHttpServer(configuration, facade, security);

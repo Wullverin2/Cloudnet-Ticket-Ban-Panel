@@ -947,6 +947,72 @@
                 </label>
               </fieldset>
 
+              <fieldset class="settings-wide">
+                <legend>Entbannungs-Beweise</legend>
+                <p class="muted">Hier legst du fest, wohin hochgeladene Beweisdateien gespeichert werden. Diese Werte werden auch für die klickbaren Beweisdateien im Teampanel genutzt.</p>
+                <div class="form-grid">
+                  <label>
+                    <span>Öffentliche Statusseiten URL</span>
+                    <input name="appealPublicBaseUrl" type="url" placeholder="https://entbannung.craftplay.de">
+                  </label>
+                  <label>
+                    <span>Speicherart</span>
+                    <select name="appealEvidenceStorage">
+                      <option value="LOCAL">Lokal</option>
+                      <option value="SFTP">SFTP</option>
+                      <option value="ONEDRIVE">OneDrive</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Max. Dateien pro Antrag</span>
+                    <input name="appealMaxFiles" type="number" min="1" max="10">
+                  </label>
+                  <label>
+                    <span>Max. Dateigröße in Bytes</span>
+                    <input name="appealMaxFileBytes" type="number" min="1" max="104857600">
+                  </label>
+                </div>
+                <label>
+                  <span>Lokaler Ordner</span>
+                  <input name="appealEvidenceLocalDirectory" type="text" placeholder="appeal-evidence">
+                </label>
+                <div class="form-grid">
+                  <label>
+                    <span>SFTP Host</span>
+                    <input name="appealEvidenceSftpHost" type="text">
+                  </label>
+                  <label>
+                    <span>SFTP Port</span>
+                    <input name="appealEvidenceSftpPort" type="number" min="1" max="65535">
+                  </label>
+                  <label>
+                    <span>SFTP Benutzer</span>
+                    <input name="appealEvidenceSftpUsername" type="text">
+                  </label>
+                  <label>
+                    <span>SFTP Passwort</span>
+                    <input name="appealEvidenceSftpPassword" type="password" placeholder="leer lassen = behalten">
+                  </label>
+                  <label>
+                    <span>SFTP Private-Key Pfad</span>
+                    <input name="appealEvidenceSftpPrivateKeyPath" type="text">
+                  </label>
+                  <label>
+                    <span>SFTP Remote Ordner</span>
+                    <input name="appealEvidenceSftpRemoteDirectory" type="text" placeholder="/appeals">
+                  </label>
+                </div>
+                <label>
+                  <span>OneDrive Upload URL Template</span>
+                  <input name="appealEvidenceOneDriveUploadUrlTemplate" type="text" placeholder="https://graph.microsoft.com/v1.0/me/drive/root:/appeals/{filename}:/content">
+                </label>
+                <label>
+                  <span>OneDrive Bearer Token</span>
+                  <input name="appealEvidenceOneDriveBearerToken" type="password" placeholder="leer lassen = behalten">
+                </label>
+                <p class="muted">Bei OneDrive wird im URL Template <strong>{filename}</strong> durch den gespeicherten Dateinamen ersetzt. Für produktiven Betrieb sollte ein dauerhaft verwalteter Graph-Zugriff genutzt werden.</p>
+              </fieldset>
+
               <fieldset>
                 <legend>Panel-Speicher</legend>
                 <label>

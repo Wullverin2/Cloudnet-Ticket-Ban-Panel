@@ -2,6 +2,7 @@ package de.speed.ticketconsolecloudban.service;
 
 import de.speed.ticketconsolecloudban.auth.PanelPermission;
 import de.speed.ticketconsolecloudban.auth.SmtpMailService;
+import de.speed.ticketconsolecloudban.appeal.AppealEvidenceConfiguration;
 import de.speed.ticketconsolecloudban.appeal.BanAppealAttachment;
 import de.speed.ticketconsolecloudban.appeal.BanAppealEntry;
 import de.speed.ticketconsolecloudban.ban.BanActionRequest;
@@ -676,6 +677,19 @@ public final class CloudNetFacade {
       settings.appealStatusAcceptedText(),
       settings.appealStatusRejectedText(),
       settings.appealStatusClosedText(),
+      settings.appealPublicBaseUrl(),
+      settings.appealMaxFiles(),
+      settings.appealMaxFileBytes(),
+      settings.appealEvidenceStorage(),
+      settings.appealEvidenceLocalDirectory(),
+      settings.appealEvidenceSftpHost(),
+      settings.appealEvidenceSftpPort(),
+      settings.appealEvidenceSftpUsername(),
+      settings.appealEvidenceSftpPassword() != null && !settings.appealEvidenceSftpPassword().isBlank(),
+      settings.appealEvidenceSftpPrivateKeyPath(),
+      settings.appealEvidenceSftpRemoteDirectory(),
+      settings.appealEvidenceOneDriveUploadUrlTemplate(),
+      settings.appealEvidenceOneDriveBearerToken() != null && !settings.appealEvidenceOneDriveBearerToken().isBlank(),
       this.configuration.panelStorageBackend(),
       this.configuration.panelSqlJdbcUrl(),
       this.configuration.panelSqlUsername(),
@@ -711,7 +725,7 @@ public final class CloudNetFacade {
       return;
     }
 
-    var statusUrl = this.configuration.appealPublicBaseUrl() + "/status?token=" + appeal.statusToken();
+    var statusUrl = this.appealPublicBaseUrl() + "/status?token=" + appeal.statusToken();
     var settings = this.settingsStore.current();
     var statusLabel = settings.appealStatusLabel(appeal.status());
     var statusText = settings.appealStatusText(appeal.status());
@@ -1172,7 +1186,8 @@ public final class CloudNetFacade {
   }
 
   private byte[] readSftpEvidence(BanAppealAttachment attachment) {
-    if (this.configuration.appealEvidenceSftpHost().isBlank() || this.configuration.appealEvidenceSftpUsername().isBlank()) {
+    var evidenceConfiguration = this.evidenceConfiguration();
+    if (evidenceConfiguration.sftpHost().isBlank() || evidenceConfiguration.sftpUsername().isBlank()) {
       throw new IllegalArgumentException("SFTP-Speicher ist nicht vollständig konfiguriert.");
     }
 
@@ -1180,15 +1195,15 @@ public final class CloudNetFacade {
     ChannelSftp channel = null;
     try {
       var jsch = new JSch();
-      if (!this.configuration.appealEvidenceSftpPrivateKeyPath().isBlank()) {
-        jsch.addIdentity(this.configuration.appealEvidenceSftpPrivateKeyPath());
+      if (!evidenceConfiguration.sftpPrivateKeyPath().isBlank()) {
+        jsch.addIdentity(evidenceConfiguration.sftpPrivateKeyPath());
       }
       session = jsch.getSession(
-        this.configuration.appealEvidenceSftpUsername(),
-        this.configuration.appealEvidenceSftpHost(),
-        this.configuration.appealEvidenceSftpPort());
-      if (!this.configuration.appealEvidenceSftpPassword().isBlank()) {
-        session.setPassword(this.configuration.appealEvidenceSftpPassword());
+        evidenceConfiguration.sftpUsername(),
+        evidenceConfiguration.sftpHost(),
+        evidenceConfiguration.sftpPort());
+      if (!evidenceConfiguration.sftpPassword().isBlank()) {
+        session.setPassword(evidenceConfiguration.sftpPassword());
       }
       var properties = new Properties();
       properties.setProperty("StrictHostKeyChecking", "no");
@@ -1213,10 +1228,11 @@ public final class CloudNetFacade {
   }
 
   private byte[] readOneDriveEvidence(BanAppealAttachment attachment) {
+    var evidenceConfiguration = this.evidenceConfiguration();
     var reference = String.valueOf(attachment.storageReference());
     var downloadUrl = this.isHttpUrl(reference)
       ? reference
-      : this.configuration.appealEvidenceOneDriveUploadUrlTemplate()
+      : evidenceConfiguration.oneDriveUploadUrlTemplate()
         .replace("{filename}", URLEncoder.encode(reference, StandardCharsets.UTF_8));
     if (downloadUrl.isBlank()) {
       throw new IllegalArgumentException("OneDrive-Speicher ist nicht vollständig konfiguriert.");
@@ -1227,8 +1243,8 @@ public final class CloudNetFacade {
         .uri(URI.create(downloadUrl))
         .timeout(Duration.ofSeconds(30))
         .GET();
-      if (!this.configuration.appealEvidenceOneDriveBearerToken().isBlank()) {
-        builder.header("Authorization", "Bearer " + this.configuration.appealEvidenceOneDriveBearerToken());
+      if (!evidenceConfiguration.oneDriveBearerToken().isBlank()) {
+        builder.header("Authorization", "Bearer " + evidenceConfiguration.oneDriveBearerToken());
       }
       var response = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
@@ -1246,10 +1262,21 @@ public final class CloudNetFacade {
   }
 
   private Path localEvidenceDirectory() {
-    var configured = Path.of(this.configuration.appealEvidenceLocalDirectory());
+    var configured = Path.of(this.evidenceConfiguration().localDirectory());
     return (configured.isAbsolute() ? configured : this.dataDirectory.resolve(configured))
       .toAbsolutePath()
       .normalize();
+  }
+
+  private AppealEvidenceConfiguration evidenceConfiguration() {
+    return AppealEvidenceConfiguration.from(this.configuration, this.settingsStore.current());
+  }
+
+  private String appealPublicBaseUrl() {
+    var value = this.settingsStore.current().appealPublicBaseUrl();
+    return value == null || value.isBlank()
+      ? this.configuration.appealPublicBaseUrl()
+      : value.trim().replaceAll("/+$", "");
   }
 
   private String downloadFileName(BanAppealAttachment attachment) {
@@ -1691,6 +1718,19 @@ public final class CloudNetFacade {
     String appealStatusAcceptedText,
     String appealStatusRejectedText,
     String appealStatusClosedText,
+    String appealPublicBaseUrl,
+    int appealMaxFiles,
+    long appealMaxFileBytes,
+    String appealEvidenceStorage,
+    String appealEvidenceLocalDirectory,
+    String appealEvidenceSftpHost,
+    int appealEvidenceSftpPort,
+    String appealEvidenceSftpUsername,
+    boolean appealEvidenceSftpPasswordConfigured,
+    String appealEvidenceSftpPrivateKeyPath,
+    String appealEvidenceSftpRemoteDirectory,
+    String appealEvidenceOneDriveUploadUrlTemplate,
+    boolean appealEvidenceOneDriveBearerTokenConfigured,
     String panelStorageBackend,
     String panelSqlJdbcUrl,
     String panelSqlUsername,

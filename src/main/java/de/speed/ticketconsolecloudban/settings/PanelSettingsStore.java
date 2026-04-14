@@ -54,6 +54,19 @@ public final class PanelSettingsStore {
       textOrDefaultWhenBlank(request, "appealStatusAcceptedText", existing.appealStatusAcceptedText()),
       textOrDefaultWhenBlank(request, "appealStatusRejectedText", existing.appealStatusRejectedText()),
       textOrDefaultWhenBlank(request, "appealStatusClosedText", existing.appealStatusClosedText()),
+      trimTrailingSlash(text(request, "appealPublicBaseUrl", existing.appealPublicBaseUrl())),
+      integer(request, "appealMaxFiles", existing.appealMaxFiles(), 1, 10),
+      longNumber(request, "appealMaxFileBytes", existing.appealMaxFileBytes(), 1L, 100L * 1024L * 1024L),
+      normalizeEvidenceStorage(text(request, "appealEvidenceStorage", existing.appealEvidenceStorage())),
+      textOrDefaultWhenBlank(request, "appealEvidenceLocalDirectory", existing.appealEvidenceLocalDirectory()),
+      text(request, "appealEvidenceSftpHost", existing.appealEvidenceSftpHost()),
+      integer(request, "appealEvidenceSftpPort", existing.appealEvidenceSftpPort(), 1, 65535),
+      text(request, "appealEvidenceSftpUsername", existing.appealEvidenceSftpUsername()),
+      password(request, "appealEvidenceSftpPassword", existing.appealEvidenceSftpPassword()),
+      text(request, "appealEvidenceSftpPrivateKeyPath", existing.appealEvidenceSftpPrivateKeyPath()),
+      textOrDefaultWhenBlank(request, "appealEvidenceSftpRemoteDirectory", existing.appealEvidenceSftpRemoteDirectory()),
+      text(request, "appealEvidenceOneDriveUploadUrlTemplate", existing.appealEvidenceOneDriveUploadUrlTemplate()),
+      password(request, "appealEvidenceOneDriveBearerToken", existing.appealEvidenceOneDriveBearerToken()),
       bool(request, "smtpEnabled", existing.smtpEnabled()),
       text(request, "smtpHost", existing.smtpHost()),
       integer(request, "smtpPort", existing.smtpPort(), 1, 65535),
@@ -105,6 +118,19 @@ public final class PanelSettingsStore {
       defaultIfBlank(source.appealStatusAcceptedText(), defaults.appealStatusAcceptedText()),
       defaultIfBlank(source.appealStatusRejectedText(), defaults.appealStatusRejectedText()),
       defaultIfBlank(source.appealStatusClosedText(), defaults.appealStatusClosedText()),
+      defaultIfBlank(source.appealPublicBaseUrl(), defaults.appealPublicBaseUrl()).replaceAll("/+$", ""),
+      source.appealMaxFiles() <= 0 ? defaults.appealMaxFiles() : Math.min(source.appealMaxFiles(), 10),
+      source.appealMaxFileBytes() <= 0 ? defaults.appealMaxFileBytes() : Math.min(source.appealMaxFileBytes(), 100L * 1024L * 1024L),
+      normalizeEvidenceStorage(defaultIfBlank(source.appealEvidenceStorage(), defaults.appealEvidenceStorage())),
+      defaultIfBlank(source.appealEvidenceLocalDirectory(), defaults.appealEvidenceLocalDirectory()),
+      source.appealEvidenceSftpHost() == null ? "" : source.appealEvidenceSftpHost(),
+      source.appealEvidenceSftpPort() <= 0 ? defaults.appealEvidenceSftpPort() : source.appealEvidenceSftpPort(),
+      source.appealEvidenceSftpUsername() == null ? "" : source.appealEvidenceSftpUsername(),
+      source.appealEvidenceSftpPassword() == null ? "" : source.appealEvidenceSftpPassword(),
+      source.appealEvidenceSftpPrivateKeyPath() == null ? "" : source.appealEvidenceSftpPrivateKeyPath(),
+      defaultIfBlank(source.appealEvidenceSftpRemoteDirectory(), defaults.appealEvidenceSftpRemoteDirectory()),
+      source.appealEvidenceOneDriveUploadUrlTemplate() == null ? "" : source.appealEvidenceOneDriveUploadUrlTemplate(),
+      source.appealEvidenceOneDriveBearerToken() == null ? "" : source.appealEvidenceOneDriveBearerToken(),
       source.smtpEnabled(),
       defaultIfBlank(source.smtpHost(), defaults.smtpHost()),
       source.smtpPort() <= 0 ? defaults.smtpPort() : source.smtpPort(),
@@ -138,6 +164,14 @@ public final class PanelSettingsStore {
       return fallback;
     }
     return Math.max(min, Math.min(max, request.getInt(key, fallback)));
+  }
+
+  private static long longNumber(Document request, String key, long fallback, long min, long max) {
+    if (!request.contains(key)) {
+      return fallback;
+    }
+    var value = request.getLong(key, fallback);
+    return Math.max(min, Math.min(max, value));
   }
 
   private static String text(Document request, String key, String fallback) {
@@ -212,5 +246,13 @@ public final class PanelSettingsStore {
 
   private static String trimTrailingSlash(String value) {
     return value == null ? "" : value.trim().replaceAll("/+$", "");
+  }
+
+  private static String normalizeEvidenceStorage(String value) {
+    var normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    return switch (normalized) {
+      case "SFTP", "ONEDRIVE" -> normalized;
+      default -> "LOCAL";
+    };
   }
 }

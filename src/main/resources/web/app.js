@@ -1462,6 +1462,25 @@ function renderSettings() {
   setFormValue(form, "appealStatusAcceptedText", settings.appealStatusAcceptedText || "");
   setFormValue(form, "appealStatusRejectedText", settings.appealStatusRejectedText || "");
   setFormValue(form, "appealStatusClosedText", settings.appealStatusClosedText || "");
+  setFormValue(form, "appealPublicBaseUrl", settings.appealPublicBaseUrl || "");
+  setFormValue(form, "appealMaxFiles", settings.appealMaxFiles ?? 3);
+  setFormValue(form, "appealMaxFileBytes", settings.appealMaxFileBytes ?? 10485760);
+  setFormValue(form, "appealEvidenceStorage", settings.appealEvidenceStorage || "LOCAL");
+  setFormValue(form, "appealEvidenceLocalDirectory", settings.appealEvidenceLocalDirectory || "appeal-evidence");
+  setFormValue(form, "appealEvidenceSftpHost", settings.appealEvidenceSftpHost || "");
+  setFormValue(form, "appealEvidenceSftpPort", settings.appealEvidenceSftpPort || 22);
+  setFormValue(form, "appealEvidenceSftpUsername", settings.appealEvidenceSftpUsername || "");
+  setFormValue(form, "appealEvidenceSftpPassword", "");
+  if (form.appealEvidenceSftpPassword) {
+    form.appealEvidenceSftpPassword.placeholder = settings.appealEvidenceSftpPasswordConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
+  }
+  setFormValue(form, "appealEvidenceSftpPrivateKeyPath", settings.appealEvidenceSftpPrivateKeyPath || "");
+  setFormValue(form, "appealEvidenceSftpRemoteDirectory", settings.appealEvidenceSftpRemoteDirectory || "/appeals");
+  setFormValue(form, "appealEvidenceOneDriveUploadUrlTemplate", settings.appealEvidenceOneDriveUploadUrlTemplate || "");
+  setFormValue(form, "appealEvidenceOneDriveBearerToken", "");
+  if (form.appealEvidenceOneDriveBearerToken) {
+    form.appealEvidenceOneDriveBearerToken.placeholder = settings.appealEvidenceOneDriveBearerTokenConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
+  }
   setFormValue(form, "panelStorageBackend", settings.panelStorageBackend || "SQL");
   setFormValue(form, "panelSqlJdbcUrl", settings.panelSqlJdbcUrl || "");
   setFormValue(form, "panelSqlUsername", settings.panelSqlUsername || "");
@@ -2056,6 +2075,17 @@ async function handleSettingsSubmit(event) {
     appealStatusAcceptedText: String(form.get("appealStatusAcceptedText") || "").trim(),
     appealStatusRejectedText: String(form.get("appealStatusRejectedText") || "").trim(),
     appealStatusClosedText: String(form.get("appealStatusClosedText") || "").trim(),
+    appealPublicBaseUrl: String(form.get("appealPublicBaseUrl") || "").trim(),
+    appealMaxFiles: Number(form.get("appealMaxFiles") || 3),
+    appealMaxFileBytes: Number(form.get("appealMaxFileBytes") || 10485760),
+    appealEvidenceStorage: String(form.get("appealEvidenceStorage") || "LOCAL").trim(),
+    appealEvidenceLocalDirectory: String(form.get("appealEvidenceLocalDirectory") || "").trim(),
+    appealEvidenceSftpHost: String(form.get("appealEvidenceSftpHost") || "").trim(),
+    appealEvidenceSftpPort: Number(form.get("appealEvidenceSftpPort") || 22),
+    appealEvidenceSftpUsername: String(form.get("appealEvidenceSftpUsername") || "").trim(),
+    appealEvidenceSftpPrivateKeyPath: String(form.get("appealEvidenceSftpPrivateKeyPath") || "").trim(),
+    appealEvidenceSftpRemoteDirectory: String(form.get("appealEvidenceSftpRemoteDirectory") || "").trim(),
+    appealEvidenceOneDriveUploadUrlTemplate: String(form.get("appealEvidenceOneDriveUploadUrlTemplate") || "").trim(),
     smtpEnabled: Boolean(form.get("smtpEnabled")),
     smtpHost: String(form.get("smtpHost") || "").trim(),
     smtpPort: Number(form.get("smtpPort") || 587),
@@ -2074,10 +2104,18 @@ async function handleSettingsSubmit(event) {
   };
 
   const smtpPassword = String(form.get("smtpPassword") || "");
+  const appealEvidenceSftpPassword = String(form.get("appealEvidenceSftpPassword") || "");
+  const appealEvidenceOneDriveBearerToken = String(form.get("appealEvidenceOneDriveBearerToken") || "");
   const liteBansDatabasePassword = String(form.get("liteBansDatabasePassword") || "");
   const liteBansBridgeSecret = String(form.get("liteBansBridgeSecret") || "");
   if (smtpPassword) {
     payload.smtpPassword = smtpPassword;
+  }
+  if (appealEvidenceSftpPassword) {
+    payload.appealEvidenceSftpPassword = appealEvidenceSftpPassword;
+  }
+  if (appealEvidenceOneDriveBearerToken) {
+    payload.appealEvidenceOneDriveBearerToken = appealEvidenceOneDriveBearerToken;
   }
   if (liteBansDatabasePassword) {
     payload.liteBansDatabasePassword = liteBansDatabasePassword;

@@ -7,6 +7,7 @@ import de.speed.ticketconsolecloudban.settings.PanelSettings;
 import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
 import de.speed.ticketconsolecloudban.store.BanAppealStore;
 import de.speed.ticketconsolecloudban.store.BanStore;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ public final class BanAppealService {
   private final BanAppealStore appealStore;
   private final LiteBansDatabaseSyncService liteBansDatabaseSyncService;
   private final EvidenceStorage evidenceStorage;
+  private final Path dataDirectory;
   private final SmtpMailService mailService;
   private final PanelSettingsStore settingsStore;
 
@@ -46,11 +48,24 @@ public final class BanAppealService {
     EvidenceStorage evidenceStorage,
     PanelSettingsStore settingsStore
   ) {
+    this(configuration, banStore, appealStore, liteBansDatabaseSyncService, evidenceStorage, settingsStore, null);
+  }
+
+  public BanAppealService(
+    PanelConfiguration configuration,
+    BanStore banStore,
+    BanAppealStore appealStore,
+    LiteBansDatabaseSyncService liteBansDatabaseSyncService,
+    EvidenceStorage evidenceStorage,
+    PanelSettingsStore settingsStore,
+    Path dataDirectory
+  ) {
     this.configuration = configuration;
     this.banStore = banStore;
     this.appealStore = appealStore;
     this.liteBansDatabaseSyncService = liteBansDatabaseSyncService;
     this.evidenceStorage = evidenceStorage;
+    this.dataDirectory = dataDirectory;
     this.settingsStore = settingsStore;
     this.mailService = settingsStore == null
       ? new SmtpMailService(configuration)
@@ -81,17 +96,19 @@ public final class BanAppealService {
     var files = form.files().stream()
       .filter(file -> "evidence".equals(file.fieldName()))
       .toList();
-    if (files.size() > this.configuration.appealMaxFiles()) {
-      throw new IllegalArgumentException("Es duerfen maximal " + this.configuration.appealMaxFiles() + " Beweise hochgeladen werden.");
+    var maxFiles = this.maxFiles();
+    var maxFileBytes = this.maxFileBytes();
+    if (files.size() > maxFiles) {
+      throw new IllegalArgumentException("Es duerfen maximal " + maxFiles + " Beweise hochgeladen werden.");
     }
 
     var attachmentDrafts = new ArrayList<BanAppealAttachment>();
     var appealId = java.util.UUID.randomUUID().toString();
     for (var file : files) {
-      if (file.content().length > this.configuration.appealMaxFileBytes()) {
+      if (file.content().length > maxFileBytes) {
         throw new IllegalArgumentException("Die Datei " + file.fileName() + " ist größer als erlaubt.");
       }
-      var stored = this.evidenceStorage.store(appealId, file);
+      var stored = this.evidenceStorage().store(appealId, file);
       attachmentDrafts.add(new BanAppealAttachment(
         java.util.UUID.randomUUID().toString(),
         file.fileName(),
@@ -141,6 +158,10 @@ public final class BanAppealService {
       appeal.teamNote());
   }
 
+  public long maxRequestBytes() {
+    return (this.maxFileBytes() * Math.max(1, this.maxFiles())) + 512_000L;
+  }
+
   private void sendConfirmation(BanAppealEntry appeal) {
     var statusUrl = this.statusUrl(appeal);
     var statusLabel = this.settings().appealStatusLabel(appeal.status());
@@ -179,13 +200,37 @@ public final class BanAppealService {
   }
 
   private String statusUrl(BanAppealEntry appeal) {
-    return this.configuration.appealPublicBaseUrl() + "/status?token=" + appeal.statusToken();
+    return this.appealPublicBaseUrl() + "/status?token=" + appeal.statusToken();
   }
 
   private PanelSettings settings() {
     return this.settingsStore == null
       ? PanelSettings.fromConfiguration(this.configuration)
       : this.settingsStore.current();
+  }
+
+  private EvidenceStorage evidenceStorage() {
+    if (this.settingsStore == null || this.dataDirectory == null) {
+      return this.evidenceStorage;
+    }
+    return EvidenceStorageFactory.create(
+      AppealEvidenceConfiguration.from(this.configuration, this.settingsStore.current()),
+      this.dataDirectory);
+  }
+
+  private int maxFiles() {
+    return this.settings().appealMaxFiles();
+  }
+
+  private long maxFileBytes() {
+    return this.settings().appealMaxFileBytes();
+  }
+
+  private String appealPublicBaseUrl() {
+    var value = this.settings().appealPublicBaseUrl();
+    return value == null || value.isBlank()
+      ? this.configuration.appealPublicBaseUrl()
+      : value.trim().replaceAll("/+$", "");
   }
 
   private String brandName() {
