@@ -40,7 +40,9 @@ import eu.cloudnetservice.driver.service.ServiceTask;
 import eu.cloudnetservice.node.command.CommandProvider;
 import eu.cloudnetservice.node.command.source.CommandSource;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.CodingErrorAction;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -303,7 +305,7 @@ public final class CloudNetFacade {
         return new CloudNetConsoleView(
           effectiveLimit,
           screenCapture.lines(),
-          "screen:" + screenName,
+          screenCapture.source(),
           Instant.now().toString());
       }
       var fallback = this.cloudNetFileConsoleLines(effectiveLimit);
@@ -1116,33 +1118,52 @@ public final class CloudNetFacade {
   }
 
   private ScreenCapture cloudNetScreenOutput(String screenName, int limit) {
+    var candidates = new LinkedHashSet<String>();
+    candidates.add(screenName);
+
+    var sessions = this.availableScreenSessions();
+    for (var session : sessions) {
+      if (this.screenSessionMatches(session, screenName)) {
+        candidates.add(session);
+      }
+    }
+
+    var errors = new ArrayList<String>();
+    for (var candidate : candidates) {
+      var capture = this.cloudNetScreenHardcopy(candidate, limit);
+      if (capture.success()) {
+        return capture;
+      }
+      errors.add(candidate + ": " + capture.message());
+    }
+
+    if (!sessions.isEmpty()) {
+      errors.add("Gefundene Screen-Sessions: " + String.join(", ", sessions));
+    }
+    return ScreenCapture.failed(errors.isEmpty()
+      ? "Keine passende Screen-Session gefunden."
+      : String.join(" | ", errors));
+  }
+
+  private ScreenCapture cloudNetScreenHardcopy(String screenSession, int limit) {
     Path tempFile = null;
     try {
       tempFile = Files.createTempFile("tccb-cloudnet-screen-", ".log");
-      var process = new ProcessBuilder(
+      var result = this.runProcess(List.of(
         "screen",
         "-S",
-        screenName,
+        screenSession,
         "-X",
         "hardcopy",
         "-h",
-        tempFile.toString())
-        .redirectErrorStream(true)
-        .start();
-      var finished = process.waitFor(3, TimeUnit.SECONDS);
-      if (!finished) {
-        process.destroyForcibly();
-        return ScreenCapture.failed("Timeout beim Lesen der Screen-Session.");
-      }
-
-      var processOutput = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-      if (process.exitValue() != 0) {
-        return ScreenCapture.failed(processOutput.isBlank() ? "screen hat mit Exit-Code " + process.exitValue() + " beendet." : processOutput);
+        tempFile.toString()), 3);
+      if (result.exitCode() != 0) {
+        return ScreenCapture.failed(result.output().isBlank() ? "screen hat mit Exit-Code " + result.exitCode() + " beendet." : result.output());
       }
       if (!Files.isRegularFile(tempFile) || Files.size(tempFile) == 0) {
-        return ScreenCapture.failed(processOutput.isBlank() ? "Screen-Hardcopy ist leer." : processOutput);
+        return ScreenCapture.failed(result.output().isBlank() ? "Screen-Hardcopy ist leer." : result.output());
       }
-      return ScreenCapture.success(this.readFileTail(tempFile, limit));
+      return ScreenCapture.success(this.readFileTail(tempFile, limit), "screen:" + screenSession);
     } catch (IOException exception) {
       return ScreenCapture.failed(exception.getMessage());
     } catch (InterruptedException exception) {
@@ -1158,6 +1179,71 @@ public final class CloudNetFacade {
     }
   }
 
+  private List<String> availableScreenSessions() {
+    try {
+      var result = this.runProcess(List.of("screen", "-ls"), 3);
+      return result.output().lines()
+        .map(String::trim)
+        .map(line -> line.split("\\s+", 2)[0])
+        .filter(this::isScreenSessionToken)
+        .distinct()
+        .toList();
+    } catch (IOException exception) {
+      return List.of();
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      return List.of();
+    }
+  }
+
+  private ProcessResult runProcess(List<String> command, int timeoutSeconds) throws IOException, InterruptedException {
+    var process = new ProcessBuilder(command)
+      .redirectErrorStream(true)
+      .start();
+    var finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+    if (!finished) {
+      process.destroyForcibly();
+      return new ProcessResult(124, "Timeout beim Ausführen von: " + String.join(" ", command));
+    }
+    return new ProcessResult(
+      process.exitValue(),
+      new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim());
+  }
+
+  private boolean screenSessionMatches(String session, String requested) {
+    return session.equalsIgnoreCase(requested)
+      || this.screenShortName(session).equalsIgnoreCase(requested)
+      || session.endsWith("." + requested);
+  }
+
+  private String screenShortName(String session) {
+    var separator = session.indexOf('.');
+    return separator < 0 || separator + 1 >= session.length()
+      ? session
+      : session.substring(separator + 1);
+  }
+
+  private boolean isScreenSessionToken(String value) {
+    var separator = value.indexOf('.');
+    if (separator <= 0 || separator + 1 >= value.length()) {
+      return false;
+    }
+    for (int index = 0; index < separator; index++) {
+      if (!Character.isDigit(value.charAt(index))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private String exceptionMessage(Throwable exception) {
+    var message = exception.getMessage();
+    if (message != null && !message.isBlank()) {
+      return message;
+    }
+    return exception.getClass().getSimpleName();
+  }
+
   private List<Path> cloudNetLogPathCandidates() {
     return List.of(
       Path.of("logs", "latest.log"),
@@ -1167,8 +1253,12 @@ public final class CloudNetFacade {
   }
 
   private List<String> readFileTail(Path path, int limit) {
-    try (var lines = Files.lines(path, StandardCharsets.UTF_8)) {
-      var allLines = lines.toList();
+    try {
+      var decoder = StandardCharsets.UTF_8.newDecoder()
+        .onMalformedInput(CodingErrorAction.REPLACE)
+        .onUnmappableCharacter(CodingErrorAction.REPLACE);
+      var content = decoder.decode(ByteBuffer.wrap(Files.readAllBytes(path))).toString();
+      var allLines = content.lines().toList();
       if (allLines.isEmpty()) {
         return List.of("CloudNet-Logdatei ist aktuell leer: " + path.toAbsolutePath().normalize());
       }
@@ -1177,7 +1267,9 @@ public final class CloudNetFacade {
         .skip(skip)
         .toList();
     } catch (IOException exception) {
-      throw new IllegalArgumentException("CloudNet-Logdatei konnte nicht gelesen werden: " + exception.getMessage(), exception);
+      return List.of("Console-Datei konnte nicht gelesen werden: " + this.exceptionMessage(exception));
+    } catch (RuntimeException exception) {
+      return List.of("Console-Datei konnte nicht gelesen werden: " + this.exceptionMessage(exception));
     }
   }
 
@@ -1239,18 +1331,25 @@ public final class CloudNetFacade {
     }
   }
 
+  private record ProcessResult(
+    int exitCode,
+    String output
+  ) {
+  }
+
   private record ScreenCapture(
     boolean success,
     List<String> lines,
-    String message
+    String message,
+    String source
   ) {
 
-    private static ScreenCapture success(List<String> lines) {
-      return new ScreenCapture(true, lines, "");
+    private static ScreenCapture success(List<String> lines, String source) {
+      return new ScreenCapture(true, lines, "", source);
     }
 
     private static ScreenCapture failed(String message) {
-      return new ScreenCapture(false, List.of(), message == null || message.isBlank() ? "Unbekannter Fehler." : message);
+      return new ScreenCapture(false, List.of(), message == null || message.isBlank() ? "Unbekannter Fehler." : message, null);
     }
   }
 
