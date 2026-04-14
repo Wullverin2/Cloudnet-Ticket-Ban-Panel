@@ -667,6 +667,7 @@ public final class CloudNetFacade {
       settings.brandLogoUrl(),
       settings.ticketCategories(),
       settings.cloudNetScreenName(),
+      settings.appealBrandName(),
       settings.appealTitle(),
       settings.appealStatusTitle(),
       settings.appealStatusOpenLabel(),
@@ -766,6 +767,7 @@ public final class CloudNetFacade {
       appealTitle + " aktualisiert: " + statusLabel,
       text,
       this.craftplayMailHtml(
+        this.appealBrandName(),
         appealTitle,
         appealTitle + " aktualisiert",
         body,
@@ -801,6 +803,10 @@ public final class CloudNetFacade {
   }
 
   private String craftplayMailHtml(String eyebrow, String title, String bodyHtml, String buttonUrl, String buttonLabel, String footer) {
+    return this.craftplayMailHtml(this.brandName(), eyebrow, title, bodyHtml, buttonUrl, buttonLabel, footer);
+  }
+
+  private String craftplayMailHtml(String headerBrandName, String eyebrow, String title, String bodyHtml, String buttonUrl, String buttonLabel, String footer) {
     var logo = this.brandLogoUrl();
     var logoHtml = logo == null || logo.isBlank()
       ? ""
@@ -838,7 +844,7 @@ public final class CloudNetFacade {
       </html>
       """.formatted(
         logoHtml,
-        escapeHtml(this.brandName()),
+        escapeHtml(headerBrandName),
         escapeHtml(eyebrow),
         escapeHtml(title),
         bodyHtml,
@@ -1150,6 +1156,11 @@ public final class CloudNetFacade {
   private String appealTitle() {
     var value = this.settingsStore.current().appealTitle();
     return value == null || value.isBlank() ? PanelSettings.DEFAULT_APPEAL_TITLE : value.trim();
+  }
+
+  private String appealBrandName() {
+    var value = this.settingsStore.current().appealBrandName();
+    return value == null || value.isBlank() ? this.brandName() : value.trim();
   }
 
   private static String escapeHtml(String value) {
@@ -1718,6 +1729,7 @@ public final class CloudNetFacade {
     String brandLogoUrl,
     List<String> ticketCategories,
     String cloudNetScreenName,
+    String appealBrandName,
     String appealTitle,
     String appealStatusTitle,
     String appealStatusOpenLabel,

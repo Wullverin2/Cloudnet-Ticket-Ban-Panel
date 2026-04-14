@@ -136,7 +136,7 @@ public final class BanAppealService {
 
   public AppealMetaView meta() {
     return new AppealMetaView(
-      this.brandName(),
+      this.appealBrandName(),
       this.brandLogoUrl(),
       this.appealTitle(),
       this.appealStatusTitle());
@@ -240,8 +240,12 @@ public final class BanAppealService {
       : value.trim().replaceAll("/+$", "");
   }
 
-  private String brandName() {
-    var value = this.settings().brandName();
+  private String appealBrandName() {
+    var value = this.settings().appealBrandName();
+    if (value != null && !value.isBlank()) {
+      return value.trim();
+    }
+    value = this.settings().brandName();
     return value == null || value.isBlank() ? this.configuration.brandName() : value.trim();
   }
 
@@ -298,7 +302,7 @@ public final class BanAppealService {
       </html>
       """.formatted(
         logoHtml,
-        escapeHtml(this.brandName()),
+        escapeHtml(this.appealBrandName()),
         escapeHtml(eyebrow),
         escapeHtml(title),
         bodyHtml,

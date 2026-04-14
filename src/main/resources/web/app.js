@@ -1452,6 +1452,7 @@ function renderSettings() {
     `<span class="badge">${escapeHtml(category)}</span>`
   )).join("") || `<span class="muted">Keine Ticket-Arten hinterlegt.</span>`;
   setFormValue(form, "cloudNetScreenName", settings.cloudNetScreenName || "");
+  setFormValue(form, "appealBrandName", settings.appealBrandName || settings.brandName || "Craftplay.de");
   setFormValue(form, "appealTitle", settings.appealTitle || "Entbannungsantrag");
   setFormValue(form, "appealStatusTitle", settings.appealStatusTitle || "Dein Entbannungsantrag");
   setFormValue(form, "appealStatusOpenLabel", settings.appealStatusOpenLabel || "Offen");
@@ -2067,6 +2068,7 @@ async function handleSettingsSubmit(event) {
     brandLogoUrl: String(form.get("brandLogoUrl") || "").trim(),
     ticketCategories: splitLinesOrCsv(form.get("ticketCategories")),
     cloudNetScreenName: String(form.get("cloudNetScreenName") || "").trim(),
+    appealBrandName: String(form.get("appealBrandName") || "").trim(),
     appealTitle: String(form.get("appealTitle") || "").trim(),
     appealStatusTitle: String(form.get("appealStatusTitle") || "").trim(),
     appealStatusOpenLabel: String(form.get("appealStatusOpenLabel") || "").trim(),
