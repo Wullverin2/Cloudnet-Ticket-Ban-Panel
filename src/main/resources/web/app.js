@@ -251,6 +251,7 @@ function bindEvents() {
   elements.liteBanTable.addEventListener("click", handleLiteBanTableClick);
   elements.banAppealRefresh.addEventListener("click", refreshBanAppealsOnly);
   elements.banAppealTable.addEventListener("click", handleBanAppealTableClick);
+  elements.banAppealArchiveTable.addEventListener("click", handleBanAppealTableClick);
   document.querySelectorAll("button[data-ban-tab]").forEach(button => {
     button.addEventListener("click", () => switchBanTab(button.dataset.banTab));
   });
@@ -1263,9 +1264,25 @@ function appealEvidence(appeal) {
     links.push(`<a href="${escapeAttr(appeal.videoLink)}" target="_blank" rel="noreferrer">Video</a>`);
   }
   (appeal.attachments || []).forEach(attachment => {
-    links.push(`<span title="${escapeAttr(attachment.storageReference || "")}">${escapeHtml(attachment.fileName || attachment.storageType || "Datei")}</span>`);
+    links.push(appealAttachmentLink(appeal, attachment));
   });
   return links.join("<br>") || `<span class="muted">-</span>`;
+}
+
+function appealAttachmentLink(appeal, attachment) {
+  const label = attachment.fileName || attachment.storageType || "Beweisdatei";
+  const reference = String(attachment.storageReference || "").trim();
+  if (isHttpUrl(reference)) {
+    return `<a href="${escapeAttr(reference)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>`;
+  }
+  const url = `/api/ban-appeals/${encodeURIComponent(appeal.id)}/attachments/${encodeURIComponent(attachment.id)}`;
+  return `
+    <a
+      href="${escapeAttr(url)}"
+      data-evidence-url="${escapeAttr(url)}"
+      data-evidence-name="${escapeAttr(label)}"
+      title="${escapeAttr(reference)}">${escapeHtml(label)}</a>
+  `;
 }
 
 function banAppealActions(appeal) {
@@ -1554,6 +1571,7 @@ async function loadConsole() {
   if (!state.selectedService) {
     state.lastConsoleText = "Kein Service ausgewählt.";
     elements.consoleOutput.textContent = state.lastConsoleText;
+    scrollToBottom(elements.consoleOutput);
     return;
   }
 
@@ -1571,10 +1589,13 @@ async function loadConsole() {
     if (nextText !== state.lastConsoleText) {
       state.lastConsoleText = nextText;
       elements.consoleOutput.textContent = nextText;
+      scrollToBottom(elements.consoleOutput);
     }
+    scrollToBottom(elements.consoleOutput);
   } catch (error) {
     handleApiError(error, elements.authStatus);
     elements.consoleOutput.textContent = error.message;
+    scrollToBottom(elements.consoleOutput);
   } finally {
     state.consoleRequestInFlight = false;
   }
@@ -1599,10 +1620,13 @@ async function loadCloudConsole() {
     if (nextText !== state.lastCloudConsoleText) {
       state.lastCloudConsoleText = nextText;
       elements.cloudCommandOutput.textContent = nextText;
+      scrollToBottom(elements.cloudCommandOutput);
     }
+    scrollToBottom(elements.cloudCommandOutput);
   } catch (error) {
     handleApiError(error, elements.authStatus);
     elements.cloudCommandOutput.textContent = error.message;
+    scrollToBottom(elements.cloudCommandOutput);
   } finally {
     state.cloudConsoleRequestInFlight = false;
   }
@@ -1794,6 +1818,7 @@ async function handleConsoleCommandSubmit(event) {
   } catch (error) {
     handleApiError(error, elements.authStatus);
     elements.consoleOutput.textContent = error.message;
+    scrollToBottom(elements.consoleOutput);
   }
 }
 
@@ -1810,6 +1835,7 @@ async function handleCloudCommandSubmit(event) {
 
   try {
     elements.cloudCommandOutput.textContent = "CloudNet-Befehl wird ausgeführt...";
+    scrollToBottom(elements.cloudCommandOutput);
     const result = await api("/api/cloudnet/command", {
       method: "POST",
       body: { command },
@@ -1820,10 +1846,12 @@ async function handleCloudCommandSubmit(event) {
       : `Befehl ausgeführt: ${result.command || command}`;
     state.lastCloudConsoleText = nextText;
     elements.cloudCommandOutput.textContent = nextText;
+    scrollToBottom(elements.cloudCommandOutput);
     setTimeout(loadCloudConsole, 700);
   } catch (error) {
     handleApiError(error, elements.authStatus);
     elements.cloudCommandOutput.textContent = error.message;
+    scrollToBottom(elements.cloudCommandOutput);
   }
 }
 
@@ -2348,6 +2376,13 @@ async function handleLiteBanTableClick(event) {
 }
 
 async function handleBanAppealTableClick(event) {
+  const evidenceLink = event.target.closest("a[data-evidence-url]");
+  if (evidenceLink) {
+    event.preventDefault();
+    await openEvidenceLink(evidenceLink);
+    return;
+  }
+
   const button = event.target.closest("button[data-appeal-action]");
   if (!button || !hasPermission(PERMISSIONS.BANS_MANAGE)) {
     return;
@@ -2370,6 +2405,45 @@ async function handleBanAppealTableClick(event) {
     await refreshAll();
     switchBanTab(isArchivedAppeal({ status: button.dataset.appealAction }) ? "appeal-archive" : "appeals");
   } catch (error) {
+    handleApiError(error, elements.banStatus);
+  }
+}
+
+async function openEvidenceLink(link) {
+  let popup = null;
+  try {
+    popup = window.open("", "_blank", "noopener");
+    if (popup) {
+      popup.document.write("<p>Beweisdatei wird geladen...</p>");
+    }
+
+    const headers = {};
+    if (state.token) {
+      headers.Authorization = `Bearer ${state.token}`;
+    }
+    const response = await fetch(link.dataset.evidenceUrl, { headers });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    if (popup) {
+      popup.location.href = objectUrl;
+    } else {
+      const download = document.createElement("a");
+      download.href = objectUrl;
+      download.download = link.dataset.evidenceName || "beweisdatei";
+      document.body.append(download);
+      download.click();
+      download.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (error) {
+    if (popup && !popup.closed) {
+      popup.close();
+    }
     handleApiError(error, elements.banStatus);
   }
 }
@@ -2692,6 +2766,12 @@ function asArray(value) {
 function setStatus(element, message, isError) {
   element.textContent = message;
   element.style.color = isError ? "var(--danger)" : "var(--muted)";
+}
+
+function scrollToBottom(element) {
+  requestAnimationFrame(() => {
+    element.scrollTop = element.scrollHeight;
+  });
 }
 
 function createQrSvg(text) {
@@ -3131,4 +3211,9 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value);
+}
+
+function isHttpUrl(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized.startsWith("https://") || normalized.startsWith("http://");
 }

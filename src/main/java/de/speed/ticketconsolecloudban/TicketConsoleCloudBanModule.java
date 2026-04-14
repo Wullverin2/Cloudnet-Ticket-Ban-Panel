@@ -63,6 +63,7 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
       clusterNodeProvider,
       commandProvider,
       configuration,
+      this.moduleWrapper().dataDirectory(),
       new TicketStore(this.moduleWrapper().dataDirectory(), panelDataBackend),
       banStore,
       banAppealStore,

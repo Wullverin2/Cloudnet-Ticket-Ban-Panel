@@ -2,6 +2,7 @@ package de.speed.ticketconsolecloudban.service;
 
 import de.speed.ticketconsolecloudban.auth.PanelPermission;
 import de.speed.ticketconsolecloudban.auth.SmtpMailService;
+import de.speed.ticketconsolecloudban.appeal.BanAppealAttachment;
 import de.speed.ticketconsolecloudban.appeal.BanAppealEntry;
 import de.speed.ticketconsolecloudban.ban.BanActionRequest;
 import de.speed.ticketconsolecloudban.ban.BanAuditEntry;
@@ -39,13 +40,23 @@ import eu.cloudnetservice.driver.service.ServiceLifeCycle;
 import eu.cloudnetservice.driver.service.ServiceTask;
 import eu.cloudnetservice.node.command.CommandProvider;
 import eu.cloudnetservice.node.command.source.CommandSource;
+import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.Session;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.charset.CodingErrorAction;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,6 +64,7 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Queue;
 import java.util.TreeMap;
 import java.util.concurrent.CompletionException;
@@ -77,6 +89,7 @@ public final class CloudNetFacade {
   private final ClusterNodeProvider clusterNodeProvider;
   private final CommandProvider commandProvider;
   private final PanelConfiguration configuration;
+  private final Path dataDirectory;
   private final TicketStore ticketStore;
   private final BanStore banStore;
   private final BanAppealStore banAppealStore;
@@ -92,6 +105,7 @@ public final class CloudNetFacade {
     ClusterNodeProvider clusterNodeProvider,
     CommandProvider commandProvider,
     PanelConfiguration configuration,
+    Path dataDirectory,
     TicketStore ticketStore,
     BanStore banStore,
     BanAppealStore banAppealStore,
@@ -106,6 +120,7 @@ public final class CloudNetFacade {
     this.clusterNodeProvider = clusterNodeProvider;
     this.commandProvider = commandProvider;
     this.configuration = configuration;
+    this.dataDirectory = dataDirectory;
     this.ticketStore = ticketStore;
     this.banStore = banStore;
     this.banAppealStore = banAppealStore;
@@ -525,6 +540,36 @@ public final class CloudNetFacade {
 
   public List<BanAppealEntry> listBanAppeals() {
     return this.banAppealStore.list();
+  }
+
+  public EvidenceDownload downloadBanAppealAttachment(String appealId, String attachmentId) {
+    var appeal = this.banAppealStore.findById(appealId)
+      .orElseThrow(() -> new IllegalArgumentException("Der Entbannungsantrag wurde nicht gefunden."));
+    var attachment = appeal.attachments() == null
+      ? null
+      : appeal.attachments().stream()
+        .filter(entry -> entry.id().equals(attachmentId))
+        .findFirst()
+        .orElse(null);
+    if (attachment == null) {
+      throw new IllegalArgumentException("Die Beweisdatei wurde nicht gefunden.");
+    }
+
+    var bytes = switch (String.valueOf(attachment.storageType()).trim().toUpperCase()) {
+      case "LOCAL" -> this.readLocalEvidence(attachment);
+      case "SFTP" -> this.readSftpEvidence(attachment);
+      case "ONEDRIVE" -> this.readOneDriveEvidence(attachment);
+      default -> {
+        if (this.isHttpUrl(attachment.storageReference())) {
+          throw new IllegalArgumentException("Diese Beweisdatei ist als externer Link gespeichert und kann direkt geöffnet werden.");
+        }
+        throw new IllegalArgumentException("Der Speichertyp der Beweisdatei wird nicht unterstützt: " + attachment.storageType());
+      }
+    };
+    return new EvidenceDownload(
+      this.downloadFileName(attachment),
+      this.attachmentContentType(attachment),
+      bytes);
   }
 
   public BanAppealEntry updateBanAppealStatus(String appealId, Document request) {
@@ -1110,6 +1155,119 @@ public final class CloudNetFacade {
     return "CloudNet-Befehl konnte nicht ausgeführt werden.";
   }
 
+  private byte[] readLocalEvidence(BanAppealAttachment attachment) {
+    try {
+      var baseDirectory = this.localEvidenceDirectory();
+      var target = baseDirectory.resolve(String.valueOf(attachment.storageReference())).normalize();
+      if (!target.startsWith(baseDirectory)) {
+        throw new IllegalArgumentException("Ungültiger lokaler Beweispfad.");
+      }
+      if (!Files.isRegularFile(target)) {
+        throw new IllegalArgumentException("Die lokale Beweisdatei wurde nicht gefunden.");
+      }
+      return Files.readAllBytes(target);
+    } catch (IOException exception) {
+      throw new IllegalArgumentException("Die lokale Beweisdatei konnte nicht gelesen werden: " + this.exceptionMessage(exception), exception);
+    }
+  }
+
+  private byte[] readSftpEvidence(BanAppealAttachment attachment) {
+    if (this.configuration.appealEvidenceSftpHost().isBlank() || this.configuration.appealEvidenceSftpUsername().isBlank()) {
+      throw new IllegalArgumentException("SFTP-Speicher ist nicht vollständig konfiguriert.");
+    }
+
+    Session session = null;
+    ChannelSftp channel = null;
+    try {
+      var jsch = new JSch();
+      if (!this.configuration.appealEvidenceSftpPrivateKeyPath().isBlank()) {
+        jsch.addIdentity(this.configuration.appealEvidenceSftpPrivateKeyPath());
+      }
+      session = jsch.getSession(
+        this.configuration.appealEvidenceSftpUsername(),
+        this.configuration.appealEvidenceSftpHost(),
+        this.configuration.appealEvidenceSftpPort());
+      if (!this.configuration.appealEvidenceSftpPassword().isBlank()) {
+        session.setPassword(this.configuration.appealEvidenceSftpPassword());
+      }
+      var properties = new Properties();
+      properties.setProperty("StrictHostKeyChecking", "no");
+      session.setConfig(properties);
+      session.connect(10_000);
+      channel = (ChannelSftp) session.openChannel("sftp");
+      channel.connect(10_000);
+
+      var output = new ByteArrayOutputStream();
+      channel.get(attachment.storageReference(), output);
+      return output.toByteArray();
+    } catch (Exception exception) {
+      throw new IllegalArgumentException("Die SFTP-Beweisdatei konnte nicht gelesen werden: " + this.exceptionMessage(exception), exception);
+    } finally {
+      if (channel != null) {
+        channel.disconnect();
+      }
+      if (session != null) {
+        session.disconnect();
+      }
+    }
+  }
+
+  private byte[] readOneDriveEvidence(BanAppealAttachment attachment) {
+    var reference = String.valueOf(attachment.storageReference());
+    var downloadUrl = this.isHttpUrl(reference)
+      ? reference
+      : this.configuration.appealEvidenceOneDriveUploadUrlTemplate()
+        .replace("{filename}", URLEncoder.encode(reference, StandardCharsets.UTF_8));
+    if (downloadUrl.isBlank()) {
+      throw new IllegalArgumentException("OneDrive-Speicher ist nicht vollständig konfiguriert.");
+    }
+
+    try {
+      var builder = HttpRequest.newBuilder()
+        .uri(URI.create(downloadUrl))
+        .timeout(Duration.ofSeconds(30))
+        .GET();
+      if (!this.configuration.appealEvidenceOneDriveBearerToken().isBlank()) {
+        builder.header("Authorization", "Bearer " + this.configuration.appealEvidenceOneDriveBearerToken());
+      }
+      var response = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .build()
+        .send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
+      if (response.statusCode() < 200 || response.statusCode() >= 300) {
+        throw new IllegalArgumentException("OneDrive HTTP " + response.statusCode());
+      }
+      return response.body();
+    } catch (IllegalArgumentException exception) {
+      throw exception;
+    } catch (Exception exception) {
+      throw new IllegalArgumentException("Die OneDrive-Beweisdatei konnte nicht gelesen werden: " + this.exceptionMessage(exception), exception);
+    }
+  }
+
+  private Path localEvidenceDirectory() {
+    var configured = Path.of(this.configuration.appealEvidenceLocalDirectory());
+    return (configured.isAbsolute() ? configured : this.dataDirectory.resolve(configured))
+      .toAbsolutePath()
+      .normalize();
+  }
+
+  private String downloadFileName(BanAppealAttachment attachment) {
+    var fileName = this.nullableText(attachment.fileName());
+    return fileName == null ? "beweisdatei" : fileName;
+  }
+
+  private String attachmentContentType(BanAppealAttachment attachment) {
+    var contentType = this.nullableText(attachment.contentType());
+    return contentType == null ? "application/octet-stream" : contentType;
+  }
+
+  private boolean isHttpUrl(String value) {
+    return value != null
+      && (value.regionMatches(true, 0, "https://", 0, 8)
+        || value.regionMatches(true, 0, "http://", 0, 7));
+  }
+
   private Path cloudNetLogPath() {
     return this.cloudNetLogPathCandidates().stream()
       .filter(Files::isRegularFile)
@@ -1334,6 +1492,13 @@ public final class CloudNetFacade {
   private record ProcessResult(
     int exitCode,
     String output
+  ) {
+  }
+
+  public record EvidenceDownload(
+    String fileName,
+    String contentType,
+    byte[] bytes
   ) {
   }
 

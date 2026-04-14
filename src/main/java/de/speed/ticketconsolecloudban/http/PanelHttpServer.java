@@ -10,6 +10,8 @@ import de.speed.ticketconsolecloudban.service.CloudNetFacade;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -517,6 +519,20 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() == 5
+      && "ban-appeals".equals(segments.get(1))
+      && "attachments".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.BANS_VIEW)) {
+        return;
+      }
+      var download = this.facade.downloadBanAppealAttachment(segments.get(2), segments.get(4));
+      exchange.getResponseHeaders().set("Content-Disposition", this.inlineContentDisposition(download.fileName()));
+      exchange.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
+      HttpExchangeUtils.writeBinary(exchange, 200, download.bytes(), download.contentType());
+      return;
+    }
+
     if (segments.size() == 4
       && "ban-appeals".equals(segments.get(1))
       && "status".equals(segments.get(3))
@@ -699,6 +715,14 @@ public final class PanelHttpServer {
       return false;
     }
     return true;
+  }
+
+  private String inlineContentDisposition(String fileName) {
+    var safeName = fileName == null || fileName.isBlank()
+      ? "beweisdatei"
+      : fileName.replace("\r", "").replace("\n", "").replace("\"", "'");
+    var encodedName = URLEncoder.encode(safeName, StandardCharsets.UTF_8).replace("+", "%20");
+    return "inline; filename=\"" + safeName + "\"; filename*=UTF-8''" + encodedName;
   }
 
   private void handleStatic(HttpExchange exchange, List<String> segments) throws IOException {
