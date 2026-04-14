@@ -5,6 +5,7 @@ import de.speed.ticketconsolecloudban.auth.SmtpMailService;
 import de.speed.ticketconsolecloudban.appeal.AppealEvidenceConfiguration;
 import de.speed.ticketconsolecloudban.appeal.BanAppealAttachment;
 import de.speed.ticketconsolecloudban.appeal.BanAppealEntry;
+import de.speed.ticketconsolecloudban.appeal.OneDriveOAuthClient;
 import de.speed.ticketconsolecloudban.ban.BanActionRequest;
 import de.speed.ticketconsolecloudban.ban.BanAuditEntry;
 import de.speed.ticketconsolecloudban.ban.CloudBanEntry;
@@ -641,6 +642,34 @@ public final class CloudNetFacade {
     return this.settingsView(this.settingsStore.update(request));
   }
 
+  public OneDriveOAuthClient.DeviceCodeView startOneDriveDeviceCode() {
+    var settings = this.settingsStore.current();
+    return new OneDriveOAuthClient().startDeviceCode(
+      settings.appealEvidenceOneDriveTenant(),
+      settings.appealEvidenceOneDriveClientId());
+  }
+
+  public OneDriveConnectionView completeOneDriveDeviceCode(Document request) {
+    var settings = this.settingsStore.current();
+    var result = new OneDriveOAuthClient().completeDeviceCode(
+      settings.appealEvidenceOneDriveTenant(),
+      settings.appealEvidenceOneDriveClientId(),
+      this.requiredText(request, "deviceCode"));
+    if (!"CONNECTED".equalsIgnoreCase(result.status())) {
+      return new OneDriveConnectionView(result.status(), result.message(), false, result.interval());
+    }
+    if (result.refreshToken() == null || result.refreshToken().isBlank()) {
+      throw new IllegalArgumentException("Microsoft hat keinen Refresh Token geliefert. Bitte prüfe, ob offline_access erlaubt ist.");
+    }
+    this.settingsStore.updateOneDriveRefreshToken(result.refreshToken());
+    return new OneDriveConnectionView("CONNECTED", "OneDrive wurde erfolgreich verbunden.", true, 0);
+  }
+
+  public OneDriveConnectionView disconnectOneDrive() {
+    this.settingsStore.updateOneDriveRefreshToken("");
+    return new OneDriveConnectionView("DISCONNECTED", "OneDrive-Verbindung wurde getrennt.", false, 0);
+  }
+
   public TestMailView sendTestMail(Document request) {
     var recipient = this.requiredText(request, "recipient");
     var mailService = new SmtpMailService(this.configuration, this.settingsStore);
@@ -693,6 +722,10 @@ public final class CloudNetFacade {
       settings.appealEvidenceSftpRemoteDirectory(),
       settings.appealEvidenceOneDriveUploadUrlTemplate(),
       settings.appealEvidenceOneDriveBearerToken() != null && !settings.appealEvidenceOneDriveBearerToken().isBlank(),
+      settings.appealEvidenceOneDriveTenant(),
+      settings.appealEvidenceOneDriveClientId(),
+      settings.appealEvidenceOneDriveFolderPath(),
+      settings.appealEvidenceOneDriveRefreshToken() != null && !settings.appealEvidenceOneDriveRefreshToken().isBlank(),
       this.configuration.panelStorageBackend(),
       this.configuration.panelSqlJdbcUrl(),
       this.configuration.panelSqlUsername(),
@@ -1251,10 +1284,7 @@ public final class CloudNetFacade {
   private byte[] readOneDriveEvidence(BanAppealAttachment attachment) {
     var evidenceConfiguration = this.evidenceConfiguration();
     var reference = String.valueOf(attachment.storageReference());
-    var downloadUrl = this.isHttpUrl(reference)
-      ? reference
-      : evidenceConfiguration.oneDriveUploadUrlTemplate()
-        .replace("{filename}", URLEncoder.encode(reference, StandardCharsets.UTF_8));
+    var downloadUrl = this.oneDriveContentUrl(evidenceConfiguration, reference);
     if (downloadUrl.isBlank()) {
       throw new IllegalArgumentException("OneDrive-Speicher ist nicht vollständig konfiguriert.");
     }
@@ -1264,8 +1294,9 @@ public final class CloudNetFacade {
         .uri(URI.create(downloadUrl))
         .timeout(Duration.ofSeconds(30))
         .GET();
-      if (!evidenceConfiguration.oneDriveBearerToken().isBlank()) {
-        builder.header("Authorization", "Bearer " + evidenceConfiguration.oneDriveBearerToken());
+      var bearerToken = this.oneDriveBearerToken(evidenceConfiguration);
+      if (!bearerToken.isBlank()) {
+        builder.header("Authorization", "Bearer " + bearerToken);
       }
       var response = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
@@ -1291,6 +1322,31 @@ public final class CloudNetFacade {
 
   private AppealEvidenceConfiguration evidenceConfiguration() {
     return AppealEvidenceConfiguration.from(this.configuration, this.settingsStore.current());
+  }
+
+  private String oneDriveContentUrl(AppealEvidenceConfiguration evidenceConfiguration, String reference) {
+    if (this.isHttpUrl(reference)) {
+      return reference;
+    }
+    if (!evidenceConfiguration.oneDriveUploadUrlTemplate().isBlank()) {
+      return evidenceConfiguration.oneDriveUploadUrlTemplate()
+        .replace("{filename}", URLEncoder.encode(reference, StandardCharsets.UTF_8));
+    }
+    return OneDriveOAuthClient.graphContentUrl(evidenceConfiguration.oneDriveFolderPath(), reference);
+  }
+
+  private String oneDriveBearerToken(AppealEvidenceConfiguration evidenceConfiguration) {
+    if (!evidenceConfiguration.oneDriveRefreshToken().isBlank()) {
+      var token = new OneDriveOAuthClient().refreshAccessToken(
+        evidenceConfiguration.oneDriveTenant(),
+        evidenceConfiguration.oneDriveClientId(),
+        evidenceConfiguration.oneDriveRefreshToken());
+      if (!token.refreshToken().isBlank() && !token.refreshToken().equals(evidenceConfiguration.oneDriveRefreshToken())) {
+        this.settingsStore.updateOneDriveRefreshToken(token.refreshToken());
+      }
+      return token.accessToken();
+    }
+    return evidenceConfiguration.oneDriveBearerToken();
   }
 
   private String appealPublicBaseUrl() {
@@ -1755,6 +1811,10 @@ public final class CloudNetFacade {
     String appealEvidenceSftpRemoteDirectory,
     String appealEvidenceOneDriveUploadUrlTemplate,
     boolean appealEvidenceOneDriveBearerTokenConfigured,
+    String appealEvidenceOneDriveTenant,
+    String appealEvidenceOneDriveClientId,
+    String appealEvidenceOneDriveFolderPath,
+    boolean appealEvidenceOneDriveRefreshTokenConfigured,
     String panelStorageBackend,
     String panelSqlJdbcUrl,
     String panelSqlUsername,
@@ -1784,6 +1844,14 @@ public final class CloudNetFacade {
   public record TestMailView(
     String message,
     String recipient
+  ) {
+  }
+
+  public record OneDriveConnectionView(
+    String status,
+    String message,
+    boolean connected,
+    int interval
   ) {
   }
 }

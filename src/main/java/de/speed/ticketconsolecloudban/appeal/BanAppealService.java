@@ -222,7 +222,8 @@ public final class BanAppealService {
     }
     return EvidenceStorageFactory.create(
       AppealEvidenceConfiguration.from(this.configuration, this.settingsStore.current()),
-      this.dataDirectory);
+      this.dataDirectory,
+      this.settingsStore::updateOneDriveRefreshToken);
   }
 
   private int maxFiles() {

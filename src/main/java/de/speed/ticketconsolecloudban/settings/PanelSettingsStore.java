@@ -1,6 +1,7 @@
 package de.speed.ticketconsolecloudban.settings;
 
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.appeal.OneDriveOAuthClient;
 import de.speed.ticketconsolecloudban.store.LocalPanelDataBackend;
 import de.speed.ticketconsolecloudban.store.PanelDataBackend;
 import eu.cloudnetservice.driver.document.Document;
@@ -70,6 +71,10 @@ public final class PanelSettingsStore {
       textOrDefaultWhenBlank(request, "appealEvidenceSftpRemoteDirectory", existing.appealEvidenceSftpRemoteDirectory()),
       text(request, "appealEvidenceOneDriveUploadUrlTemplate", existing.appealEvidenceOneDriveUploadUrlTemplate()),
       password(request, "appealEvidenceOneDriveBearerToken", existing.appealEvidenceOneDriveBearerToken()),
+      OneDriveOAuthClient.normalizeTenant(text(request, "appealEvidenceOneDriveTenant", existing.appealEvidenceOneDriveTenant())),
+      text(request, "appealEvidenceOneDriveClientId", existing.appealEvidenceOneDriveClientId()),
+      OneDriveOAuthClient.normalizeFolderPath(text(request, "appealEvidenceOneDriveFolderPath", existing.appealEvidenceOneDriveFolderPath())),
+      password(request, "appealEvidenceOneDriveRefreshToken", existing.appealEvidenceOneDriveRefreshToken()),
       bool(request, "smtpEnabled", existing.smtpEnabled()),
       text(request, "smtpHost", existing.smtpHost()),
       integer(request, "smtpPort", existing.smtpPort(), 1, 65535),
@@ -98,6 +103,65 @@ public final class PanelSettingsStore {
       return settings.liteBansBridgeSecret().trim();
     }
     return this.baseConfiguration.effectiveLiteBansBridgeSecret();
+  }
+
+  public synchronized PanelSettings updateOneDriveRefreshToken(String refreshToken) {
+    var source = this.settings;
+    this.settings = new PanelSettings(
+      source.brandName(),
+      source.brandLogoUrl(),
+      source.ticketCategories(),
+      source.cloudNetScreenName(),
+      source.appealBrandName(),
+      source.appealTitle(),
+      source.appealStatusTitle(),
+      source.appealStatusOpenLabel(),
+      source.appealStatusInReviewLabel(),
+      source.appealStatusAcceptedLabel(),
+      source.appealStatusRejectedLabel(),
+      source.appealStatusClosedLabel(),
+      source.appealStatusOpenText(),
+      source.appealStatusInReviewText(),
+      source.appealStatusAcceptedText(),
+      source.appealStatusRejectedText(),
+      source.appealStatusClosedText(),
+      source.appealPublicBaseUrl(),
+      source.appealMaxFiles(),
+      source.appealMaxFileBytes(),
+      source.appealEvidenceStorage(),
+      source.appealEvidenceLocalDirectory(),
+      source.appealEvidenceSftpHost(),
+      source.appealEvidenceSftpPort(),
+      source.appealEvidenceSftpUsername(),
+      source.appealEvidenceSftpPassword(),
+      source.appealEvidenceSftpPrivateKeyPath(),
+      source.appealEvidenceSftpRemoteDirectory(),
+      source.appealEvidenceOneDriveUploadUrlTemplate(),
+      source.appealEvidenceOneDriveBearerToken(),
+      source.appealEvidenceOneDriveTenant(),
+      source.appealEvidenceOneDriveClientId(),
+      source.appealEvidenceOneDriveFolderPath(),
+      refreshToken == null ? "" : refreshToken.trim(),
+      source.smtpEnabled(),
+      source.smtpHost(),
+      source.smtpPort(),
+      source.smtpUsername(),
+      source.smtpPassword(),
+      source.smtpFrom(),
+      source.smtpStartTls(),
+      source.smtpSsl(),
+      source.liteBansDatabaseEnabled(),
+      source.liteBansJdbcUrl(),
+      source.liteBansDatabaseUsername(),
+      source.liteBansDatabasePassword(),
+      source.liteBansTablePrefix(),
+      source.liteBansDatabaseMaxRows(),
+      source.liteBansBridgeBaseUrl(),
+      source.liteBansBridgeSecret(),
+      source.liteBansBridgeConnectTimeoutMillis(),
+      source.liteBansBridgeReadTimeoutMillis());
+    this.save();
+    return this.settings;
   }
 
   private void save() {
@@ -137,6 +201,10 @@ public final class PanelSettingsStore {
       defaultIfBlank(source.appealEvidenceSftpRemoteDirectory(), defaults.appealEvidenceSftpRemoteDirectory()),
       source.appealEvidenceOneDriveUploadUrlTemplate() == null ? "" : source.appealEvidenceOneDriveUploadUrlTemplate(),
       source.appealEvidenceOneDriveBearerToken() == null ? "" : source.appealEvidenceOneDriveBearerToken(),
+      OneDriveOAuthClient.normalizeTenant(defaultIfBlank(source.appealEvidenceOneDriveTenant(), defaults.appealEvidenceOneDriveTenant())),
+      source.appealEvidenceOneDriveClientId() == null ? "" : source.appealEvidenceOneDriveClientId(),
+      OneDriveOAuthClient.normalizeFolderPath(defaultIfBlank(source.appealEvidenceOneDriveFolderPath(), defaults.appealEvidenceOneDriveFolderPath())),
+      source.appealEvidenceOneDriveRefreshToken() == null ? "" : source.appealEvidenceOneDriveRefreshToken(),
       source.smtpEnabled(),
       defaultIfBlank(source.smtpHost(), defaults.smtpHost()),
       source.smtpPort() <= 0 ? defaults.smtpPort() : source.smtpPort(),

@@ -46,6 +46,7 @@ const state = {
   consoleRequestInFlight: false,
   lastConsoleText: "",
   consoleAutoRefresh: true,
+  oneDrivePollTimer: null,
   cloudConsoleRequestInFlight: false,
   lastCloudConsoleText: "",
   cloudConsoleAutoRefresh: true,
@@ -181,6 +182,9 @@ function bindElements() {
   elements.permissionStatus = document.getElementById("permission-status");
   elements.settingsForm = document.getElementById("settings-form");
   elements.settingsStatus = document.getElementById("settings-status");
+  elements.oneDriveConnect = document.getElementById("onedrive-connect");
+  elements.oneDriveDisconnect = document.getElementById("onedrive-disconnect");
+  elements.oneDriveStatus = document.getElementById("onedrive-status");
   elements.testMailForm = document.getElementById("test-mail-form");
   elements.testMailStatus = document.getElementById("test-mail-status");
 }
@@ -276,6 +280,8 @@ function bindEvents() {
   elements.permissionSubjectList.addEventListener("click", handlePermissionSubjectClick);
   elements.permissionNodeList.addEventListener("click", handlePermissionNodeClick);
   elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
+  elements.oneDriveConnect.addEventListener("click", handleOneDriveConnect);
+  elements.oneDriveDisconnect.addEventListener("click", handleOneDriveDisconnect);
   elements.testMailForm.addEventListener("submit", handleTestMailSubmit);
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -1480,9 +1486,26 @@ function renderSettings() {
   setFormValue(form, "appealEvidenceSftpPrivateKeyPath", settings.appealEvidenceSftpPrivateKeyPath || "");
   setFormValue(form, "appealEvidenceSftpRemoteDirectory", settings.appealEvidenceSftpRemoteDirectory || "/appeals");
   setFormValue(form, "appealEvidenceOneDriveUploadUrlTemplate", settings.appealEvidenceOneDriveUploadUrlTemplate || "");
+  setFormValue(form, "appealEvidenceOneDriveTenant", settings.appealEvidenceOneDriveTenant || "common");
+  setFormValue(form, "appealEvidenceOneDriveClientId", settings.appealEvidenceOneDriveClientId || "");
+  setFormValue(form, "appealEvidenceOneDriveFolderPath", settings.appealEvidenceOneDriveFolderPath || "Entbannungsantraege");
+  setFormValue(
+    form,
+    "appealEvidenceOneDriveConnection",
+    settings.appealEvidenceOneDriveRefreshTokenConfigured ? "Verbunden" : "Nicht verbunden"
+  );
   setFormValue(form, "appealEvidenceOneDriveBearerToken", "");
   if (form.appealEvidenceOneDriveBearerToken) {
     form.appealEvidenceOneDriveBearerToken.placeholder = settings.appealEvidenceOneDriveBearerTokenConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
+  }
+  if (elements.oneDriveStatus && !state.oneDrivePollTimer) {
+    setStatus(
+      elements.oneDriveStatus,
+      settings.appealEvidenceOneDriveRefreshTokenConfigured
+        ? "OneDrive OAuth ist verbunden."
+        : "Noch keine OneDrive OAuth-Verbindung eingerichtet.",
+      false
+    );
   }
   setFormValue(form, "panelStorageBackend", settings.panelStorageBackend || "SQL");
   setFormValue(form, "panelSqlJdbcUrl", settings.panelSqlJdbcUrl || "");
@@ -2092,6 +2115,9 @@ async function handleSettingsSubmit(event) {
     appealEvidenceSftpPrivateKeyPath: String(form.get("appealEvidenceSftpPrivateKeyPath") || "").trim(),
     appealEvidenceSftpRemoteDirectory: String(form.get("appealEvidenceSftpRemoteDirectory") || "").trim(),
     appealEvidenceOneDriveUploadUrlTemplate: String(form.get("appealEvidenceOneDriveUploadUrlTemplate") || "").trim(),
+    appealEvidenceOneDriveTenant: String(form.get("appealEvidenceOneDriveTenant") || "common").trim(),
+    appealEvidenceOneDriveClientId: String(form.get("appealEvidenceOneDriveClientId") || "").trim(),
+    appealEvidenceOneDriveFolderPath: String(form.get("appealEvidenceOneDriveFolderPath") || "").trim(),
     smtpEnabled: Boolean(form.get("smtpEnabled")),
     smtpHost: String(form.get("smtpHost") || "").trim(),
     smtpPort: Number(form.get("smtpPort") || 587),
@@ -2138,6 +2164,108 @@ async function handleSettingsSubmit(event) {
     await refreshAll();
   } catch (error) {
     handleApiError(error, elements.settingsStatus);
+  }
+}
+
+async function handleOneDriveConnect(event) {
+  event.preventDefault();
+  if (!hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
+    return;
+  }
+
+  const form = new FormData(elements.settingsForm);
+  const clientId = String(form.get("appealEvidenceOneDriveClientId") || "").trim();
+  if (!clientId) {
+    setStatus(elements.oneDriveStatus, "Bitte zuerst die OneDrive Client ID eintragen.", true);
+    return;
+  }
+
+  try {
+    clearTimeout(state.oneDrivePollTimer);
+    state.oneDrivePollTimer = null;
+    setStatus(elements.oneDriveStatus, "Speichere OneDrive-Einstellungen und starte Microsoft-Anmeldung ...", false);
+    state.settings = await api("/api/settings", {
+      method: "PUT",
+      body: {
+        appealEvidenceStorage: String(form.get("appealEvidenceStorage") || "ONEDRIVE").trim(),
+        appealEvidenceOneDriveUploadUrlTemplate: String(form.get("appealEvidenceOneDriveUploadUrlTemplate") || "").trim(),
+        appealEvidenceOneDriveTenant: String(form.get("appealEvidenceOneDriveTenant") || "common").trim(),
+        appealEvidenceOneDriveClientId: clientId,
+        appealEvidenceOneDriveFolderPath: String(form.get("appealEvidenceOneDriveFolderPath") || "").trim(),
+      },
+    });
+    renderSettings();
+
+    const deviceCode = await api("/api/settings/onedrive/device-code", { method: "POST" });
+    const loginUrl = deviceCode.verificationUriComplete || deviceCode.verificationUri;
+    if (loginUrl) {
+      window.open(loginUrl, "_blank", "noopener,noreferrer");
+    }
+    const codeHint = deviceCode.userCode ? ` Code: ${deviceCode.userCode}` : "";
+    setStatus(
+      elements.oneDriveStatus,
+      `${deviceCode.message || "Bitte Microsoft-Anmeldung im neuen Fenster abschließen."}${codeHint}`,
+      false
+    );
+    pollOneDriveConnection(
+      deviceCode.deviceCode,
+      Number(deviceCode.interval || 5),
+      Date.now() + Number(deviceCode.expiresIn || 900) * 1000
+    );
+  } catch (error) {
+    clearTimeout(state.oneDrivePollTimer);
+    state.oneDrivePollTimer = null;
+    handleApiError(error, elements.oneDriveStatus);
+  }
+}
+
+function pollOneDriveConnection(deviceCode, intervalSeconds, expiresAt) {
+  clearTimeout(state.oneDrivePollTimer);
+  const poll = async () => {
+    if (Date.now() > expiresAt) {
+      state.oneDrivePollTimer = null;
+      setStatus(elements.oneDriveStatus, "Der Microsoft-Anmeldecode ist abgelaufen. Bitte erneut verbinden.", true);
+      return;
+    }
+
+    try {
+      const result = await api("/api/settings/onedrive/complete", {
+        method: "POST",
+        body: { deviceCode },
+      });
+      if (result.connected) {
+        state.oneDrivePollTimer = null;
+        state.settings = await api("/api/settings");
+        renderSettings();
+        setStatus(elements.oneDriveStatus, result.message || "OneDrive wurde erfolgreich verbunden.", false);
+        return;
+      }
+      const waitSeconds = Number(result.interval || intervalSeconds || 5);
+      setStatus(elements.oneDriveStatus, result.message || "Warte auf Abschluss der Microsoft-Anmeldung ...", false);
+      state.oneDrivePollTimer = setTimeout(poll, waitSeconds * 1000);
+    } catch (error) {
+      state.oneDrivePollTimer = null;
+      handleApiError(error, elements.oneDriveStatus);
+    }
+  };
+  state.oneDrivePollTimer = setTimeout(poll, Math.max(1, intervalSeconds || 5) * 1000);
+}
+
+async function handleOneDriveDisconnect(event) {
+  event.preventDefault();
+  if (!hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
+    return;
+  }
+
+  try {
+    clearTimeout(state.oneDrivePollTimer);
+    state.oneDrivePollTimer = null;
+    const result = await api("/api/settings/onedrive/disconnect", { method: "POST" });
+    state.settings = await api("/api/settings");
+    renderSettings();
+    setStatus(elements.oneDriveStatus, result.message || "OneDrive-Verbindung wurde getrennt.", false);
+  } catch (error) {
+    handleApiError(error, elements.oneDriveStatus);
   }
 }
 

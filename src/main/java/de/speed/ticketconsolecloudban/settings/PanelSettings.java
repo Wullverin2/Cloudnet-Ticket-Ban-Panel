@@ -1,6 +1,7 @@
 package de.speed.ticketconsolecloudban.settings;
 
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.appeal.OneDriveOAuthClient;
 import java.util.List;
 
 public record PanelSettings(
@@ -34,6 +35,10 @@ public record PanelSettings(
   String appealEvidenceSftpRemoteDirectory,
   String appealEvidenceOneDriveUploadUrlTemplate,
   String appealEvidenceOneDriveBearerToken,
+  String appealEvidenceOneDriveTenant,
+  String appealEvidenceOneDriveClientId,
+  String appealEvidenceOneDriveFolderPath,
+  String appealEvidenceOneDriveRefreshToken,
   boolean smtpEnabled,
   String smtpHost,
   int smtpPort,
@@ -108,6 +113,10 @@ public record PanelSettings(
       configuration.appealEvidenceSftpRemoteDirectory(),
       configuration.appealEvidenceOneDriveUploadUrlTemplate(),
       configuration.appealEvidenceOneDriveBearerToken(),
+      OneDriveOAuthClient.DEFAULT_TENANT,
+      "",
+      OneDriveOAuthClient.DEFAULT_FOLDER_PATH,
+      "",
       configuration.smtpEnabled(),
       configuration.smtpHost(),
       configuration.smtpPort(),

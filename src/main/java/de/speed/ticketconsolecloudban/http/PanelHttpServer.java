@@ -689,6 +689,23 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() == 4 && "onedrive".equals(segments.get(2))) {
+      var action = segments.get(3);
+      if ("device-code".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.startOneDriveDeviceCode());
+        return;
+      }
+      if ("complete".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        var result = this.facade.completeOneDriveDeviceCode(HttpExchangeUtils.readJson(exchange));
+        HttpExchangeUtils.writeJson(exchange, result.connected() ? 200 : 202, result);
+        return;
+      }
+      if ("disconnect".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.disconnectOneDrive());
+        return;
+      }
+    }
+
     HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Settings-Endpunkt nicht gefunden"));
   }
 

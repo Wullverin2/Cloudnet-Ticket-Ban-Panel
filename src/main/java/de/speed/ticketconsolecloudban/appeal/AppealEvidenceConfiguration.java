@@ -13,7 +13,11 @@ public record AppealEvidenceConfiguration(
   String sftpPrivateKeyPath,
   String sftpRemoteDirectory,
   String oneDriveUploadUrlTemplate,
-  String oneDriveBearerToken
+  String oneDriveBearerToken,
+  String oneDriveTenant,
+  String oneDriveClientId,
+  String oneDriveFolderPath,
+  String oneDriveRefreshToken
 ) {
 
   public AppealEvidenceConfiguration {
@@ -27,6 +31,10 @@ public record AppealEvidenceConfiguration(
     sftpRemoteDirectory = defaultIfBlank(sftpRemoteDirectory, "/appeals");
     oneDriveUploadUrlTemplate = blankIfNull(oneDriveUploadUrlTemplate);
     oneDriveBearerToken = blankIfNull(oneDriveBearerToken);
+    oneDriveTenant = OneDriveOAuthClient.normalizeTenant(oneDriveTenant);
+    oneDriveClientId = blankIfNull(oneDriveClientId);
+    oneDriveFolderPath = OneDriveOAuthClient.normalizeFolderPath(oneDriveFolderPath);
+    oneDriveRefreshToken = blankIfNull(oneDriveRefreshToken);
   }
 
   public static AppealEvidenceConfiguration from(PanelConfiguration configuration) {
@@ -40,7 +48,11 @@ public record AppealEvidenceConfiguration(
       configuration.appealEvidenceSftpPrivateKeyPath(),
       configuration.appealEvidenceSftpRemoteDirectory(),
       configuration.appealEvidenceOneDriveUploadUrlTemplate(),
-      configuration.appealEvidenceOneDriveBearerToken());
+      configuration.appealEvidenceOneDriveBearerToken(),
+      OneDriveOAuthClient.DEFAULT_TENANT,
+      "",
+      OneDriveOAuthClient.DEFAULT_FOLDER_PATH,
+      "");
   }
 
   public static AppealEvidenceConfiguration from(PanelConfiguration configuration, PanelSettings settings) {
@@ -57,7 +69,11 @@ public record AppealEvidenceConfiguration(
       settings.appealEvidenceSftpPrivateKeyPath(),
       settings.appealEvidenceSftpRemoteDirectory(),
       settings.appealEvidenceOneDriveUploadUrlTemplate(),
-      settings.appealEvidenceOneDriveBearerToken());
+      settings.appealEvidenceOneDriveBearerToken(),
+      settings.appealEvidenceOneDriveTenant(),
+      settings.appealEvidenceOneDriveClientId(),
+      settings.appealEvidenceOneDriveFolderPath(),
+      settings.appealEvidenceOneDriveRefreshToken());
   }
 
   private static String normalizeStorage(String value) {

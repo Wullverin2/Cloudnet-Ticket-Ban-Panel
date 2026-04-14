@@ -43,7 +43,7 @@ Das Panel ist bewusst als MVP gebaut:
 - LiteBans-Unban und -Verlängerung laufen über eine Panel-Aktionsqueue, die Velocity abarbeitet
 - Entbannungsanträge prüfen die Random-LiteBans-ID gegen den Spielernamen und erlauben nur einen Antrag je Ban-ID/Spieler
 - Angenommene, abgelehnte und geschlossene Entbannungsanträge werden im Ban-Archiv angezeigt
-- Beweise können lokal, per SFTP oder per OneDrive-Upload-URL gespeichert werden
+- Beweise können lokal, per SFTP oder per OneDrive OAuth gespeichert werden; eine manuelle OneDrive-Upload-URL bleibt als Fallback möglich
 - LuckPerms-Gruppen und geladene Spieler können pro Proxy und pro Purpur-Unterserver ins Panel synchronisiert werden
 - LuckPerms-Permissions und Parent-Gruppen können im Panel als Queue-Aktion erstellt werden
 - Unterserver mit eigener LuckPerms-Datenbank werden über das Purpur-Companion-Plugin gezielt per `server.id` angesteuert
@@ -211,7 +211,9 @@ Wenn im CloudNet-Log `SQL Panel-Speicher ist nicht verfügbar, nutze lokalen JSO
 
 Ab neueren Builds schreibt das Modul die echte Ursache mit Stacktrace ins CloudNet-Log, z.B. `Access denied`, `Unknown database`, `Communications link failure` oder `ClassNotFoundException`.
 
-Mailserver- und LiteBans-Datenbankwerte können im Webpanel unter `Einstellungen` geändert werden. Dort gibt es auch eine Testmail-Funktion. Die Panel-Speicherart selbst wird beim Modulstart geladen und bleibt deshalb in der Modul-Konfiguration.
+Mailserver-, LiteBans-Datenbank- und Beweis-Speicherwerte können im Webpanel unter `Einstellungen` geändert werden. Dort gibt es auch eine Testmail-Funktion. Die Panel-Speicherart selbst wird beim Modulstart geladen und bleibt deshalb in der Modul-Konfiguration.
+
+Für OneDrive ist die empfohlene Lösung die Microsoft-Anmeldung per Gerätecode. Lege dafür in Microsoft Entra eine App-Registrierung als Public Client an, trage die Client-ID im Panel ein und klicke unter `Einstellungen` auf `OneDrive verbinden`. Das Panel speichert danach nur den Refresh-Token und erneuert Access Tokens automatisch. Ein manuell eingetragener Bearer Token ist nur noch als Fallback gedacht, weil solche Tokens kurzlebig sind.
 
 Panel-Titel, Logo-URL sowie Statusnamen und Statustexte für Entbannungsanträge können ebenfalls im Einstellungstab geändert werden. Das Logo wird als externe URL hinterlegt und direkt im Panel, auf der Entbannungsseite und in HTML-Mails verwendet.
 
@@ -240,7 +242,8 @@ Evidence-Speicher:
 
 - `LOCAL` speichert Dateien im Modul-Datenordner unter `appeal-evidence`.
 - `SFTP` speichert Dateien auf einem externen SFTP-Server. Dafür müssen Host, Benutzer und Passwort oder Private-Key-Pfad gesetzt sein.
-- `ONEDRIVE` nutzt eine konfigurierte Microsoft-Graph-Upload-URL-Vorlage. Die Vorlage muss `{filename}` enthalten und ein gültiger Bearer Token muss gesetzt sein.
+- `ONEDRIVE` nutzt bevorzugt die Microsoft-Anmeldung per Gerätecode. Im Panel müssen Tenant, Client-ID und Zielordner gesetzt sein; danach erledigt `OneDrive verbinden` die Anmeldung.
+- Optional kann weiterhin eine Microsoft-Graph-Upload-URL-Vorlage mit `{filename}` und ein Bearer Token als Fallback gesetzt werden.
 
 Beispiel OneDrive-URL-Vorlage:
 

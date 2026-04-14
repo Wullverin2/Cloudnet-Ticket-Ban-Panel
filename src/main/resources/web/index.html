@@ -1025,11 +1025,34 @@
                   <span>OneDrive Upload URL Template</span>
                   <input name="appealEvidenceOneDriveUploadUrlTemplate" type="text" placeholder="https://graph.microsoft.com/v1.0/me/drive/root:/appeals/{filename}:/content">
                 </label>
+                <div class="form-grid">
+                  <label>
+                    <span>OneDrive Tenant</span>
+                    <input name="appealEvidenceOneDriveTenant" type="text" placeholder="common">
+                  </label>
+                  <label>
+                    <span>OneDrive Client ID</span>
+                    <input name="appealEvidenceOneDriveClientId" type="text" placeholder="Azure App Client ID">
+                  </label>
+                  <label>
+                    <span>OneDrive Ordner</span>
+                    <input name="appealEvidenceOneDriveFolderPath" type="text" placeholder="Entbannungsantraege">
+                  </label>
+                  <label>
+                    <span>OneDrive Verbindung</span>
+                    <input name="appealEvidenceOneDriveConnection" type="text" readonly>
+                  </label>
+                </div>
+                <div class="action-row">
+                  <button id="onedrive-connect" type="button">OneDrive verbinden</button>
+                  <button id="onedrive-disconnect" class="ghost-button" type="button">OneDrive trennen</button>
+                </div>
+                <p id="onedrive-status" class="muted"></p>
                 <label>
-                  <span>OneDrive Bearer Token</span>
+                  <span>OneDrive Bearer Token Fallback</span>
                   <input name="appealEvidenceOneDriveBearerToken" type="password" placeholder="leer lassen = behalten">
                 </label>
-                <p class="muted">Bei OneDrive wird im URL Template <strong>{filename}</strong> durch den gespeicherten Dateinamen ersetzt. Für produktiven Betrieb sollte ein dauerhaft verwalteter Graph-Zugriff genutzt werden.</p>
+                <p class="muted">Empfohlen ist die OneDrive-Verbindung über Microsoft-Code. Das URL Template ist optional; ohne Template nutzt das Panel automatisch Microsoft Graph und den OneDrive Ordner.</p>
               </fieldset>
 
               <fieldset>
