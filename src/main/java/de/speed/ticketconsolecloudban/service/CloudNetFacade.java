@@ -667,6 +667,8 @@ public final class CloudNetFacade {
       settings.brandLogoUrl(),
       settings.ticketCategories(),
       settings.cloudNetScreenName(),
+      settings.appealTitle(),
+      settings.appealStatusTitle(),
       settings.appealStatusOpenLabel(),
       settings.appealStatusInReviewLabel(),
       settings.appealStatusAcceptedLabel(),
@@ -727,10 +729,11 @@ public final class CloudNetFacade {
 
     var statusUrl = this.appealPublicBaseUrl() + "/status?token=" + appeal.statusToken();
     var settings = this.settingsStore.current();
+    var appealTitle = this.appealTitle();
     var statusLabel = settings.appealStatusLabel(appeal.status());
     var statusText = settings.appealStatusText(appeal.status());
     var text = "Hallo " + appeal.playerName() + ",\r\n\r\n"
-      + "der Status deines Entbannungsantrags für Ban-ID " + appeal.publicBanId() + " wurde aktualisiert.\r\n"
+      + "der Status zu deinem " + appealTitle + " für Ban-ID " + appeal.publicBanId() + " wurde aktualisiert.\r\n"
       + "Status: " + statusLabel + "\r\n"
       + statusText + "\r\n"
       + "Statusseite: " + statusUrl + "\r\n";
@@ -740,7 +743,9 @@ public final class CloudNetFacade {
 
     var body = "<p style=\"margin:0 0 14px;color:#d7e2ea;\">Hallo <strong>"
       + escapeHtml(appeal.playerName())
-      + "</strong>, der Status deines Entbannungsantrags wurde aktualisiert.</p>"
+      + "</strong>, der Status zu deinem "
+      + escapeHtml(appealTitle)
+      + " wurde aktualisiert.</p>"
       + "<div style=\"margin:18px 0;padding:16px;border-radius:18px;background:rgba(255,255,255,.045);border:1px solid rgba(244,188,70,.2);\">"
       + "<p style=\"margin:0 0 8px;color:#f4bc46;font-weight:800;letter-spacing:.08em;text-transform:uppercase;\">"
       + escapeHtml(statusLabel)
@@ -758,11 +763,11 @@ public final class CloudNetFacade {
 
     mailService.sendHtml(
       appeal.email(),
-      "Entbannungsantrag aktualisiert: " + statusLabel,
+      appealTitle + " aktualisiert: " + statusLabel,
       text,
       this.craftplayMailHtml(
-        "Entbannungsantrag",
-        "Status aktualisiert",
+        appealTitle,
+        appealTitle + " aktualisiert",
         body,
         statusUrl,
         "Status ansehen",
@@ -1140,6 +1145,11 @@ public final class CloudNetFacade {
   private String brandLogoUrl() {
     var settings = this.settingsStore.current();
     return settings.brandLogoUrl() == null ? "" : settings.brandLogoUrl();
+  }
+
+  private String appealTitle() {
+    var value = this.settingsStore.current().appealTitle();
+    return value == null || value.isBlank() ? PanelSettings.DEFAULT_APPEAL_TITLE : value.trim();
   }
 
   private static String escapeHtml(String value) {
@@ -1708,6 +1718,8 @@ public final class CloudNetFacade {
     String brandLogoUrl,
     List<String> ticketCategories,
     String cloudNetScreenName,
+    String appealTitle,
+    String appealStatusTitle,
     String appealStatusOpenLabel,
     String appealStatusInReviewLabel,
     String appealStatusAcceptedLabel,

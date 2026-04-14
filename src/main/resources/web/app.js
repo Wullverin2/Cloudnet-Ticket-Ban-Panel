@@ -1452,6 +1452,8 @@ function renderSettings() {
     `<span class="badge">${escapeHtml(category)}</span>`
   )).join("") || `<span class="muted">Keine Ticket-Arten hinterlegt.</span>`;
   setFormValue(form, "cloudNetScreenName", settings.cloudNetScreenName || "");
+  setFormValue(form, "appealTitle", settings.appealTitle || "Entbannungsantrag");
+  setFormValue(form, "appealStatusTitle", settings.appealStatusTitle || "Dein Entbannungsantrag");
   setFormValue(form, "appealStatusOpenLabel", settings.appealStatusOpenLabel || "Offen");
   setFormValue(form, "appealStatusInReviewLabel", settings.appealStatusInReviewLabel || "In Prüfung");
   setFormValue(form, "appealStatusAcceptedLabel", settings.appealStatusAcceptedLabel || "Angenommen");
@@ -2065,6 +2067,8 @@ async function handleSettingsSubmit(event) {
     brandLogoUrl: String(form.get("brandLogoUrl") || "").trim(),
     ticketCategories: splitLinesOrCsv(form.get("ticketCategories")),
     cloudNetScreenName: String(form.get("cloudNetScreenName") || "").trim(),
+    appealTitle: String(form.get("appealTitle") || "").trim(),
+    appealStatusTitle: String(form.get("appealStatusTitle") || "").trim(),
     appealStatusOpenLabel: String(form.get("appealStatusOpenLabel") || "").trim(),
     appealStatusInReviewLabel: String(form.get("appealStatusInReviewLabel") || "").trim(),
     appealStatusAcceptedLabel: String(form.get("appealStatusAcceptedLabel") || "").trim(),

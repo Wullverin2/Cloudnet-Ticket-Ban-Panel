@@ -147,7 +147,7 @@ public final class BanAppealHttpServer {
           </nav>
           <section class="card" id="form-card">
             <p class="eyebrow">Ban Appeal</p>
-            <h1>Entbannungsantrag</h1>
+            <h1 id="appeal-title">Entbannungsantrag</h1>
             <p class="muted">Gib die Random Ban-ID aus deiner Ban-Nachricht und deinen Spielernamen ein. Beides muss zusammenpassen.</p>
             <form id="appeal-form">
               <div class="grid">
@@ -164,19 +164,20 @@ public final class BanAppealHttpServer {
           </section>
           <section class="card hidden" id="status-card">
             <p class="eyebrow">Status</p>
-            <h1>Dein Antrag</h1>
+            <h1 id="appeal-status-title">Dein Entbannungsantrag</h1>
             <div id="status-output" class="status-box muted">Status wird geladen.</div>
           </section>
         </main>
         <script>
-          const formCard=document.getElementById('form-card');const statusCard=document.getElementById('status-card');const form=document.getElementById('appeal-form');const formStatus=document.getElementById('form-status');const output=document.getElementById('status-output');const brandName=document.getElementById('brand-name');const brandLogo=document.getElementById('brand-logo');
+          const formCard=document.getElementById('form-card');const statusCard=document.getElementById('status-card');const form=document.getElementById('appeal-form');const formStatus=document.getElementById('form-status');const output=document.getElementById('status-output');const brandName=document.getElementById('brand-name');const brandLogo=document.getElementById('brand-logo');const appealTitle=document.getElementById('appeal-title');const appealStatusTitle=document.getElementById('appeal-status-title');
           const params=new URLSearchParams(location.search);const token=params.get('token');
           loadMeta();
           if(token){formCard.classList.add('hidden');statusCard.classList.remove('hidden');loadStatus(token);}
-          form.addEventListener('submit',async event=>{event.preventDefault();formStatus.textContent='Antrag wird gesendet...';formStatus.className='status muted';try{const response=await fetch('/api/appeals',{method:'POST',body:new FormData(form)});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Antrag konnte nicht gesendet werden.');form.reset();formStatus.textContent=data.message||'Antrag wurde eingereicht.';formStatus.className='status success';const statusPath=relativeStatusPath(data.statusUrl);if(statusPath){history.replaceState(null,'',statusPath);formCard.classList.add('hidden');statusCard.classList.remove('hidden');loadStatus(new URL(statusPath,location.origin).searchParams.get('token'));}}catch(error){formStatus.textContent=error.message;formStatus.className='status error';}});
-          async function loadMeta(){try{const response=await fetch('/api/appeals/meta');const data=await response.json().catch(()=>({}));if(data.brandName){brandName.textContent=data.brandName;document.title='Entbannungsantrag - '+data.brandName;}if(data.brandLogoUrl){brandLogo.src=data.brandLogoUrl;brandLogo.classList.remove('hidden');}}catch(error){}}
+          form.addEventListener('submit',async event=>{event.preventDefault();formStatus.textContent='Antrag wird gesendet...';formStatus.className='status muted';try{const response=await fetch('/api/appeals',{method:'POST',body:new FormData(form)});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Antrag konnte nicht gesendet werden.');form.reset();formStatus.textContent=data.message||'Antrag wurde eingereicht.';formStatus.className='status success';const statusPath=relativeStatusPath(data.statusUrl);if(statusPath){history.replaceState(null,'',statusPath);formCard.classList.add('hidden');statusCard.classList.remove('hidden');document.title=titleWithBrand(appealStatusTitle.textContent||'Dein Entbannungsantrag');loadStatus(new URL(statusPath,location.origin).searchParams.get('token'));}}catch(error){formStatus.textContent=error.message;formStatus.className='status error';}});
+          async function loadMeta(){try{const response=await fetch('/api/appeals/meta');const data=await response.json().catch(()=>({}));const pageTitle=data.appealTitle||'Entbannungsantrag';const statusTitle=data.appealStatusTitle||'Dein Entbannungsantrag';appealTitle.textContent=pageTitle;appealStatusTitle.textContent=statusTitle;if(data.brandName){brandName.textContent=data.brandName;}document.title=titleWithBrand((token||!statusCard.classList.contains('hidden'))?statusTitle:pageTitle);if(data.brandLogoUrl){brandLogo.src=data.brandLogoUrl;brandLogo.classList.remove('hidden');}}catch(error){}}
           async function loadStatus(token){try{const response=await fetch('/api/appeals/status?token='+encodeURIComponent(token));const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Status konnte nicht geladen werden.');output.innerHTML='<strong>Status: '+escapeHtml(data.statusLabel||data.status||'-')+'</strong><span class="status-message">'+escapeHtml(data.statusText||'')+'</span><div class="meta-row"><span>Random Ban-ID: '+escapeHtml(data.publicBanId||'-')+'</span><span>Spieler: '+escapeHtml(data.playerName||'-')+'</span><span>Eingereicht: '+formatDate(data.createdAt)+'</span></div>'+(data.teamNote?'<span>Team-Notiz: '+escapeHtml(data.teamNote)+'</span>':'');}catch(error){output.textContent=error.message;output.className='status-box error';}}
           function relativeStatusPath(value){try{const url=new URL(value||'',location.origin);const token=url.searchParams.get('token');return token?'/status?token='+encodeURIComponent(token):'';}catch(error){return '';}}
+          function titleWithBrand(title){const brand=brandName.textContent||'';return brand?title+' - '+brand:title;}
           function formatDate(value){const time=Date.parse(value||'');if(Number.isNaN(time))return escapeHtml(value||'-');return new Intl.DateTimeFormat('de-DE',{dateStyle:'medium',timeStyle:'short'}).format(new Date(time));}
           function escapeHtml(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;");}
         </script>

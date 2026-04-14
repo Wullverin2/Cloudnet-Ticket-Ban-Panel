@@ -8,6 +8,8 @@ public record PanelSettings(
   String brandLogoUrl,
   List<String> ticketCategories,
   String cloudNetScreenName,
+  String appealTitle,
+  String appealStatusTitle,
   String appealStatusOpenLabel,
   String appealStatusInReviewLabel,
   String appealStatusAcceptedLabel,
@@ -53,6 +55,9 @@ public record PanelSettings(
 
   public static final List<String> DEFAULT_TICKET_CATEGORIES = List.of("SUPPORT", "BUG", "MELDEN", "SONSTIGES");
 
+  public static final String DEFAULT_APPEAL_TITLE = "Entbannungsantrag";
+  public static final String DEFAULT_APPEAL_STATUS_TITLE = "Dein Entbannungsantrag";
+
   public static final String DEFAULT_APPEAL_STATUS_OPEN_LABEL = "Offen";
   public static final String DEFAULT_APPEAL_STATUS_IN_REVIEW_LABEL = "In Prüfung";
   public static final String DEFAULT_APPEAL_STATUS_ACCEPTED_LABEL = "Angenommen";
@@ -76,6 +81,8 @@ public record PanelSettings(
       configuration.brandLogoUrl(),
       DEFAULT_TICKET_CATEGORIES,
       "",
+      DEFAULT_APPEAL_TITLE,
+      DEFAULT_APPEAL_STATUS_TITLE,
       DEFAULT_APPEAL_STATUS_OPEN_LABEL,
       DEFAULT_APPEAL_STATUS_IN_REVIEW_LABEL,
       DEFAULT_APPEAL_STATUS_ACCEPTED_LABEL,

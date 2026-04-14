@@ -130,12 +130,16 @@ public final class BanAppealService {
       List.copyOf(attachmentDrafts));
     this.sendConfirmation(appeal);
     return new AppealSubmittedView(
-      "Dein Entbannungsantrag wurde eingereicht. Bitte prüfe deine E-Mails für den Statuslink.",
+      "Dein " + this.appealTitle() + " wurde eingereicht. Bitte prüfe deine E-Mails für den Statuslink.",
       this.statusUrl(appeal));
   }
 
   public AppealMetaView meta() {
-    return new AppealMetaView(this.brandName(), this.brandLogoUrl());
+    return new AppealMetaView(
+      this.brandName(),
+      this.brandLogoUrl(),
+      this.appealTitle(),
+      this.appealStatusTitle());
   }
 
   public AppealStatusView status(String token) {
@@ -164,17 +168,20 @@ public final class BanAppealService {
 
   private void sendConfirmation(BanAppealEntry appeal) {
     var statusUrl = this.statusUrl(appeal);
+    var appealTitle = this.appealTitle();
     var statusLabel = this.settings().appealStatusLabel(appeal.status());
     var statusText = this.settings().appealStatusText(appeal.status());
     var text = "Hallo " + appeal.playerName() + ",\r\n\r\n"
-      + "dein Entbannungsantrag für Ban-ID " + appeal.publicBanId() + " wurde eingereicht.\r\n"
+      + "dein " + appealTitle + " für Ban-ID " + appeal.publicBanId() + " wurde eingereicht.\r\n"
       + "Status: " + statusLabel + "\r\n"
       + statusText + "\r\n"
       + "Status: " + statusUrl + "\r\n\r\n"
       + "Bitte bewahre diesen Link auf.";
     var body = "<p style=\"margin:0 0 14px;color:#d7e2ea;line-height:1.55;\">Hallo <strong>"
       + escapeHtml(appeal.playerName())
-      + "</strong>, dein Antrag für die Random Ban-ID <strong>"
+      + "</strong>, dein "
+      + escapeHtml(appealTitle)
+      + " für die Random Ban-ID <strong>"
       + escapeHtml(appeal.publicBanId())
       + "</strong> wurde erfolgreich eingereicht.</p>"
       + "<div style=\"margin:18px 0;padding:16px;border-radius:18px;background:rgba(255,255,255,.045);border:1px solid rgba(244,188,70,.2);\">"
@@ -185,15 +192,15 @@ public final class BanAppealService {
       + "</p></div>"
       + "<p style=\"margin:0;color:#9eb0bc;line-height:1.55;\">Über den folgenden Link kannst du jederzeit den Status prüfen.</p>";
     var html = this.craftplayMailHtml(
-      "Entbannungsantrag",
-      "Antrag eingegangen",
+      appealTitle,
+      appealTitle + " eingegangen",
       body,
       statusUrl,
       "Status ansehen",
       "Falls du diesen Antrag nicht erstellt hast, kontaktiere bitte das Serverteam.");
 
     if (this.mailService.enabled()) {
-      this.mailService.sendHtml(appeal.email(), "Entbannungsantrag eingegangen", text, html);
+      this.mailService.sendHtml(appeal.email(), appealTitle + " eingegangen", text, html);
     } else {
       LOGGER.warn("Ban appeal confirmation for {} not mailed because SMTP is disabled. Status URL: {}", appeal.email(), statusUrl);
     }
@@ -241,6 +248,16 @@ public final class BanAppealService {
   private String brandLogoUrl() {
     var value = this.settings().brandLogoUrl();
     return value == null ? "" : value.trim();
+  }
+
+  private String appealTitle() {
+    var value = this.settings().appealTitle();
+    return value == null || value.isBlank() ? PanelSettings.DEFAULT_APPEAL_TITLE : value.trim();
+  }
+
+  private String appealStatusTitle() {
+    var value = this.settings().appealStatusTitle();
+    return value == null || value.isBlank() ? PanelSettings.DEFAULT_APPEAL_STATUS_TITLE : value.trim();
   }
 
   private String craftplayMailHtml(String eyebrow, String title, String bodyHtml, String buttonUrl, String buttonLabel, String footer) {
@@ -317,7 +334,9 @@ public final class BanAppealService {
 
   public record AppealMetaView(
     String brandName,
-    String brandLogoUrl
+    String brandLogoUrl,
+    String appealTitle,
+    String appealStatusTitle
   ) {
   }
 
