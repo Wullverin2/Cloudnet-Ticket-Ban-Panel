@@ -47,6 +47,9 @@ const state = {
   lastConsoleText: "",
   consoleAutoRefresh: true,
   oneDrivePollTimer: null,
+  oneDriveFolders: [],
+  oneDriveFoldersLoading: false,
+  oneDriveFoldersLoaded: false,
   cloudConsoleRequestInFlight: false,
   lastCloudConsoleText: "",
   cloudConsoleAutoRefresh: true,
@@ -184,6 +187,8 @@ function bindElements() {
   elements.settingsStatus = document.getElementById("settings-status");
   elements.oneDriveConnect = document.getElementById("onedrive-connect");
   elements.oneDriveDisconnect = document.getElementById("onedrive-disconnect");
+  elements.oneDriveFoldersRefresh = document.getElementById("onedrive-folders-refresh");
+  elements.oneDriveLoginLink = document.getElementById("onedrive-login-link");
   elements.oneDriveStatus = document.getElementById("onedrive-status");
   elements.testMailForm = document.getElementById("test-mail-form");
   elements.testMailStatus = document.getElementById("test-mail-status");
@@ -282,6 +287,7 @@ function bindEvents() {
   elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
   elements.oneDriveConnect.addEventListener("click", handleOneDriveConnect);
   elements.oneDriveDisconnect.addEventListener("click", handleOneDriveDisconnect);
+  elements.oneDriveFoldersRefresh.addEventListener("click", () => loadOneDriveFolders(true));
   elements.testMailForm.addEventListener("submit", handleTestMailSubmit);
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -736,6 +742,10 @@ async function refreshAll() {
     renderServices();
     renderNodes();
     refreshServiceSelectors();
+  } else if (hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)) {
+    state.services = asArray(await api("/api/services"));
+    renderServices();
+    refreshServiceSelectors();
   }
 
   if (hasPermission(PERMISSIONS.TICKETS_VIEW)) {
@@ -1103,7 +1113,7 @@ function banActions(ban) {
 
 function renderLiteBans() {
   if (!state.liteBans.length) {
-    elements.liteBanTable.innerHTML = `<tr><td colspan="6" class="muted">Noch keine LiteBans synchronisiert.</td></tr>`;
+    elements.liteBanTable.innerHTML = `<tr><td colspan="7" class="muted">Noch keine LiteBans synchronisiert.</td></tr>`;
     return;
   }
 
@@ -1112,9 +1122,9 @@ function renderLiteBans() {
       <td>${liteBanIdCell(ban)}</td>
       <td>
         <strong>${escapeHtml(ban.targetName || "-")}</strong><br>
-        <span class="muted">${escapeHtml(ban.targetUniqueId || ban.targetAddress || "-")}</span><br>
-        <span class="muted">Gebannt von: ${escapeHtml(ban.issuedBy || "-")}</span>
+        <span class="muted">${escapeHtml(ban.targetUniqueId || ban.targetAddress || "-")}</span>
       </td>
+      <td>${escapeHtml(ban.issuedBy || "-")}</td>
       <td>
         <span class="badge ${ban.active ? "badge-danger" : "badge-success"}">
           ${ban.active ? "aktiv" : "inaktiv"}
@@ -1200,7 +1210,7 @@ function renderBanAppeals() {
 function renderBanAppealArchive() {
   const archivedAppeals = state.banAppeals.filter(isArchivedAppeal);
   if (!archivedAppeals.length) {
-    elements.banAppealArchiveTable.innerHTML = `<tr><td colspan="7" class="muted">Noch keine abgeschlossenen Entbannungsanträge im Archiv.</td></tr>`;
+    elements.banAppealArchiveTable.innerHTML = `<tr><td colspan="8" class="muted">Noch keine abgeschlossenen Entbannungsanträge im Archiv.</td></tr>`;
     return;
   }
 
@@ -1219,6 +1229,7 @@ function renderBanAppealArchive() {
       <td>${escapeHtml(shortText(appeal.reason, 90))}</td>
       <td>${appealEvidence(appeal)}</td>
       <td>${escapeHtml(appeal.updatedAt || appeal.createdAt || "-")}</td>
+      <td>${escapeHtml(appeal.updatedBy || "-")}</td>
     </tr>
   `).join("");
 }
@@ -1488,7 +1499,7 @@ function renderSettings() {
   setFormValue(form, "appealEvidenceOneDriveUploadUrlTemplate", settings.appealEvidenceOneDriveUploadUrlTemplate || "");
   setFormValue(form, "appealEvidenceOneDriveTenant", settings.appealEvidenceOneDriveTenant || "common");
   setFormValue(form, "appealEvidenceOneDriveClientId", settings.appealEvidenceOneDriveClientId || "");
-  setFormValue(form, "appealEvidenceOneDriveFolderPath", settings.appealEvidenceOneDriveFolderPath || "Entbannungsantraege");
+  renderOneDriveFolderOptions(settings.appealEvidenceOneDriveFolderPath || "Entbannungsantraege");
   setFormValue(
     form,
     "appealEvidenceOneDriveConnection",
@@ -1506,6 +1517,13 @@ function renderSettings() {
         : "Noch keine OneDrive OAuth-Verbindung eingerichtet.",
       false
     );
+  }
+  if (elements.oneDriveLoginLink && !state.oneDrivePollTimer) {
+    elements.oneDriveLoginLink.classList.add("hidden");
+    elements.oneDriveLoginLink.removeAttribute("href");
+  }
+  if (settings.appealEvidenceOneDriveRefreshTokenConfigured && !state.oneDriveFoldersLoaded && !state.oneDriveFoldersLoading) {
+    loadOneDriveFolders(false);
   }
   setFormValue(form, "panelStorageBackend", settings.panelStorageBackend || "SQL");
   setFormValue(form, "panelSqlJdbcUrl", settings.panelSqlJdbcUrl || "");
@@ -1533,6 +1551,33 @@ function renderSettings() {
   setFormValue(form, "liteBansBridgeConnectTimeoutMillis", settings.liteBansBridgeConnectTimeoutMillis || 2500);
   setFormValue(form, "liteBansBridgeReadTimeoutMillis", settings.liteBansBridgeReadTimeoutMillis || 5000);
   applyBranding(settings);
+}
+
+function renderOneDriveFolderOptions(selectedPath) {
+  const select = elements.settingsForm?.elements?.appealEvidenceOneDriveFolderPath;
+  if (!select) {
+    return;
+  }
+
+  const selected = String(selectedPath || "Entbannungsantraege").trim();
+  const options = new Map();
+  if (selected) {
+    options.set(selected, `${selected} (aktuell)`);
+  }
+  state.oneDriveFolders.forEach(folder => {
+    const path = String(folder.path || folder.name || "").trim();
+    if (path) {
+      options.set(path, path);
+    }
+  });
+  if (!options.size) {
+    options.set("Entbannungsantraege", "Entbannungsantraege");
+  }
+
+  select.innerHTML = [...options.entries()]
+    .map(([value, label]) => `<option value="${escapeAttr(value)}">${escapeHtml(label)}</option>`)
+    .join("");
+  select.value = options.has(selected) ? selected : [...options.keys()][0];
 }
 
 function applyBranding(source) {
@@ -2199,12 +2244,13 @@ async function handleOneDriveConnect(event) {
     const deviceCode = await api("/api/settings/onedrive/device-code", { method: "POST" });
     const loginUrl = deviceCode.verificationUriComplete || deviceCode.verificationUri;
     if (loginUrl) {
-      window.open(loginUrl, "_blank", "noopener,noreferrer");
+      elements.oneDriveLoginLink.href = loginUrl;
+      elements.oneDriveLoginLink.classList.remove("hidden");
     }
     const codeHint = deviceCode.userCode ? ` Code: ${deviceCode.userCode}` : "";
     setStatus(
       elements.oneDriveStatus,
-      `${deviceCode.message || "Bitte Microsoft-Anmeldung im neuen Fenster abschließen."}${codeHint}`,
+      `${deviceCode.message || "Bitte Microsoft-Anmeldung über den Button öffnen und abschließen."}${codeHint}`,
       false
     );
     pollOneDriveConnection(
@@ -2236,8 +2282,12 @@ function pollOneDriveConnection(deviceCode, intervalSeconds, expiresAt) {
       if (result.connected) {
         state.oneDrivePollTimer = null;
         state.settings = await api("/api/settings");
+        elements.oneDriveLoginLink.classList.add("hidden");
+        elements.oneDriveLoginLink.removeAttribute("href");
+        state.oneDriveFoldersLoaded = false;
         renderSettings();
         setStatus(elements.oneDriveStatus, result.message || "OneDrive wurde erfolgreich verbunden.", false);
+        await loadOneDriveFolders(false);
         return;
       }
       const waitSeconds = Number(result.interval || intervalSeconds || 5);
@@ -2262,10 +2312,42 @@ async function handleOneDriveDisconnect(event) {
     state.oneDrivePollTimer = null;
     const result = await api("/api/settings/onedrive/disconnect", { method: "POST" });
     state.settings = await api("/api/settings");
+    state.oneDriveFolders = [];
+    state.oneDriveFoldersLoaded = false;
+    elements.oneDriveLoginLink.classList.add("hidden");
+    elements.oneDriveLoginLink.removeAttribute("href");
     renderSettings();
     setStatus(elements.oneDriveStatus, result.message || "OneDrive-Verbindung wurde getrennt.", false);
   } catch (error) {
     handleApiError(error, elements.oneDriveStatus);
+  }
+}
+
+async function loadOneDriveFolders(showStatus) {
+  if (!state.settings?.appealEvidenceOneDriveRefreshTokenConfigured) {
+    if (showStatus) {
+      setStatus(elements.oneDriveStatus, "Bitte OneDrive zuerst verbinden.", true);
+    }
+    return;
+  }
+  if (state.oneDriveFoldersLoading) {
+    return;
+  }
+
+  try {
+    state.oneDriveFoldersLoading = true;
+    if (showStatus) {
+      setStatus(elements.oneDriveStatus, "OneDrive-Ordner werden geladen ...", false);
+    }
+    const result = await api("/api/settings/onedrive/folders");
+    state.oneDriveFolders = asArray(result.folders);
+    state.oneDriveFoldersLoaded = true;
+    renderOneDriveFolderOptions(elements.settingsForm.elements.appealEvidenceOneDriveFolderPath.value || state.settings.appealEvidenceOneDriveFolderPath);
+    setStatus(elements.oneDriveStatus, `${state.oneDriveFolders.length} OneDrive-Ordner geladen.`, false);
+  } catch (error) {
+    handleApiError(error, elements.oneDriveStatus);
+  } finally {
+    state.oneDriveFoldersLoading = false;
   }
 }
 
@@ -2488,12 +2570,15 @@ async function handleBanTableClick(event) {
     return;
   }
 
-  const removedBy = currentActor();
+  const reason = prompt("Notiz/Grund für das Aufheben?", "Panel-Ban aufgehoben");
+  if (reason === null) {
+    return;
+  }
 
   try {
     await api(`/api/bans/${encodeURIComponent(banId)}/deactivate`, {
       method: "POST",
-      body: { removedBy },
+      body: { reason },
     });
     await refreshAll();
   } catch (error) {
@@ -2560,7 +2645,7 @@ async function handleBanAppealTableClick(event) {
     return;
   }
 
-  const teamNote = prompt("Team-Notiz für die Statusseite? Leer lassen, wenn keine Notiz gesetzt werden soll.", "");
+  const teamNote = prompt("Team-Notiz/Grund für diese Entscheidung? Leer lassen, wenn keine Notiz gesetzt werden soll.", "");
   if (teamNote === null) {
     return;
   }

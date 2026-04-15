@@ -16,6 +16,7 @@ public record BanAppealEntry(
   List<BanAppealAttachment> attachments,
   String createdAt,
   String updatedAt,
-  String teamNote
+  String teamNote,
+  String updatedBy
 ) {
 }

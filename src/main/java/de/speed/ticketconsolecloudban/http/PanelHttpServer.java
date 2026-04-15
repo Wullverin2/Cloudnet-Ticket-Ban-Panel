@@ -253,7 +253,7 @@ public final class PanelHttpServer {
 
     if (segments.size() == 2 && "services".equals(segments.get(1))) {
       if (HttpExchangeUtils.matchesMethod(exchange, "GET")) {
-        if (!this.requirePermission(exchange, principal, PanelPermission.CLOUDNET_VIEW)) {
+        if (!this.requireAnyPermission(exchange, principal, PanelPermission.CLOUDNET_VIEW, PanelPermission.CLOUDNET_CONSOLE)) {
           return;
         }
         HttpExchangeUtils.writeJson(exchange, 200, this.facade.listServices());
@@ -382,21 +382,21 @@ public final class PanelHttpServer {
         if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
           return;
         }
-        HttpExchangeUtils.writeJson(exchange, 200, this.facade.updateTicketStatus(ticketId, HttpExchangeUtils.readJson(exchange)));
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.updateTicketStatus(ticketId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
         return;
       }
       if ("assign".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
         if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
           return;
         }
-        HttpExchangeUtils.writeJson(exchange, 200, this.facade.assignTicket(ticketId, HttpExchangeUtils.readJson(exchange)));
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.assignTicket(ticketId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
         return;
       }
       if ("comments".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
         if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
           return;
         }
-        HttpExchangeUtils.writeJson(exchange, 200, this.facade.addTicketComment(ticketId, HttpExchangeUtils.readJson(exchange)));
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.addTicketComment(ticketId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
         return;
       }
     }
@@ -416,7 +416,7 @@ public final class PanelHttpServer {
       if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
         return;
       }
-      HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestTeleportToPlayer(HttpExchangeUtils.readJson(exchange)));
+      HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestTeleportToPlayer(HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
       return;
     }
 
@@ -443,7 +443,7 @@ public final class PanelHttpServer {
         if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
           return;
         }
-        HttpExchangeUtils.writeJson(exchange, 201, this.facade.createBan(HttpExchangeUtils.readJson(exchange)));
+        HttpExchangeUtils.writeJson(exchange, 201, this.facade.createBan(HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
         return;
       }
     }
@@ -487,14 +487,14 @@ public final class PanelHttpServer {
         if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
           return;
         }
-        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestLiteBanUnban(banId, HttpExchangeUtils.readJson(exchange)));
+        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestLiteBanUnban(banId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
         return;
       }
       if ("extend".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
         if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
           return;
         }
-        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestLiteBanExtend(banId, HttpExchangeUtils.readJson(exchange)));
+        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestLiteBanExtend(banId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
         return;
       }
     }
@@ -540,7 +540,7 @@ public final class PanelHttpServer {
       if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
         return;
       }
-      HttpExchangeUtils.writeJson(exchange, 200, this.facade.updateBanAppealStatus(segments.get(2), HttpExchangeUtils.readJson(exchange)));
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.updateBanAppealStatus(segments.get(2), HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
       return;
     }
 
@@ -552,7 +552,7 @@ public final class PanelHttpServer {
         if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
           return;
         }
-        HttpExchangeUtils.writeJson(exchange, 200, this.facade.deactivateBan(banId, HttpExchangeUtils.readJson(exchange)));
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.deactivateBan(banId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
         return;
       }
     }
@@ -704,6 +704,10 @@ public final class PanelHttpServer {
         HttpExchangeUtils.writeJson(exchange, 200, this.facade.disconnectOneDrive());
         return;
       }
+      if ("folders".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.oneDriveFolders());
+        return;
+      }
     }
 
     HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Settings-Endpunkt nicht gefunden"));
@@ -732,6 +736,16 @@ public final class PanelHttpServer {
       return false;
     }
     return true;
+  }
+
+  private String actorName(PanelPrincipal principal) {
+    if (principal == null) {
+      return "Panel";
+    }
+    if (principal.displayName() != null && !principal.displayName().isBlank()) {
+      return principal.displayName();
+    }
+    return principal.username() == null || principal.username().isBlank() ? "Panel" : principal.username();
   }
 
   private String inlineContentDisposition(String fileName) {

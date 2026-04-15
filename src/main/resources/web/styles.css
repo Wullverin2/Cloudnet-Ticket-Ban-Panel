@@ -433,6 +433,21 @@ button {
   box-shadow: 0 10px 26px rgba(244, 188, 70, 0.12);
 }
 
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  color: #1d1406;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  box-shadow: 0 10px 26px rgba(244, 188, 70, 0.12);
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color 140ms ease, transform 140ms ease, background 140ms ease;
+}
+
 button:hover {
   transform: translateY(-1px);
 }
@@ -970,6 +985,7 @@ tbody button {
   .page-nav button,
   .sub-nav button,
   .action-row button,
+  .action-row .button-link,
   .inline-controls button,
   .team-start-card button {
     width: 100%;

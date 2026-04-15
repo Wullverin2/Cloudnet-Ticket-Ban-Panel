@@ -92,13 +92,14 @@ public final class BanAppealStore {
       attachments == null ? List.of() : List.copyOf(attachments),
       now,
       now,
+      null,
       null);
     this.appeals.add(appeal);
     this.save();
     return appeal;
   }
 
-  public synchronized BanAppealEntry updateStatus(String id, String status, String teamNote) {
+  public synchronized BanAppealEntry updateStatus(String id, String status, String teamNote, String actor) {
     var existing = this.appeals.stream()
       .filter(appeal -> appeal.id().equals(id))
       .findFirst()
@@ -117,7 +118,8 @@ public final class BanAppealStore {
       existing.attachments(),
       existing.createdAt(),
       Instant.now().toString(),
-      teamNote == null || teamNote.isBlank() ? existing.teamNote() : teamNote.trim());
+      teamNote == null || teamNote.isBlank() ? existing.teamNote() : teamNote.trim(),
+      actor == null || actor.isBlank() ? existing.updatedBy() : actor.trim());
     this.replace(updated);
     return updated;
   }

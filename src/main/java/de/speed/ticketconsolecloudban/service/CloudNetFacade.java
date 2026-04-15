@@ -427,26 +427,23 @@ public final class CloudNetFacade {
       serviceName));
   }
 
-  public TicketView updateTicketStatus(String id, Document request) {
+  public TicketView updateTicketStatus(String id, Document request, String actor) {
     var status = this.requiredText(request, "status").toUpperCase();
-    var actor = this.requiredText(request, "actor");
     return this.ticketView(this.ticketStore.updateStatus(id, status, actor));
   }
 
-  public TicketView assignTicket(String id, Document request) {
+  public TicketView assignTicket(String id, Document request, String actor) {
     var assignedTo = this.requiredText(request, "assignedTo");
-    var actor = this.requiredText(request, "actor");
     return this.ticketView(this.ticketStore.assign(id, assignedTo, actor));
   }
 
-  public TicketView addTicketComment(String id, Document request) {
-    var author = this.requiredText(request, "author");
+  public TicketView addTicketComment(String id, Document request, String author) {
     var message = this.requiredText(request, "message");
     var internal = request.getBoolean("internal", false);
     return this.ticketView(this.ticketStore.addComment(id, author, message, internal));
   }
 
-  public PlayerActionRequest requestTeleportToPlayer(Document request) {
+  public PlayerActionRequest requestTeleportToPlayer(Document request, String actor) {
     var staffName = this.requiredText(request, "staffName");
     return this.playerActionStore.requestTeleport(
       staffName,
@@ -454,7 +451,7 @@ public final class CloudNetFacade {
       this.nullableText(request.getString("targetUniqueId")),
       this.nullableText(request.getString("targetServer")),
       this.nullableText(request.getString("ticketId")),
-      this.textOrDefault(request, "actor", staffName));
+      actor == null || actor.isBlank() ? staffName : actor);
   }
 
   public List<PlayerActionRequest> pendingPlayerActions() {
@@ -474,10 +471,9 @@ public final class CloudNetFacade {
       .toList();
   }
 
-  public BanView createBan(Document request) {
+  public BanView createBan(Document request, String issuedBy) {
     var targetName = this.requiredText(request, "targetName");
     var reason = this.requiredText(request, "reason");
-    var issuedBy = this.requiredText(request, "issuedBy");
     var targetUniqueId = this.nullableText(request.getString("targetUniqueId"));
     var targetAddress = this.nullableText(request.getString("targetAddress"));
     var durationMinutes = request.getLong("durationMinutes", 0);
@@ -494,9 +490,8 @@ public final class CloudNetFacade {
       expiresAt));
   }
 
-  public BanView deactivateBan(String id, Document request) {
-    var removedBy = this.requiredText(request, "removedBy");
-    return this.banView(this.banStore.deactivate(id, removedBy));
+  public BanView deactivateBan(String id, Document request, String removedBy) {
+    return this.banView(this.banStore.deactivate(id, removedBy, this.nullableText(request.getString("reason"))));
   }
 
   public List<LiteBanEntry> listLiteBans() {
@@ -510,17 +505,17 @@ public final class CloudNetFacade {
     return this.banStore.syncLiteBans(List.of(entries), actor);
   }
 
-  public BanActionRequest requestLiteBanUnban(String banId, Document request) {
+  public BanActionRequest requestLiteBanUnban(String banId, Document request, String actor) {
     return this.banStore.requestLiteBanUnban(
       banId,
-      this.textOrDefault(request, "actor", "Panel"),
+      actor == null || actor.isBlank() ? "Panel" : actor,
       this.textOrDefault(request, "reason", "Unban via Panel"));
   }
 
-  public BanActionRequest requestLiteBanExtend(String banId, Document request) {
+  public BanActionRequest requestLiteBanExtend(String banId, Document request, String actor) {
     return this.banStore.requestLiteBanExtend(
       banId,
-      this.textOrDefault(request, "actor", "Panel"),
+      actor == null || actor.isBlank() ? "Panel" : actor,
       this.requiredText(request, "duration"),
       this.textOrDefault(request, "reason", "Ban via Panel verlaengert"));
   }
@@ -574,7 +569,7 @@ public final class CloudNetFacade {
       bytes);
   }
 
-  public BanAppealEntry updateBanAppealStatus(String appealId, Document request) {
+  public BanAppealEntry updateBanAppealStatus(String appealId, Document request, String actor) {
     var requestedStatus = this.requiredText(request, "status").toUpperCase();
     var existing = this.banAppealStore.findById(appealId)
       .orElseThrow(() -> new IllegalArgumentException("Der Entbannungsantrag wurde nicht gefunden."));
@@ -584,11 +579,12 @@ public final class CloudNetFacade {
     var updated = this.banAppealStore.updateStatus(
       appealId,
       requestedStatus,
-      this.nullableText(request.getString("teamNote")));
+      this.nullableText(request.getString("teamNote")),
+      actor == null || actor.isBlank() ? "Panel" : actor);
     if (queueUnban) {
       this.banStore.requestLiteBanUnban(
         unbanBanId,
-        this.textOrDefault(request, "actor", "Panel"),
+        actor == null || actor.isBlank() ? "Panel" : actor,
         this.acceptedAppealUnbanReason(updated));
     }
     this.sendBanAppealStatusMail(updated);
@@ -668,6 +664,15 @@ public final class CloudNetFacade {
   public OneDriveConnectionView disconnectOneDrive() {
     this.settingsStore.updateOneDriveRefreshToken("");
     return new OneDriveConnectionView("DISCONNECTED", "OneDrive-Verbindung wurde getrennt.", false, 0);
+  }
+
+  public OneDriveFoldersView oneDriveFolders() {
+    var evidenceConfiguration = this.evidenceConfiguration();
+    if (evidenceConfiguration.oneDriveRefreshToken().isBlank()) {
+      throw new IllegalArgumentException("OneDrive ist noch nicht verbunden.");
+    }
+    var accessToken = this.oneDriveBearerToken(evidenceConfiguration);
+    return new OneDriveFoldersView(new OneDriveOAuthClient().listFolders(accessToken));
   }
 
   public TestMailView sendTestMail(Document request) {
@@ -1852,6 +1857,11 @@ public final class CloudNetFacade {
     String message,
     boolean connected,
     int interval
+  ) {
+  }
+
+  public record OneDriveFoldersView(
+    List<OneDriveOAuthClient.OneDriveFolderView> folders
   ) {
   }
 }

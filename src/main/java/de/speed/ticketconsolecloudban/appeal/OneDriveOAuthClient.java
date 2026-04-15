@@ -10,7 +10,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -86,6 +89,14 @@ public final class OneDriveOAuthClient {
       firstNonBlank(response.getString("refresh_token"), refreshToken));
   }
 
+  public List<OneDriveFolderView> listFolders(String accessToken) {
+    var folders = new ArrayList<OneDriveFolderView>();
+    this.collectFolders(required(accessToken, "OneDrive Access Token"), "", folders, 0);
+    return folders.stream()
+      .sorted(Comparator.comparing(OneDriveFolderView::path, String.CASE_INSENSITIVE_ORDER))
+      .toList();
+  }
+
   public static String graphContentUrl(String folderPath, String storedName) {
     return "https://graph.microsoft.com/v1.0/me/drive/root:/"
       + encodePath(joinPath(folderPath, storedName))
@@ -128,6 +139,59 @@ public final class OneDriveOAuthClient {
     }
   }
 
+  private void collectFolders(String accessToken, String parentPath, List<OneDriveFolderView> folders, int depth) {
+    if (depth > 12 || folders.size() > 500) {
+      return;
+    }
+
+    var response = this.getJson(childrenUrl(parentPath), accessToken)
+      .toInstanceOf(GraphChildrenResponse.class);
+    if (response == null || response.value() == null) {
+      return;
+    }
+
+    for (var item : response.value()) {
+      if (item == null || item.folder() == null || item.name() == null || item.name().isBlank()) {
+        continue;
+      }
+      var path = joinFolderPath(parentPath, item.name());
+      folders.add(new OneDriveFolderView(path, path));
+      this.collectFolders(accessToken, path, folders, depth + 1);
+    }
+  }
+
+  private Document getJson(String uri, String accessToken) {
+    try {
+      var request = HttpRequest.newBuilder()
+        .uri(URI.create(uri))
+        .timeout(Duration.ofSeconds(30))
+        .header("Authorization", "Bearer " + accessToken)
+        .GET()
+        .build();
+      var response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+      var body = response.body() == null || response.body().isBlank()
+        ? DocumentFactory.json().newDocument()
+        : DocumentFactory.json().parse(response.body());
+      if (response.statusCode() >= 200 && response.statusCode() < 300) {
+        return body;
+      }
+      throw new IllegalArgumentException("OneDrive HTTP " + response.statusCode() + ": " + firstNonBlank(body.getString("error_description"), response.body()));
+    } catch (IOException exception) {
+      throw new IllegalArgumentException("OneDrive ist nicht erreichbar: " + exception.getMessage(), exception);
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      throw new IllegalArgumentException("OneDrive-Anfrage wurde unterbrochen.", exception);
+    }
+  }
+
+  private static String childrenUrl(String folderPath) {
+    var selectedPath = folderPath == null ? "" : folderPath.trim();
+    var base = selectedPath.isBlank()
+      ? "https://graph.microsoft.com/v1.0/me/drive/root/children"
+      : "https://graph.microsoft.com/v1.0/me/drive/root:/" + encodePath(selectedPath) + ":/children";
+    return base + "?$select=name,folder&$top=200";
+  }
+
   private static String endpoint(String tenant, String action) {
     return "https://login.microsoftonline.com/"
       + encodePathSegment(normalizeTenant(tenant))
@@ -144,6 +208,12 @@ public final class OneDriveOAuthClient {
 
   private static String joinPath(String first, String second) {
     var folder = normalizeFolderPath(first);
+    var file = second == null ? "" : second.replace('\\', '/').replaceAll("^/+", "");
+    return folder.isBlank() ? file : folder + "/" + file;
+  }
+
+  private static String joinFolderPath(String first, String second) {
+    var folder = first == null ? "" : first.trim().replace('\\', '/').replaceAll("^/+", "").replaceAll("/+$", "");
     var file = second == null ? "" : second.replace('\\', '/').replaceAll("^/+", "");
     return folder.isBlank() ? file : folder + "/" + file;
   }
@@ -198,6 +268,28 @@ public final class OneDriveOAuthClient {
   public record AccessTokenView(
     String accessToken,
     String refreshToken
+  ) {
+  }
+
+  public record OneDriveFolderView(
+    String path,
+    String name
+  ) {
+  }
+
+  private record GraphChildrenResponse(
+    List<GraphDriveItem> value
+  ) {
+  }
+
+  private record GraphDriveItem(
+    String name,
+    GraphFolder folder
+  ) {
+  }
+
+  private record GraphFolder(
+    Integer childCount
   ) {
   }
 }

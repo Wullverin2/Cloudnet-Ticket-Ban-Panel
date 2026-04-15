@@ -100,7 +100,7 @@
 
     <nav id="page-nav" class="page-nav hidden" aria-label="Panel Bereiche">
       <button data-page-target="home" type="button">Startseite</button>
-      <button data-page-target="cloudnet" data-permission="cloudnet.view" type="button">CloudNet</button>
+      <button data-page-target="cloudnet" data-permission="cloudnet.view,cloudnet.console" type="button">CloudNet</button>
       <button data-page-target="tickets" data-permission="tickets.view" type="button">Tickets</button>
       <button data-page-target="bans" data-permission="bans.view" type="button">Bans</button>
       <button data-page-target="security" data-permission="users.manage" type="button">Rechte</button>
@@ -160,7 +160,7 @@
       </div>
     </section>
 
-    <section id="page-cloudnet" class="page-panel hidden" data-page="cloudnet" data-permission="cloudnet.view">
+    <section id="page-cloudnet" class="page-panel hidden" data-page="cloudnet" data-permission="cloudnet.view,cloudnet.console">
       <section class="summary-grid hidden cloudnet-view" id="summary-grid" data-cloudnet-section="cloud" data-cloudnet-view="overview" data-permission="cloudnet.view">
         <article class="metric-card">
           <span class="metric-label">Tasks</span>
@@ -182,12 +182,12 @@
 
       <div class="sub-nav" aria-label="CloudNet Unterkategorien">
         <button data-cloudnet-section-target="cloud" class="active" type="button">Cloud</button>
-        <button data-cloudnet-section-target="service-consoles" type="button">Service Konsolen</button>
-        <button data-cloudnet-section-target="tasks" type="button">Tasks</button>
+        <button data-cloudnet-section-target="service-consoles" data-permission="cloudnet.console" type="button">Service Konsolen</button>
+        <button data-cloudnet-section-target="tasks" data-permission="cloudnet.view" type="button">Tasks</button>
       </div>
 
       <div class="panel-grid">
-        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-section="tasks" data-cloudnet-view="overview">
+        <article class="panel-card panel-wide cloudnet-view" data-cloudnet-section="tasks" data-cloudnet-view="overview" data-permission="cloudnet.view">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Tasks</p>
@@ -328,7 +328,7 @@
           </form>
         </article>
 
-        <article class="panel-card panel-wide cloudnet-view cloud-order-3" data-cloudnet-section="cloud" data-cloudnet-view="overview">
+        <article class="panel-card panel-wide cloudnet-view cloud-order-3" data-cloudnet-section="cloud" data-cloudnet-view="overview" data-permission="cloudnet.view,cloudnet.console">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Services</p>
@@ -402,7 +402,7 @@
           <pre id="console-output" class="console-output">Noch keine Logs geladen.</pre>
         </article>
 
-        <article class="panel-card panel-wide cloudnet-view cloud-order-1" data-cloudnet-section="cloud" data-cloudnet-view="overview">
+        <article class="panel-card panel-wide cloudnet-view cloud-order-1" data-cloudnet-section="cloud" data-cloudnet-view="overview" data-permission="cloudnet.view">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Nodes</p>
@@ -600,6 +600,7 @@
                 <tr>
                   <th>Random-ID</th>
                   <th>Ziel</th>
+                  <th>Gebannt von</th>
                   <th>Status</th>
                   <th>Zeitraum</th>
                   <th>Grund</th>
@@ -659,6 +660,7 @@
                   <th>Begründung</th>
                   <th>Beweise</th>
                   <th>Aktualisiert</th>
+                  <th>Bearbeitet von</th>
                 </tr>
               </thead>
               <tbody id="ban-appeal-archive-table"></tbody>
@@ -1036,7 +1038,9 @@
                   </label>
                   <label>
                     <span>OneDrive Ordner</span>
-                    <input name="appealEvidenceOneDriveFolderPath" type="text" placeholder="Entbannungsantraege">
+                    <select name="appealEvidenceOneDriveFolderPath" id="onedrive-folder-select">
+                      <option value="Entbannungsantraege">Entbannungsantraege</option>
+                    </select>
                   </label>
                   <label>
                     <span>OneDrive Verbindung</span>
@@ -1045,6 +1049,8 @@
                 </div>
                 <div class="action-row">
                   <button id="onedrive-connect" type="button">OneDrive verbinden</button>
+                  <a id="onedrive-login-link" class="button-link ghost-button hidden" href="#" target="_blank" rel="noreferrer">Microsoft Anmeldung öffnen</a>
+                  <button id="onedrive-folders-refresh" class="ghost-button" type="button">Ordner laden</button>
                   <button id="onedrive-disconnect" class="ghost-button" type="button">OneDrive trennen</button>
                 </div>
                 <p id="onedrive-status" class="muted"></p>

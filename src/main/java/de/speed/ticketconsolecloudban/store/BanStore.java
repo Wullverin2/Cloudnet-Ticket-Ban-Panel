@@ -96,7 +96,7 @@ public final class BanStore {
     return entry;
   }
 
-  public synchronized CloudBanEntry deactivate(String id, String removedBy) {
+  public synchronized CloudBanEntry deactivate(String id, String removedBy, String note) {
     var existing = this.require(id);
     var updated = new CloudBanEntry(
       existing.id(),
@@ -110,7 +110,13 @@ public final class BanStore {
       false,
       removedBy,
       Instant.now().toString());
-    this.audit("panel", id, id, "UNBAN", removedBy, "Panel-Ban deaktiviert");
+    this.audit(
+      "panel",
+      id,
+      id,
+      "UNBAN",
+      removedBy,
+      note == null || note.isBlank() ? "Panel-Ban deaktiviert" : "Panel-Ban deaktiviert: " + note.trim());
     this.replace(updated);
     return updated;
   }
