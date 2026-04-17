@@ -315,40 +315,28 @@ public final class CloudNetFacade {
 
   public CloudNetConsoleView cloudNetConsole(int requestedLimit) {
     var effectiveLimit = this.clamp(requestedLimit, 25, this.configuration.consoleLineLimit());
-    var fileSnapshot = this.cloudNetFileConsoleLines(effectiveLimit);
-    if (fileSnapshot.source() != null) {
-      return fileSnapshot.toView(effectiveLimit);
-    }
-
     var screenName = this.nullableText(this.settingsStore.current().cloudNetScreenName());
-    if (screenName != null) {
-      var screenCapture = this.cloudNetScreenOutput(screenName, effectiveLimit);
-      if (screenCapture.success()) {
-        return new CloudNetConsoleView(
-          effectiveLimit,
-          screenCapture.lines(),
-          screenCapture.source(),
-          Instant.now().toString());
-      }
-      var lines = new ArrayList<String>();
-      lines.add("GNU Screen '" + screenName + "' konnte nicht gelesen werden: " + screenCapture.message());
-      lines.add("Fallback auf CloudNet-Logdatei.");
-      lines.addAll(fileSnapshot.lines());
-      return new CloudNetConsoleView(effectiveLimit, lines, fileSnapshot.source(), Instant.now().toString());
+    if (screenName == null) {
+      return new CloudNetConsoleView(
+        effectiveLimit,
+        List.of("Kein CloudNet-Screen konfiguriert. Bitte in den Einstellungen den GNU-Screen-Namen eintragen."),
+        null,
+        Instant.now().toString());
     }
-    return fileSnapshot.toView(effectiveLimit);
-  }
 
-  private ConsoleSnapshot cloudNetFileConsoleLines(int effectiveLimit) {
-    var logPath = this.cloudNetLogPath();
-    if (logPath == null) {
-      return new ConsoleSnapshot(
-        List.of("CloudNet-Logdatei nicht gefunden. Geprüft wurden: " + String.join(", ", this.cloudNetLogPathCandidates().stream().map(Path::toString).toList())),
-        null);
+    var screenCapture = this.cloudNetScreenOutput(screenName, effectiveLimit);
+    if (screenCapture.success()) {
+      return new CloudNetConsoleView(
+        effectiveLimit,
+        screenCapture.lines(),
+        screenCapture.source(),
+        Instant.now().toString());
     }
-    return new ConsoleSnapshot(
-      this.readFileTail(logPath, effectiveLimit),
-      logPath.toAbsolutePath().normalize().toString());
+    return new CloudNetConsoleView(
+      effectiveLimit,
+      List.of("GNU Screen '" + screenName + "' konnte nicht gelesen werden: " + screenCapture.message()),
+      "screen:" + screenName,
+      Instant.now().toString());
   }
 
   public CloudNetCommandView runCloudNetCommand(Document request) {
@@ -1381,13 +1369,6 @@ public final class CloudNetFacade {
         || value.regionMatches(true, 0, "http://", 0, 7));
   }
 
-  private Path cloudNetLogPath() {
-    return this.cloudNetLogPathCandidates().stream()
-      .filter(Files::isRegularFile)
-      .findFirst()
-      .orElse(null);
-  }
-
   private ScreenCapture cloudNetScreenOutput(String screenName, int limit) {
     var candidates = new LinkedHashSet<String>();
     candidates.add(screenName);
@@ -1515,14 +1496,6 @@ public final class CloudNetFacade {
     return exception.getClass().getSimpleName();
   }
 
-  private List<Path> cloudNetLogPathCandidates() {
-    return List.of(
-      Path.of("logs", "latest.log"),
-      Path.of("local", "logs", "latest.log"),
-      Path.of("log", "latest.log"),
-      Path.of("latest.log"));
-  }
-
   private List<String> readFileTail(Path path, int limit) {
     try {
       var decoder = StandardCharsets.UTF_8.newDecoder()
@@ -1590,16 +1563,6 @@ public final class CloudNetFacade {
       case "service", "services", "ser", "srv" -> true;
       default -> false;
     };
-  }
-
-  private record ConsoleSnapshot(
-    List<String> lines,
-    String source
-  ) {
-
-    private CloudNetConsoleView toView(int limit) {
-      return new CloudNetConsoleView(limit, this.lines(), this.source(), Instant.now().toString());
-    }
   }
 
   private record ProcessResult(
