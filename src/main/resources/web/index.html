@@ -182,6 +182,7 @@
 
       <div class="sub-nav" aria-label="CloudNet Unterkategorien">
         <button data-cloudnet-section-target="cloud" class="active" type="button">Cloud</button>
+        <button data-cloudnet-section-target="services" data-permission="cloudnet.view,cloudnet.console" type="button">Aktive Services</button>
         <button data-cloudnet-section-target="service-consoles" data-permission="cloudnet.console" type="button">Service Konsolen</button>
         <button data-cloudnet-section-target="tasks" data-permission="cloudnet.view" type="button">Tasks</button>
       </div>
@@ -328,7 +329,7 @@
           </form>
         </article>
 
-        <article class="panel-card panel-wide cloudnet-view cloud-order-3" data-cloudnet-section="cloud" data-cloudnet-view="overview" data-permission="cloudnet.view,cloudnet.console">
+        <article class="panel-card panel-wide cloudnet-view cloud-order-3" data-cloudnet-section="services" data-cloudnet-view="overview" data-permission="cloudnet.view,cloudnet.console">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Services</p>
@@ -366,6 +367,16 @@
                 <input id="cloud-console-auto-refresh" type="checkbox" checked>
                 <span>Auto-Refresh</span>
               </label>
+              <label class="inline-label">
+                <span>Intervall</span>
+                <select id="cloud-console-interval" aria-label="CloudNet Console Aktualisierungsintervall">
+                  <option value="5">5 Sekunden</option>
+                  <option value="10">10 Sekunden</option>
+                  <option value="15">15 Sekunden</option>
+                  <option value="30">30 Sekunden</option>
+                  <option value="60">60 Sekunden</option>
+                </select>
+              </label>
               <button id="cloud-console-refresh" class="ghost-button" type="button">Console laden</button>
             </div>
           </div>
@@ -389,6 +400,16 @@
               <label class="inline-label">
                 <input id="console-auto-refresh" type="checkbox" checked>
                 <span>Auto-Refresh</span>
+              </label>
+              <label class="inline-label">
+                <span>Intervall</span>
+                <select id="console-interval" aria-label="Service Console Aktualisierungsintervall">
+                  <option value="5">5 Sekunden</option>
+                  <option value="10">10 Sekunden</option>
+                  <option value="15">15 Sekunden</option>
+                  <option value="30">30 Sekunden</option>
+                  <option value="60">60 Sekunden</option>
+                </select>
               </label>
               <button id="console-refresh" class="ghost-button" type="button">Logs laden</button>
             </div>

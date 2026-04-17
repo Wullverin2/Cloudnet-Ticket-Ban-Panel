@@ -315,6 +315,11 @@ public final class CloudNetFacade {
 
   public CloudNetConsoleView cloudNetConsole(int requestedLimit) {
     var effectiveLimit = this.clamp(requestedLimit, 25, this.configuration.consoleLineLimit());
+    var fileSnapshot = this.cloudNetFileConsoleLines(effectiveLimit);
+    if (fileSnapshot.source() != null) {
+      return fileSnapshot.toView(effectiveLimit);
+    }
+
     var screenName = this.nullableText(this.settingsStore.current().cloudNetScreenName());
     if (screenName != null) {
       var screenCapture = this.cloudNetScreenOutput(screenName, effectiveLimit);
@@ -325,14 +330,13 @@ public final class CloudNetFacade {
           screenCapture.source(),
           Instant.now().toString());
       }
-      var fallback = this.cloudNetFileConsoleLines(effectiveLimit);
       var lines = new ArrayList<String>();
       lines.add("GNU Screen '" + screenName + "' konnte nicht gelesen werden: " + screenCapture.message());
       lines.add("Fallback auf CloudNet-Logdatei.");
-      lines.addAll(fallback.lines());
-      return new CloudNetConsoleView(effectiveLimit, lines, fallback.source(), Instant.now().toString());
+      lines.addAll(fileSnapshot.lines());
+      return new CloudNetConsoleView(effectiveLimit, lines, fileSnapshot.source(), Instant.now().toString());
     }
-    return this.cloudNetFileConsoleLines(effectiveLimit).toView(effectiveLimit);
+    return fileSnapshot.toView(effectiveLimit);
   }
 
   private ConsoleSnapshot cloudNetFileConsoleLines(int effectiveLimit) {

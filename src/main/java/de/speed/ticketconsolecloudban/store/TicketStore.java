@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 public final class TicketStore {
 
@@ -53,7 +54,7 @@ public final class TicketStore {
   ) {
     var now = Instant.now().toString();
     var ticket = new TicketEntry(
-      UUID.randomUUID().toString(),
+      this.nextTicketId(),
       creatorName,
       creatorUniqueId,
       category,
@@ -177,6 +178,16 @@ public final class TicketStore {
       actor,
       message,
       Instant.now().toString()));
+  }
+
+  private String nextTicketId() {
+    for (int attempt = 0; attempt < 1000; attempt++) {
+      var ticketId = String.valueOf(ThreadLocalRandom.current().nextInt(100000, 1000000));
+      if (this.tickets.stream().noneMatch(ticket -> ticket.id().equals(ticketId))) {
+        return ticketId;
+      }
+    }
+    throw new IllegalStateException("Es konnte keine freie Ticket-ID erzeugt werden.");
   }
 
   private void load() {

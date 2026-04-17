@@ -14,6 +14,8 @@ const PERMISSIONS = {
   SETTINGS_MANAGE: "settings.manage",
 };
 
+const CONSOLE_REFRESH_INTERVALS = [5, 10, 15, 30, 60];
+
 const state = {
   token: localStorage.getItem("tccb-session") || "",
   meta: null,
@@ -45,14 +47,18 @@ const state = {
   consoleTimer: null,
   consoleRequestInFlight: false,
   lastConsoleText: "",
+  lastConsoleRefreshAt: 0,
   consoleAutoRefresh: true,
+  consoleRefreshIntervalSeconds: consoleRefreshIntervalValue(localStorage.getItem("tccb-console-refresh-interval")),
   oneDrivePollTimer: null,
   oneDriveFolders: [],
   oneDriveFoldersLoading: false,
   oneDriveFoldersLoaded: false,
   cloudConsoleRequestInFlight: false,
   lastCloudConsoleText: "",
+  lastCloudConsoleRefreshAt: 0,
   cloudConsoleAutoRefresh: true,
+  cloudConsoleRefreshIntervalSeconds: consoleRefreshIntervalValue(localStorage.getItem("tccb-cloud-console-refresh-interval")),
 };
 
 const elements = {};
@@ -123,6 +129,7 @@ function bindElements() {
   elements.cloudCommandInput = document.getElementById("cloud-command-input");
   elements.cloudCommandOutput = document.getElementById("cloud-command-output");
   elements.cloudConsoleAutoRefresh = document.getElementById("cloud-console-auto-refresh");
+  elements.cloudConsoleInterval = document.getElementById("cloud-console-interval");
   elements.cloudConsoleRefresh = document.getElementById("cloud-console-refresh");
 
   elements.serviceCreateForm = document.getElementById("service-create-form");
@@ -133,6 +140,7 @@ function bindElements() {
 
   elements.consoleServiceSelect = document.getElementById("console-service-select");
   elements.consoleAutoRefresh = document.getElementById("console-auto-refresh");
+  elements.consoleInterval = document.getElementById("console-interval");
   elements.consoleRefresh = document.getElementById("console-refresh");
   elements.consoleOutput = document.getElementById("console-output");
   elements.consoleCommandForm = document.getElementById("console-command-form");
@@ -195,6 +203,9 @@ function bindElements() {
 }
 
 function bindEvents() {
+  elements.cloudConsoleInterval.value = String(state.cloudConsoleRefreshIntervalSeconds);
+  elements.consoleInterval.value = String(state.consoleRefreshIntervalSeconds);
+
   elements.loginForm.addEventListener("submit", handleLoginSubmit);
   elements.twoFactorForm.addEventListener("submit", handleTwoFactorSubmit);
   elements.twoFactorCancel.addEventListener("click", cancelTwoFactorLogin);
@@ -231,6 +242,15 @@ function bindEvents() {
       loadCloudConsole();
     }
   });
+  elements.cloudConsoleInterval.addEventListener("change", () => {
+    state.cloudConsoleRefreshIntervalSeconds = consoleRefreshIntervalValue(elements.cloudConsoleInterval.value);
+    elements.cloudConsoleInterval.value = String(state.cloudConsoleRefreshIntervalSeconds);
+    localStorage.setItem("tccb-cloud-console-refresh-interval", String(state.cloudConsoleRefreshIntervalSeconds));
+    state.lastCloudConsoleRefreshAt = 0;
+    if (state.cloudConsoleAutoRefresh) {
+      loadCloudConsole();
+    }
+  });
   elements.serviceCreateForm.addEventListener("submit", handleServiceCreateSubmit);
   elements.serviceRefresh.addEventListener("click", refreshAll);
   elements.serviceTable.addEventListener("click", handleServiceTableClick);
@@ -242,6 +262,15 @@ function bindEvents() {
   });
   elements.consoleAutoRefresh.addEventListener("change", () => {
     state.consoleAutoRefresh = elements.consoleAutoRefresh.checked;
+    if (state.consoleAutoRefresh) {
+      loadConsole();
+    }
+  });
+  elements.consoleInterval.addEventListener("change", () => {
+    state.consoleRefreshIntervalSeconds = consoleRefreshIntervalValue(elements.consoleInterval.value);
+    elements.consoleInterval.value = String(state.consoleRefreshIntervalSeconds);
+    localStorage.setItem("tccb-console-refresh-interval", String(state.consoleRefreshIntervalSeconds));
+    state.lastConsoleRefreshAt = 0;
     if (state.consoleAutoRefresh) {
       loadConsole();
     }
@@ -1671,6 +1700,7 @@ async function loadConsole() {
 
   try {
     state.consoleRequestInFlight = true;
+    state.lastConsoleRefreshAt = Date.now();
     const consoleData = await api(`/api/services/${encodeURIComponent(state.selectedService)}/console?limit=120`);
     const nextText = consoleData.lines.length
       ? consoleData.lines.join("\n")
@@ -1702,6 +1732,7 @@ async function loadCloudConsole() {
 
   try {
     state.cloudConsoleRequestInFlight = true;
+    state.lastCloudConsoleRefreshAt = Date.now();
     const consoleData = await api("/api/cloudnet/console?limit=220");
     const nextText = asArray(consoleData.lines).length
       ? asArray(consoleData.lines).join("\n")
@@ -3026,9 +3057,26 @@ function setStatus(element, message, isError) {
 }
 
 function scrollToBottom(element) {
-  requestAnimationFrame(() => {
+  if (!element) {
+    return;
+  }
+  const scroll = () => {
     element.scrollTop = element.scrollHeight;
+  };
+  requestAnimationFrame(() => {
+    scroll();
+    requestAnimationFrame(scroll);
+    setTimeout(scroll, 60);
   });
+}
+
+function consoleRefreshIntervalValue(value) {
+  const interval = Number(value);
+  return CONSOLE_REFRESH_INTERVALS.includes(interval) ? interval : 5;
+}
+
+function consoleRefreshDue(lastRefreshAt, intervalSeconds) {
+  return !lastRefreshAt || Date.now() - lastRefreshAt >= intervalSeconds * 1000;
 }
 
 function createQrSvg(text) {
@@ -3313,7 +3361,8 @@ function startConsolePolling() {
       && hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)
       && !document.hidden
       && state.token
-      && state.selectedService) {
+      && state.selectedService
+      && consoleRefreshDue(state.lastConsoleRefreshAt, state.consoleRefreshIntervalSeconds)) {
       loadConsole();
     }
     if (state.cloudConsoleAutoRefresh
@@ -3321,10 +3370,11 @@ function startConsolePolling() {
       && !document.hidden
       && state.token
       && state.activePage === "cloudnet"
-      && state.activeCloudNetSection === "cloud") {
+      && state.activeCloudNetSection === "cloud"
+      && consoleRefreshDue(state.lastCloudConsoleRefreshAt, state.cloudConsoleRefreshIntervalSeconds)) {
       loadCloudConsole();
     }
-  }, 5000);
+  }, 1000);
 }
 
 function handleVisibilityChange() {
