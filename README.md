@@ -18,6 +18,7 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel für:
 - Passwort-vergessen-Flow mit Reset-Token und optionalem SMTP-Mailversand
 - LuckPerms-Unterseite mit Subject-Sync, Aktionsqueue und Auditlog
 - Panel-Teleport-Button für Ticket-Ersteller über die Velocity-Aktionsqueue
+- CraftplayQuests-Tab als Browser-Gegenstelle zur Plugin-Web-API
 
 Die UI ist direkt im Modul enthalten und wird über einen kleinen HTTP-Server ausgeliefert.
 
@@ -48,6 +49,7 @@ Das Panel ist bewusst als MVP gebaut:
 - LuckPerms-Permissions und Parent-Gruppen können im Panel als Queue-Aktion erstellt werden
 - Unterserver mit eigener LuckPerms-Datenbank werden über das Purpur-Companion-Plugin gezielt per `server.id` angesteuert
 - Das Panel kann Teamler per Teleport-Queue zum Ticket-Ersteller schicken, sofern der Teamler online ist und Velocity den Teleport-Befehl ausführen kann
+- CraftplayQuests kann als eigener Tab eingebunden werden und liest Quests, Kategorien, Details sowie Roh-YAML über einen geschützten Panel-Proxy
 - Passwort-Reset läuft mit gehashten Einmal-Tokens und optionaler SMTP-Mail
 - Live-Konsole läuft aktuell per Polling auf dem Log-Cache
 
@@ -158,6 +160,11 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemäß so aus:
   "appealEvidenceSftpRemoteDirectory": "/appeals",
   "appealEvidenceOneDriveUploadUrlTemplate": "",
   "appealEvidenceOneDriveBearerToken": "",
+  "questEditorEnabled": false,
+  "questEditorBaseUrl": "http://127.0.0.1:8095/api/craftplayquests/v1",
+  "questEditorToken": "",
+  "questEditorConnectTimeoutMillis": 3000,
+  "questEditorReadTimeoutMillis": 5000,
   "apiTokens": [
     "dein-generiertes-token"
   ]
@@ -165,6 +172,24 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemäß so aus:
 ```
 
 Das Panel nutzt einen eigenen Login. Der alte API-Token-Zugang bleibt für externe Tools oder ein späteres Velocity-/Purpur-Companion-Plugin erhalten und hat Vollzugriff.
+
+### CraftplayQuests Browser-Editor
+
+Der Quest-Tab im Panel nutzt die Web-API von CraftplayQuests und reicht Anfragen serverseitig weiter. Dadurch liegt der CraftplayQuests-Token nicht im Browser.
+
+Aktiviere im CloudNet-Modul in `config.json`:
+
+```json
+{
+  "questEditorEnabled": true,
+  "questEditorBaseUrl": "http://127.0.0.1:8095/api/craftplayquests/v1",
+  "questEditorToken": "DERSELBE_TOKEN_WIE_IM_PLUGIN",
+  "questEditorConnectTimeoutMillis": 3000,
+  "questEditorReadTimeoutMillis": 5000
+}
+```
+
+Im CraftplayQuests Plugin muss die `web-editor`-API ebenfalls aktiv sein und denselben Token verwenden. Der Panel-Tab braucht das Recht `quests.editor.view`; Admins mit `*` haben es automatisch.
 
 Panel-Daten wie Tickets, Entbannungsanträge, Teampanel-Benutzer, Panelgruppen, Gruppenrechte, Ban-/LiteBans-Snapshots, Aktionsqueues und LuckPerms-Bridge-Daten werden bei `panelStorageBackend=SQL` in der Tabelle `panelSqlTable` gespeichert. `SQL` ist die Standard-Speicherart. Beim Wechsel von `LOCAL` auf `SQL` importiert das Modul vorhandene lokale JSON-Dateien automatisch in die MySQL-Tabelle.
 

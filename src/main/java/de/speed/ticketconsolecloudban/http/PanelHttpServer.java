@@ -6,6 +6,7 @@ import de.speed.ticketconsolecloudban.auth.PanelPermission;
 import de.speed.ticketconsolecloudban.auth.PanelPrincipal;
 import de.speed.ticketconsolecloudban.auth.PanelSecurityService;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.quest.CraftplayQuestEditorClient;
 import de.speed.ticketconsolecloudban.service.CloudNetFacade;
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,6 +26,7 @@ public final class PanelHttpServer {
   private final PanelConfiguration configuration;
   private final CloudNetFacade facade;
   private final PanelSecurityService security;
+  private final CraftplayQuestEditorClient questEditorClient;
 
   private HttpServer server;
   private ExecutorService executor;
@@ -33,6 +35,7 @@ public final class PanelHttpServer {
     this.configuration = configuration;
     this.facade = facade;
     this.security = security;
+    this.questEditorClient = new CraftplayQuestEditorClient(configuration);
   }
 
   public void start() {
@@ -177,6 +180,11 @@ public final class PanelHttpServer {
 
     if (segments.size() >= 2 && "settings".equals(segments.get(1))) {
       this.handleSettingsApi(exchange, segments, principal);
+      return;
+    }
+
+    if (segments.size() >= 2 && "quest-editor".equals(segments.get(1))) {
+      this.handleQuestEditorApi(exchange, segments, principal);
       return;
     }
 
@@ -558,6 +566,61 @@ public final class PanelHttpServer {
     }
 
     HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("API-Endpunkt nicht gefunden"));
+  }
+
+  private void handleQuestEditorApi(HttpExchange exchange, List<String> segments, PanelPrincipal principal) throws IOException {
+    if (!this.requirePermission(exchange, principal, PanelPermission.QUEST_EDITOR_VIEW)) {
+      return;
+    }
+
+    if (segments.size() == 3 && "config".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.questEditorClient.configView());
+      return;
+    }
+
+    if (segments.size() == 3 && "status".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.questEditorClient.enabled()) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.questEditorClient.configView());
+        return;
+      }
+      this.proxyQuestEditor(exchange, "/status");
+      return;
+    }
+
+    if (segments.size() == 3 && "schema".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      this.proxyQuestEditor(exchange, "/schema");
+      return;
+    }
+
+    if (segments.size() == 3 && "categories".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      this.proxyQuestEditor(exchange, "/categories");
+      return;
+    }
+
+    if (segments.size() == 3 && "quests".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      this.proxyQuestEditor(exchange, "/quests");
+      return;
+    }
+
+    if (segments.size() == 4 && "quests".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      this.proxyQuestEditor(exchange, "/quests/" + CraftplayQuestEditorClient.pathSegment(segments.get(3)));
+      return;
+    }
+
+    if (segments.size() == 5
+      && "raw".equals(segments.get(2))
+      && "quests".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      this.proxyQuestEditor(exchange, "/raw/quests/" + CraftplayQuestEditorClient.pathSegment(segments.get(4)));
+      return;
+    }
+
+    HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Quest-Editor-Endpunkt nicht gefunden"));
+  }
+
+  private void proxyQuestEditor(HttpExchange exchange, String remotePath) throws IOException {
+    var response = this.questEditorClient.get(remotePath);
+    HttpExchangeUtils.writeText(exchange, response.statusCode(), response.body(), "application/json; charset=utf-8");
   }
 
   private void handleSecurityApi(HttpExchange exchange, List<String> segments, PanelPrincipal principal) throws IOException {

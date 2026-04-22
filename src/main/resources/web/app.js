@@ -12,6 +12,7 @@ const PERMISSIONS = {
   PROXY_PERMISSIONS_MANAGE: "permissions.proxy.manage",
   SERVER_PERMISSIONS_MANAGE: "permissions.server.manage",
   SETTINGS_MANAGE: "settings.manage",
+  QUEST_EDITOR_VIEW: "quests.editor.view",
 };
 
 const CONSOLE_REFRESH_INTERVALS = [5, 10, 15, 30, 60];
@@ -35,6 +36,12 @@ const state = {
   securityGroups: [],
   permissionSubjects: [],
   permissionAudit: [],
+  questEditorConfig: null,
+  questEditorStatus: null,
+  questEditorSchema: {},
+  questEditorCategories: [],
+  questEditorQuests: [],
+  selectedQuestId: localStorage.getItem("tccb-quest-id") || "",
   settings: null,
   selectedPermissionServer: localStorage.getItem("tccb-lp-server") || "proxy",
   selectedPermissionSubject: localStorage.getItem("tccb-lp-subject") || "",
@@ -191,6 +198,30 @@ function bindElements() {
   elements.permissionNodeList = document.getElementById("permission-node-list");
   elements.permissionAuditTable = document.getElementById("permission-audit-table");
   elements.permissionStatus = document.getElementById("permission-status");
+  elements.questRefresh = document.getElementById("quest-refresh");
+  elements.questConnectionState = document.getElementById("quest-connection-state");
+  elements.questApiBaseUrl = document.getElementById("quest-api-base-url");
+  elements.questApiTokenState = document.getElementById("quest-api-token-state");
+  elements.questCount = document.getElementById("quest-count");
+  elements.questCategoryCount = document.getElementById("quest-category-count");
+  elements.questSearch = document.getElementById("quest-search");
+  elements.questCategoryFilter = document.getElementById("quest-category-filter");
+  elements.questList = document.getElementById("quest-list");
+  elements.questDetailTitle = document.getElementById("quest-detail-title");
+  elements.questDetailSubtitle = document.getElementById("quest-detail-subtitle");
+  elements.questLoadRaw = document.getElementById("quest-load-raw");
+  elements.questSave = document.getElementById("quest-save");
+  elements.questFieldId = document.getElementById("quest-field-id");
+  elements.questFieldName = document.getElementById("quest-field-name");
+  elements.questFieldType = document.getElementById("quest-field-type");
+  elements.questFieldCategory = document.getElementById("quest-field-category");
+  elements.questFieldIcon = document.getElementById("quest-field-icon");
+  elements.questFieldBedrockName = document.getElementById("quest-field-bedrock-name");
+  elements.questFieldBedrockIcon = document.getElementById("quest-field-bedrock-icon");
+  elements.questFieldResetProfile = document.getElementById("quest-field-reset-profile");
+  elements.questTaskTable = document.getElementById("quest-task-table");
+  elements.questRewardTable = document.getElementById("quest-reward-table");
+  elements.questRawYaml = document.getElementById("quest-raw-yaml");
   elements.settingsForm = document.getElementById("settings-form");
   elements.settingsStatus = document.getElementById("settings-status");
   elements.oneDriveConnect = document.getElementById("onedrive-connect");
@@ -313,6 +344,10 @@ function bindEvents() {
   elements.permissionSubjectSearch.addEventListener("input", renderPermissionSubjects);
   elements.permissionSubjectList.addEventListener("click", handlePermissionSubjectClick);
   elements.permissionNodeList.addEventListener("click", handlePermissionNodeClick);
+  elements.questRefresh.addEventListener("click", refreshQuestEditor);
+  elements.questSearch.addEventListener("input", renderQuestEditorList);
+  elements.questCategoryFilter.addEventListener("change", renderQuestEditorList);
+  elements.questLoadRaw.addEventListener("click", loadQuestRawYaml);
   elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
   elements.oneDriveConnect.addEventListener("click", handleOneDriveConnect);
   elements.oneDriveDisconnect.addEventListener("click", handleOneDriveDisconnect);
@@ -647,6 +682,12 @@ function clearSession() {
   state.securityGroups = [];
   state.permissionSubjects = [];
   state.permissionAudit = [];
+  state.questEditorConfig = null;
+  state.questEditorStatus = null;
+  state.questEditorSchema = {};
+  state.questEditorCategories = [];
+  state.questEditorQuests = [];
+  state.selectedQuestId = "";
   state.settings = null;
   state.selectedPermissionSubject = "";
   state.twoFactorChallengeId = "";
@@ -671,6 +712,9 @@ function handlePageNavClick(event) {
   switchPage(button.dataset.pageTarget);
   if (button.dataset.pageTarget === "cloudnet") {
     switchCloudNetSection(state.activeCloudNetSection || "cloud");
+  }
+  if (button.dataset.pageTarget === "quest-editor") {
+    refreshQuestEditor();
   }
   if (button.dataset.banTabTarget) {
     switchBanTab(button.dataset.banTabTarget);
@@ -835,6 +879,10 @@ async function refreshAll() {
     renderPermissionAudit();
   }
 
+  if (hasPermission(PERMISSIONS.QUEST_EDITOR_VIEW)) {
+    await loadQuestEditorOverview(false);
+  }
+
   if (hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
     state.settings = await api("/api/settings");
     syncTicketCategoriesFromSettings();
@@ -892,6 +940,298 @@ async function refreshBanAppealsOnly() {
   } catch (error) {
     handleApiError(error, elements.banStatus);
   }
+}
+
+async function refreshQuestEditor() {
+  await loadQuestEditorOverview(true);
+}
+
+async function loadQuestEditorOverview(showStatus) {
+  if (!hasPermission(PERMISSIONS.QUEST_EDITOR_VIEW)) {
+    return;
+  }
+
+  try {
+    if (showStatus) {
+      setStatus(elements.questConnectionState, "Verbinde mit CraftplayQuests ...", false);
+    }
+
+    state.questEditorConfig = await api("/api/quest-editor/config");
+    renderQuestEditorConfig();
+    if (!state.questEditorConfig.enabled) {
+      state.questEditorStatus = state.questEditorConfig;
+      state.questEditorSchema = {};
+      state.questEditorCategories = [];
+      state.questEditorQuests = [];
+      renderQuestEditorOverview();
+      clearQuestEditorDetail();
+      setStatus(elements.questConnectionState, "Quest-Editor-API ist im Panel deaktiviert.", true);
+      return;
+    }
+
+    const [status, schema, categories, quests] = await Promise.all([
+      api("/api/quest-editor/status"),
+      api("/api/quest-editor/schema"),
+      api("/api/quest-editor/categories"),
+      api("/api/quest-editor/quests"),
+    ]);
+
+    state.questEditorStatus = status;
+    state.questEditorSchema = schema || {};
+    state.questEditorCategories = responseArray(categories, "categories");
+    state.questEditorQuests = responseArray(quests, "quests");
+
+    renderQuestEditorOverview();
+    if (state.selectedQuestId && state.questEditorQuests.some(quest => quest.id === state.selectedQuestId)) {
+      await selectQuestEditorQuest(state.selectedQuestId);
+    } else {
+      clearQuestEditorDetail();
+    }
+    setStatus(elements.questConnectionState, questEditorStatusText(), false);
+  } catch (error) {
+    handleApiError(error, elements.questConnectionState);
+    renderQuestEditorOverview();
+  }
+}
+
+function renderQuestEditorConfig() {
+  const config = state.questEditorConfig || {};
+  elements.questApiBaseUrl.textContent = config.baseUrl || "-";
+  elements.questApiTokenState.textContent = config.tokenConfigured ? "Token gesetzt" : "Kein Token gesetzt";
+}
+
+function renderQuestEditorOverview() {
+  elements.questCount.textContent = String(state.questEditorQuests.length);
+  elements.questCategoryCount.textContent = String(state.questEditorCategories.length);
+  renderQuestEditorCategoryFilter();
+  renderQuestEditorFieldOptions();
+  renderQuestEditorList();
+}
+
+function renderQuestEditorCategoryFilter() {
+  const selected = elements.questCategoryFilter.value;
+  elements.questCategoryFilter.innerHTML = "";
+  appendOption(elements.questCategoryFilter, "", "Alle Kategorien");
+  state.questEditorCategories.forEach(category => {
+    const id = questCategoryId(category);
+    appendOption(elements.questCategoryFilter, id, questCategoryName(category));
+  });
+  elements.questCategoryFilter.value = selected;
+}
+
+function renderQuestEditorFieldOptions() {
+  fillSelectWithFallback(elements.questFieldType, state.questEditorSchema.questTypes || ["STANDARD", "DAILY", "WEEKLY", "COMMUNITY"], elements.questFieldType.value);
+  fillSelectWithFallback(
+    elements.questFieldCategory,
+    state.questEditorCategories.map(category => questCategoryId(category)),
+    elements.questFieldCategory.value);
+  fillSelectWithFallback(elements.questFieldResetProfile, state.questEditorSchema.resetProfiles || ["NONE", "DAILY", "WEEKLY"], elements.questFieldResetProfile.value);
+}
+
+function renderQuestEditorList() {
+  const query = String(elements.questSearch.value || "").trim().toLowerCase();
+  const categoryFilter = elements.questCategoryFilter.value;
+  const quests = state.questEditorQuests
+    .filter(quest => {
+      const category = questCategoryValue(quest);
+      const text = [
+        quest.id,
+        quest.name,
+        quest.displayName,
+        quest.bedrockName,
+        category,
+        quest.type,
+      ].join(" ").toLowerCase();
+      return (!categoryFilter || category === categoryFilter)
+        && (!query || text.includes(query));
+    });
+
+  elements.questList.innerHTML = "";
+  if (!state.questEditorConfig?.enabled) {
+    elements.questList.innerHTML = `<div class="empty-state">Aktiviere die Quest-Editor-API in der Modul-Konfiguration.</div>`;
+    return;
+  }
+  if (!quests.length) {
+    elements.questList.innerHTML = `<div class="empty-state">Keine Quests gefunden.</div>`;
+    return;
+  }
+
+  quests.forEach(quest => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `quest-card-button${quest.id === state.selectedQuestId ? " active" : ""}`;
+    button.innerHTML = `
+      <strong>${escapeHtml(quest.name || quest.displayName || quest.id)}</strong>
+      <span>${escapeHtml(quest.id || "-")} · ${escapeHtml(questCategoryValue(quest) || "ohne Kategorie")}</span>
+    `;
+    button.addEventListener("click", () => selectQuestEditorQuest(quest.id));
+    elements.questList.append(button);
+  });
+}
+
+async function selectQuestEditorQuest(id) {
+  if (!id) {
+    return;
+  }
+  state.selectedQuestId = id;
+  localStorage.setItem("tccb-quest-id", id);
+  renderQuestEditorList();
+  setQuestEditorDetailLoading(id);
+
+  try {
+    const quest = await api(`/api/quest-editor/quests/${encodeURIComponent(id)}`);
+    renderQuestEditorDetail(quest);
+  } catch (error) {
+    handleApiError(error, elements.questConnectionState);
+    elements.questDetailTitle.textContent = "Quest konnte nicht geladen werden";
+    elements.questDetailSubtitle.textContent = error.message;
+  }
+}
+
+function renderQuestEditorDetail(quest) {
+  const bedrock = quest.bedrock || {};
+  elements.questDetailTitle.textContent = quest.name || quest.displayName || quest.id || "Quest";
+  elements.questDetailSubtitle.textContent = `${quest.id || "-"} · ${questCategoryValue(quest) || "ohne Kategorie"}`;
+  setFormValue(elements, "questFieldId", quest.id || "");
+  setFormValue(elements, "questFieldName", quest.name || quest.displayName || "");
+  setSelectValueWithFallback(elements.questFieldType, quest.type || "STANDARD");
+  setSelectValueWithFallback(elements.questFieldCategory, questCategoryValue(quest));
+  setFormValue(elements, "questFieldIcon", quest.icon || quest.item || quest.material || "");
+  setFormValue(elements, "questFieldBedrockName", bedrock.name || quest.bedrockName || "");
+  setFormValue(elements, "questFieldBedrockIcon", bedrock.icon || quest.bedrockIcon || "");
+  setSelectValueWithFallback(elements.questFieldResetProfile, quest.resetProfile || quest.reset || "NONE");
+  renderQuestEditorTasks(responseArray(quest.tasks, "tasks"));
+  renderQuestEditorRewards(responseArray(quest.rewards, "rewards"));
+  elements.questRawYaml.value = "";
+  elements.questLoadRaw.disabled = false;
+  elements.questSave.disabled = true;
+}
+
+function renderQuestEditorTasks(tasks) {
+  elements.questTaskTable.innerHTML = "";
+  if (!tasks.length) {
+    elements.questTaskTable.innerHTML = `<tr><td colspan="5">Keine Aufgaben hinterlegt.</td></tr>`;
+    return;
+  }
+  elements.questTaskTable.innerHTML = tasks.map(task => `
+    <tr>
+      <td>${escapeHtml(task.id || "-")}</td>
+      <td>${escapeHtml(task.type || "-")}</td>
+      <td>${escapeHtml(task.target || task.item || task.entity || "-")}</td>
+      <td>${escapeHtml(task.amount ?? task.required ?? "-")}</td>
+      <td>${escapeHtml(task.text || task.displayText || task.description || "-")}</td>
+    </tr>
+  `).join("");
+}
+
+function renderQuestEditorRewards(rewards) {
+  elements.questRewardTable.innerHTML = "";
+  if (!rewards.length) {
+    elements.questRewardTable.innerHTML = `<tr><td colspan="3">Keine Belohnungen hinterlegt.</td></tr>`;
+    return;
+  }
+  elements.questRewardTable.innerHTML = rewards.map(reward => `
+    <tr>
+      <td>${escapeHtml(reward.type || "-")}</td>
+      <td>${escapeHtml(reward.value || reward.command || reward.item || reward.amount || "-")}</td>
+      <td>${escapeHtml(reward.text || reward.displayText || reward.description || "-")}</td>
+    </tr>
+  `).join("");
+}
+
+async function loadQuestRawYaml() {
+  if (!state.selectedQuestId) {
+    return;
+  }
+
+  elements.questLoadRaw.disabled = true;
+  elements.questRawYaml.value = "Lade YAML ...";
+  try {
+    const raw = await api(`/api/quest-editor/raw/quests/${encodeURIComponent(state.selectedQuestId)}`);
+    elements.questRawYaml.value = raw.content || raw.yaml || JSON.stringify(raw, null, 2);
+  } catch (error) {
+    elements.questRawYaml.value = `YAML konnte nicht geladen werden: ${error.message}`;
+    handleApiError(error, elements.questConnectionState);
+  } finally {
+    elements.questLoadRaw.disabled = false;
+  }
+}
+
+function setQuestEditorDetailLoading(id) {
+  elements.questDetailTitle.textContent = "Lade Quest ...";
+  elements.questDetailSubtitle.textContent = id;
+  elements.questTaskTable.innerHTML = "";
+  elements.questRewardTable.innerHTML = "";
+  elements.questRawYaml.value = "";
+  elements.questLoadRaw.disabled = true;
+}
+
+function clearQuestEditorDetail() {
+  state.selectedQuestId = "";
+  localStorage.removeItem("tccb-quest-id");
+  elements.questDetailTitle.textContent = "Keine Quest ausgewählt";
+  elements.questDetailSubtitle.textContent = "Wähle links eine Quest aus.";
+  setFormValue(elements, "questFieldId", "");
+  setFormValue(elements, "questFieldName", "");
+  setFormValue(elements, "questFieldIcon", "");
+  setFormValue(elements, "questFieldBedrockName", "");
+  setFormValue(elements, "questFieldBedrockIcon", "");
+  elements.questRawYaml.value = "";
+  renderQuestEditorTasks([]);
+  renderQuestEditorRewards([]);
+  elements.questLoadRaw.disabled = true;
+  elements.questSave.disabled = true;
+}
+
+function questEditorStatusText() {
+  const status = state.questEditorStatus || {};
+  const questCount = status.questCount ?? status.quests ?? state.questEditorQuests.length;
+  const categoryCount = status.categoryCount ?? status.categories ?? state.questEditorCategories.length;
+  return `Verbunden · ${questCount} Quests · ${categoryCount} Kategorien`;
+}
+
+function questCategoryId(category) {
+  return String(category?.id || category?.key || category?.name || "");
+}
+
+function questCategoryName(category) {
+  return String(category?.name || category?.displayName || category?.id || category?.key || "-");
+}
+
+function questCategoryValue(quest) {
+  return String(quest?.category || quest?.categoryId || "");
+}
+
+function responseArray(value, key) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (Array.isArray(value?.[key])) {
+    return value[key];
+  }
+  return asArray(value);
+}
+
+function fillSelectWithFallback(select, values, selected) {
+  select.innerHTML = "";
+  const normalized = [...new Set(asArray(values).map(value => String(value || "")).filter(Boolean))];
+  normalized.forEach(value => appendOption(select, value, value));
+  setSelectValueWithFallback(select, selected);
+}
+
+function setSelectValueWithFallback(select, value) {
+  const normalized = String(value || "");
+  if (normalized && ![...select.options].some(option => option.value === normalized)) {
+    appendOption(select, normalized, normalized);
+  }
+  select.value = normalized;
+}
+
+function appendOption(select, value, label) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  select.append(option);
 }
 
 function renderHome() {

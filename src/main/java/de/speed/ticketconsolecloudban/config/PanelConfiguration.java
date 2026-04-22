@@ -52,7 +52,12 @@ public record PanelConfiguration(
   String liteBansBridgeBaseUrl,
   String liteBansBridgeSecret,
   int liteBansBridgeConnectTimeoutMillis,
-  int liteBansBridgeReadTimeoutMillis
+  int liteBansBridgeReadTimeoutMillis,
+  boolean questEditorEnabled,
+  String questEditorBaseUrl,
+  String questEditorToken,
+  int questEditorConnectTimeoutMillis,
+  int questEditorReadTimeoutMillis
 ) {
 
   private static final SecureRandom RANDOM = new SecureRandom();
@@ -105,6 +110,11 @@ public record PanelConfiguration(
       "http://127.0.0.1:9095",
       "",
       2500,
+      5000,
+      false,
+      "http://127.0.0.1:8095/api/craftplayquests/v1",
+      "",
+      3000,
       5000);
   }
 
@@ -167,6 +177,15 @@ public record PanelConfiguration(
     var normalizedLiteBansBridgeReadTimeout = this.liteBansBridgeReadTimeoutMillis <= 0
       ? 5000
       : clamp(this.liteBansBridgeReadTimeoutMillis, 500, 30_000);
+    var normalizedQuestEditorBaseUrl = this.questEditorBaseUrl == null || this.questEditorBaseUrl.isBlank()
+      ? "http://127.0.0.1:8095/api/craftplayquests/v1"
+      : this.questEditorBaseUrl.trim().replaceAll("/+$", "");
+    var normalizedQuestEditorConnectTimeout = this.questEditorConnectTimeoutMillis <= 0
+      ? 3000
+      : clamp(this.questEditorConnectTimeoutMillis, 500, 30_000);
+    var normalizedQuestEditorReadTimeout = this.questEditorReadTimeoutMillis <= 0
+      ? 5000
+      : clamp(this.questEditorReadTimeoutMillis, 500, 60_000);
 
     var normalizedTokens = new ArrayList<String>();
     if (this.apiTokens != null) {
@@ -230,7 +249,12 @@ public record PanelConfiguration(
       normalizedLiteBansBridgeBaseUrl,
       this.liteBansBridgeSecret == null ? "" : this.liteBansBridgeSecret,
       normalizedLiteBansBridgeConnectTimeout,
-      normalizedLiteBansBridgeReadTimeout);
+      normalizedLiteBansBridgeReadTimeout,
+      this.questEditorEnabled,
+      normalizedQuestEditorBaseUrl,
+      this.questEditorToken == null ? "" : this.questEditorToken,
+      normalizedQuestEditorConnectTimeout,
+      normalizedQuestEditorReadTimeout);
   }
 
   public String effectiveLiteBansBridgeSecret() {

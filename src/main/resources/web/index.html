@@ -105,6 +105,7 @@
       <button data-page-target="bans" data-permission="bans.view" type="button">Bans</button>
       <button data-page-target="security" data-permission="users.manage" type="button">Rechte</button>
       <button data-page-target="luckperms" data-permission="permissions.proxy.manage,permissions.server.manage" type="button">LuckPerms</button>
+      <button data-page-target="quest-editor" data-permission="quests.editor.view" type="button">Quests</button>
       <button data-page-target="settings" data-permission="settings.manage" type="button">Einstellungen</button>
     </nav>
 
@@ -872,6 +873,153 @@
               </thead>
               <tbody id="permission-audit-table"></tbody>
             </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="page-quest-editor" class="page-panel hidden" data-page="quest-editor" data-permission="quests.editor.view">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">CraftplayQuests</p>
+              <h2>Quest-Editor</h2>
+              <p class="muted">Quests, Kategorien und YAML-Rohdaten direkt aus dem CraftplayQuests Plugin.</p>
+            </div>
+            <button id="quest-refresh" class="ghost-button" type="button">Aktualisieren</button>
+          </div>
+
+          <div class="quest-editor-layout">
+            <aside class="quest-editor-sidebar">
+              <div class="quest-editor-status-card">
+                <span class="metric-label">Verbindung</span>
+                <strong id="quest-connection-state">Warte auf Verbindung</strong>
+                <small id="quest-api-base-url" class="muted">-</small>
+                <small id="quest-api-token-state" class="muted">-</small>
+              </div>
+
+              <div class="quest-stat-grid">
+                <article class="metric-card compact-metric">
+                  <span class="metric-label">Quests</span>
+                  <strong id="quest-count">0</strong>
+                </article>
+                <article class="metric-card compact-metric">
+                  <span class="metric-label">Kategorien</span>
+                  <strong id="quest-category-count">0</strong>
+                </article>
+              </div>
+
+              <label>
+                <span>Suche</span>
+                <input id="quest-search" type="search" placeholder="Quest-ID, Name oder Kategorie">
+              </label>
+              <label>
+                <span>Kategorie</span>
+                <select id="quest-category-filter">
+                  <option value="">Alle Kategorien</option>
+                </select>
+              </label>
+              <div id="quest-list" class="quest-list"></div>
+            </aside>
+
+            <section class="quest-editor-workspace">
+              <div class="panel-head compact-head">
+                <div>
+                  <p class="eyebrow">Details</p>
+                  <h2 id="quest-detail-title">Keine Quest ausgewählt</h2>
+                  <p id="quest-detail-subtitle" class="muted">Wähle links eine Quest aus.</p>
+                </div>
+                <div class="action-row">
+                  <button id="quest-load-raw" class="ghost-button" type="button" disabled>YAML laden</button>
+                  <button id="quest-save" type="button" disabled>Speichern</button>
+                </div>
+              </div>
+
+              <div class="form-grid quest-detail-grid">
+                <label>
+                  <span>ID</span>
+                  <input id="quest-field-id" type="text" readonly>
+                </label>
+                <label>
+                  <span>Name</span>
+                  <input id="quest-field-name" type="text" readonly>
+                </label>
+                <label>
+                  <span>Typ</span>
+                  <select id="quest-field-type" disabled></select>
+                </label>
+                <label>
+                  <span>Kategorie</span>
+                  <select id="quest-field-category" disabled></select>
+                </label>
+                <label>
+                  <span>Java-Icon</span>
+                  <input id="quest-field-icon" type="text" readonly>
+                </label>
+                <label>
+                  <span>Bedrock-Name</span>
+                  <input id="quest-field-bedrock-name" type="text" readonly>
+                </label>
+                <label>
+                  <span>Bedrock-Icon</span>
+                  <input id="quest-field-bedrock-icon" type="text" readonly>
+                </label>
+                <label>
+                  <span>Resetprofil</span>
+                  <select id="quest-field-reset-profile" disabled></select>
+                </label>
+              </div>
+
+              <div class="quest-editor-section">
+                <div>
+                  <p class="eyebrow">Aufgaben</p>
+                  <h2>Tasks</h2>
+                </div>
+                <div class="table-shell quest-table-shell">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Typ</th>
+                        <th>Ziel</th>
+                        <th>Menge</th>
+                        <th>Text</th>
+                      </tr>
+                    </thead>
+                    <tbody id="quest-task-table"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="quest-editor-section">
+                <div>
+                  <p class="eyebrow">Belohnungen</p>
+                  <h2>Rewards</h2>
+                </div>
+                <div class="table-shell quest-table-shell">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Typ</th>
+                        <th>Wert</th>
+                        <th>Text</th>
+                      </tr>
+                    </thead>
+                    <tbody id="quest-reward-table"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="quest-editor-section">
+                <div>
+                  <p class="eyebrow">Rohdaten</p>
+                  <h2>YAML</h2>
+                </div>
+                <textarea id="quest-raw-yaml" class="quest-raw-yaml" spellcheck="false" placeholder="YAML wird hier geladen."></textarea>
+                <p class="muted">Schreiben und Veröffentlichen bleibt deaktiviert, bis die CraftplayQuests Plugin-API Schreib-Endpunkte bereitstellt.</p>
+              </div>
+            </section>
           </div>
         </article>
       </div>

@@ -650,7 +650,8 @@ public final class PanelUserStore {
         PanelPermission.TICKETS_CREATE,
         PanelPermission.TICKETS_MANAGE,
         PanelPermission.BANS_VIEW,
-        PanelPermission.BANS_MANAGE), false, now, now),
+        PanelPermission.BANS_MANAGE,
+        PanelPermission.QUEST_EDITOR_VIEW), false, now, now),
       new PanelGroup("viewer", List.of(
         PanelPermission.CLOUDNET_VIEW,
         PanelPermission.TICKETS_VIEW,

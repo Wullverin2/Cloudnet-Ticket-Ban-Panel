@@ -880,6 +880,112 @@ tbody button {
   color: var(--danger);
 }
 
+.quest-editor-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.35fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.quest-editor-sidebar,
+.quest-editor-workspace {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  background: rgba(6, 12, 18, 0.58);
+}
+
+.quest-editor-status-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(244, 188, 70, 0.18);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.quest-editor-status-card strong,
+.quest-editor-status-card small {
+  overflow-wrap: anywhere;
+}
+
+.quest-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.compact-metric {
+  padding: 16px;
+}
+
+.compact-metric strong {
+  font-size: 1.65rem;
+}
+
+.quest-list {
+  display: grid;
+  gap: 10px;
+  max-height: 620px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.quest-card-button {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.quest-card-button span {
+  color: var(--muted);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.quest-card-button.active {
+  border-color: var(--line-strong);
+  background: rgba(244, 188, 70, 0.12);
+}
+
+.quest-detail-grid {
+  margin-bottom: 8px;
+}
+
+.quest-editor-section {
+  display: grid;
+  gap: 12px;
+}
+
+.quest-table-shell {
+  overflow-x: auto;
+}
+
+.quest-table-shell table {
+  min-width: 760px;
+}
+
+.quest-raw-yaml {
+  min-height: 260px;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  line-height: 1.45;
+}
+
+.empty-state {
+  color: var(--muted);
+  padding: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
 .hidden {
   display: none !important;
 }
@@ -1035,7 +1141,8 @@ tbody button {
   }
 
   .luckperms-toolbar,
-  .luckperms-editor {
+  .luckperms-editor,
+  .quest-editor-layout {
     grid-template-columns: 1fr;
   }
 
