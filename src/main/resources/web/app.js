@@ -37,10 +37,12 @@ const state = {
   permissionSubjects: [],
   permissionAudit: [],
   questEditorConfig: null,
+  questEditorServers: [],
   questEditorStatus: null,
   questEditorSchema: {},
   questEditorCategories: [],
   questEditorQuests: [],
+  selectedQuestServerId: localStorage.getItem("tccb-quest-server") || "",
   selectedQuestId: localStorage.getItem("tccb-quest-id") || "",
   settings: null,
   selectedPermissionServer: localStorage.getItem("tccb-lp-server") || "proxy",
@@ -199,6 +201,7 @@ function bindElements() {
   elements.permissionAuditTable = document.getElementById("permission-audit-table");
   elements.permissionStatus = document.getElementById("permission-status");
   elements.questRefresh = document.getElementById("quest-refresh");
+  elements.questServerSelect = document.getElementById("quest-server-select");
   elements.questConnectionState = document.getElementById("quest-connection-state");
   elements.questApiBaseUrl = document.getElementById("quest-api-base-url");
   elements.questApiTokenState = document.getElementById("quest-api-token-state");
@@ -224,6 +227,8 @@ function bindElements() {
   elements.questRawYaml = document.getElementById("quest-raw-yaml");
   elements.settingsForm = document.getElementById("settings-form");
   elements.settingsStatus = document.getElementById("settings-status");
+  elements.questServerSettingsList = document.getElementById("quest-server-settings-list");
+  elements.questServerAdd = document.getElementById("quest-server-add");
   elements.oneDriveConnect = document.getElementById("onedrive-connect");
   elements.oneDriveDisconnect = document.getElementById("onedrive-disconnect");
   elements.oneDriveFoldersRefresh = document.getElementById("onedrive-folders-refresh");
@@ -345,10 +350,18 @@ function bindEvents() {
   elements.permissionSubjectList.addEventListener("click", handlePermissionSubjectClick);
   elements.permissionNodeList.addEventListener("click", handlePermissionNodeClick);
   elements.questRefresh.addEventListener("click", refreshQuestEditor);
+  elements.questServerSelect.addEventListener("change", () => {
+    state.selectedQuestServerId = elements.questServerSelect.value || "";
+    localStorage.setItem("tccb-quest-server", state.selectedQuestServerId);
+    clearQuestEditorDetail();
+    loadQuestEditorOverview(true);
+  });
   elements.questSearch.addEventListener("input", renderQuestEditorList);
   elements.questCategoryFilter.addEventListener("change", renderQuestEditorList);
   elements.questLoadRaw.addEventListener("click", loadQuestRawYaml);
   elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
+  elements.questServerAdd.addEventListener("click", addQuestServerSettingsRow);
+  elements.questServerSettingsList.addEventListener("click", handleQuestServerSettingsClick);
   elements.oneDriveConnect.addEventListener("click", handleOneDriveConnect);
   elements.oneDriveDisconnect.addEventListener("click", handleOneDriveDisconnect);
   elements.oneDriveFoldersRefresh.addEventListener("click", () => loadOneDriveFolders(true));
@@ -683,6 +696,7 @@ function clearSession() {
   state.permissionSubjects = [];
   state.permissionAudit = [];
   state.questEditorConfig = null;
+  state.questEditorServers = [];
   state.questEditorStatus = null;
   state.questEditorSchema = {};
   state.questEditorCategories = [];
@@ -957,26 +971,37 @@ async function loadQuestEditorOverview(showStatus) {
     }
 
     state.questEditorConfig = await api("/api/quest-editor/config");
+    state.questEditorServers = responseArray(state.questEditorConfig.servers, "servers");
+    renderQuestEditorServerSelect();
+    const selectedServer = ensureQuestEditorServerSelection();
     renderQuestEditorConfig();
-    if (!state.questEditorConfig.enabled) {
+    if (!selectedServer?.enabled) {
       state.questEditorStatus = state.questEditorConfig;
       state.questEditorSchema = {};
       state.questEditorCategories = [];
       state.questEditorQuests = [];
       renderQuestEditorOverview();
       clearQuestEditorDetail();
-      setStatus(elements.questConnectionState, "Quest-Editor-API ist im Panel deaktiviert.", true);
+      setStatus(elements.questConnectionState, "Bitte einen aktiven Quest-Server in den Einstellungen hinterlegen.", true);
       return;
     }
 
     const [status, schema, categories, quests] = await Promise.all([
-      api("/api/quest-editor/status"),
-      api("/api/quest-editor/schema"),
-      api("/api/quest-editor/categories"),
-      api("/api/quest-editor/quests"),
+      api(questEditorApiPath("status")),
+      api(questEditorApiPath("schema")),
+      api(questEditorApiPath("categories")),
+      api(questEditorApiPath("quests")),
     ]);
 
     state.questEditorStatus = status;
+    if (status?.serverName) {
+      state.questEditorServers = state.questEditorServers.map(server => (
+        server.id === state.selectedQuestServerId
+          ? { ...server, pluginServerName: status.serverName }
+          : server
+      ));
+      renderQuestEditorServerSelect();
+    }
     state.questEditorSchema = schema || {};
     state.questEditorCategories = responseArray(categories, "categories");
     state.questEditorQuests = responseArray(quests, "quests");
@@ -995,9 +1020,29 @@ async function loadQuestEditorOverview(showStatus) {
 }
 
 function renderQuestEditorConfig() {
-  const config = state.questEditorConfig || {};
-  elements.questApiBaseUrl.textContent = config.baseUrl || "-";
-  elements.questApiTokenState.textContent = config.tokenConfigured ? "Token gesetzt" : "Kein Token gesetzt";
+  const server = selectedQuestEditorServer();
+  elements.questApiBaseUrl.textContent = server?.baseUrl || "-";
+  elements.questApiTokenState.textContent = server?.tokenConfigured ? "Token gesetzt" : "Kein Token gesetzt";
+}
+
+function renderQuestEditorServerSelect() {
+  const selected = state.selectedQuestServerId || elements.questServerSelect.value;
+  elements.questServerSelect.innerHTML = "";
+  if (!state.questEditorServers.length) {
+    appendOption(elements.questServerSelect, "", "Kein Quest-Server");
+    return;
+  }
+  state.questEditorServers.forEach(server => {
+    appendOption(elements.questServerSelect, server.id || "", questEditorServerLabel(server));
+  });
+  const selectedServer = state.questEditorServers.find(server => server.id === selected)
+    || state.questEditorServers.find(server => server.enabled)
+    || state.questEditorServers[0];
+  elements.questServerSelect.value = selectedServer?.id || "";
+  state.selectedQuestServerId = elements.questServerSelect.value;
+  if (state.selectedQuestServerId) {
+    localStorage.setItem("tccb-quest-server", state.selectedQuestServerId);
+  }
 }
 
 function renderQuestEditorOverview() {
@@ -1047,8 +1092,8 @@ function renderQuestEditorList() {
     });
 
   elements.questList.innerHTML = "";
-  if (!state.questEditorConfig?.enabled) {
-    elements.questList.innerHTML = `<div class="empty-state">Aktiviere die Quest-Editor-API in der Modul-Konfiguration.</div>`;
+  if (!selectedQuestEditorServer()?.enabled) {
+    elements.questList.innerHTML = `<div class="empty-state">Aktiviere mindestens einen Quest-Server in den Einstellungen.</div>`;
     return;
   }
   if (!quests.length) {
@@ -1079,7 +1124,7 @@ async function selectQuestEditorQuest(id) {
   setQuestEditorDetailLoading(id);
 
   try {
-    const quest = await api(`/api/quest-editor/quests/${encodeURIComponent(id)}`);
+    const quest = await api(questEditorApiPath(`quests/${encodeURIComponent(id)}`));
     renderQuestEditorDetail(quest);
   } catch (error) {
     handleApiError(error, elements.questConnectionState);
@@ -1147,7 +1192,7 @@ async function loadQuestRawYaml() {
   elements.questLoadRaw.disabled = true;
   elements.questRawYaml.value = "Lade YAML ...";
   try {
-    const raw = await api(`/api/quest-editor/raw/quests/${encodeURIComponent(state.selectedQuestId)}`);
+    const raw = await api(questEditorApiPath(`raw/quests/${encodeURIComponent(state.selectedQuestId)}`));
     elements.questRawYaml.value = raw.content || raw.yaml || JSON.stringify(raw, null, 2);
   } catch (error) {
     elements.questRawYaml.value = `YAML konnte nicht geladen werden: ${error.message}`;
@@ -1187,11 +1232,50 @@ function questEditorStatusText() {
   const status = state.questEditorStatus || {};
   const questCount = status.questCount ?? status.quests ?? state.questEditorQuests.length;
   const categoryCount = status.categoryCount ?? status.categories ?? state.questEditorCategories.length;
-  return `Verbunden · ${questCount} Quests · ${categoryCount} Kategorien`;
+  const serverName = status.serverName || selectedQuestEditorServer()?.name || "Quest-Server";
+  return `${serverName} verbunden · ${questCount} Quests · ${categoryCount} Kategorien`;
 }
 
 function questCategoryId(category) {
   return String(category?.id || category?.key || category?.name || "");
+}
+
+function ensureQuestEditorServerSelection() {
+  const selected = state.questEditorServers.find(server => server.id === state.selectedQuestServerId)
+    || state.questEditorServers.find(server => server.enabled)
+    || state.questEditorServers[0]
+    || null;
+  state.selectedQuestServerId = selected?.id || "";
+  if (state.selectedQuestServerId) {
+    localStorage.setItem("tccb-quest-server", state.selectedQuestServerId);
+  }
+  if (elements.questServerSelect) {
+    elements.questServerSelect.value = state.selectedQuestServerId;
+  }
+  return selected;
+}
+
+function selectedQuestEditorServer() {
+  return state.questEditorServers.find(server => server.id === state.selectedQuestServerId)
+    || state.questEditorServers.find(server => server.enabled)
+    || state.questEditorServers[0]
+    || null;
+}
+
+function questEditorApiPath(path) {
+  const server = ensureQuestEditorServerSelection();
+  const normalizedPath = String(path || "").replace(/^\/+/, "");
+  return `/api/quest-editor/${encodeURIComponent(server?.id || "")}/${normalizedPath}`;
+}
+
+function questEditorServerLabel(server) {
+  const configuredName = server?.name || server?.id || "Quest-Server";
+  const pluginName = String(server?.pluginServerName || "").trim();
+  const suffix = server?.enabled ? "" : " (deaktiviert)";
+  if (pluginName && pluginName !== configuredName) {
+    return `${pluginName} (${configuredName})${suffix}`;
+  }
+  return `${configuredName}${suffix}`;
 }
 
 function questCategoryName(category) {
@@ -1838,6 +1922,7 @@ function renderSettings() {
     `<span class="badge">${escapeHtml(category)}</span>`
   )).join("") || `<span class="muted">Keine Ticket-Arten hinterlegt.</span>`;
   setFormValue(form, "cloudNetScreenName", settings.cloudNetScreenName || "");
+  renderQuestServerSettings(settings.questEditorServers || []);
   setFormValue(form, "appealBrandName", settings.appealBrandName || settings.brandName || "Craftplay.de");
   setFormValue(form, "appealTitle", settings.appealTitle || "Entbannungsantrag");
   setFormValue(form, "appealStatusTitle", settings.appealStatusTitle || "Dein Entbannungsantrag");
@@ -1920,6 +2005,117 @@ function renderSettings() {
   setFormValue(form, "liteBansBridgeConnectTimeoutMillis", settings.liteBansBridgeConnectTimeoutMillis || 2500);
   setFormValue(form, "liteBansBridgeReadTimeoutMillis", settings.liteBansBridgeReadTimeoutMillis || 5000);
   applyBranding(settings);
+}
+
+function renderQuestServerSettings(servers) {
+  const values = asArray(servers);
+  const effectiveServers = values.length ? values : [{
+    id: "default",
+    name: "Craftplay Server",
+    host: "127.0.0.1",
+    port: 8095,
+    enabled: false,
+    basePath: "/api/craftplayquests/v1",
+    connectTimeoutMillis: 3000,
+    readTimeoutMillis: 5000,
+    tokenConfigured: false,
+  }];
+
+  elements.questServerSettingsList.innerHTML = effectiveServers.map((server, index) => questServerSettingsRow(server, index)).join("");
+}
+
+function questServerSettingsRow(server, index) {
+  const tokenPlaceholder = server.tokenConfigured ? "gesetzt, leer lassen = behalten" : "Token eintragen";
+  return `
+    <article class="quest-server-settings-row" data-quest-server-row>
+      <div class="quest-server-settings-head">
+        <label class="inline-label">
+          <input data-quest-server-field="enabled" type="checkbox" ${server.enabled ? "checked" : ""}>
+          <span>Aktiv</span>
+        </label>
+        <button data-quest-server-remove type="button" class="ghost-button">Entfernen</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>ID</span>
+          <input data-quest-server-field="id" type="text" value="${escapeAttr(server.id || `server-${index + 1}`)}" placeholder="survival-1">
+        </label>
+        <label>
+          <span>Name im Panel</span>
+          <input data-quest-server-field="name" type="text" value="${escapeAttr(server.name || "Craftplay Server")}" placeholder="Survival-1">
+        </label>
+        <label>
+          <span>IP oder Host</span>
+          <input data-quest-server-field="host" type="text" value="${escapeAttr(server.host || "127.0.0.1")}" placeholder="127.0.0.1">
+        </label>
+        <label>
+          <span>Port</span>
+          <input data-quest-server-field="port" type="number" min="1" max="65535" value="${escapeAttr(server.port || 8095)}">
+        </label>
+        <label>
+          <span>API-Pfad</span>
+          <input data-quest-server-field="basePath" type="text" value="${escapeAttr(server.basePath || "/api/craftplayquests/v1")}">
+        </label>
+        <label>
+          <span>Token</span>
+          <input data-quest-server-field="token" type="password" placeholder="${escapeAttr(tokenPlaceholder)}">
+        </label>
+        <label>
+          <span>Connect Timeout ms</span>
+          <input data-quest-server-field="connectTimeoutMillis" type="number" min="500" max="30000" value="${escapeAttr(server.connectTimeoutMillis || 3000)}">
+        </label>
+        <label>
+          <span>Read Timeout ms</span>
+          <input data-quest-server-field="readTimeoutMillis" type="number" min="500" max="60000" value="${escapeAttr(server.readTimeoutMillis || 5000)}">
+        </label>
+      </div>
+    </article>
+  `;
+}
+
+function readQuestServerSettings() {
+  return [...elements.questServerSettingsList.querySelectorAll("[data-quest-server-row]")].map((row, index) => {
+    const value = field => row.querySelector(`[data-quest-server-field="${field}"]`);
+    return {
+      id: String(value("id")?.value || `server-${index + 1}`).trim(),
+      name: String(value("name")?.value || "").trim(),
+      host: String(value("host")?.value || "127.0.0.1").trim(),
+      port: Number(value("port")?.value || 8095),
+      enabled: Boolean(value("enabled")?.checked),
+      basePath: String(value("basePath")?.value || "/api/craftplayquests/v1").trim(),
+      token: String(value("token")?.value || ""),
+      connectTimeoutMillis: Number(value("connectTimeoutMillis")?.value || 3000),
+      readTimeoutMillis: Number(value("readTimeoutMillis")?.value || 5000),
+    };
+  });
+}
+
+function addQuestServerSettingsRow() {
+  const servers = readQuestServerSettings();
+  servers.push({
+    id: `server-${servers.length + 1}`,
+    name: `Quest-Server ${servers.length + 1}`,
+    host: "127.0.0.1",
+    port: 8095,
+    enabled: true,
+    basePath: "/api/craftplayquests/v1",
+    tokenConfigured: false,
+    connectTimeoutMillis: 3000,
+    readTimeoutMillis: 5000,
+  });
+  renderQuestServerSettings(servers);
+}
+
+function handleQuestServerSettingsClick(event) {
+  const button = event.target.closest("[data-quest-server-remove]");
+  if (!button) {
+    return;
+  }
+  const row = button.closest("[data-quest-server-row]");
+  row?.remove();
+  if (!elements.questServerSettingsList.querySelector("[data-quest-server-row]")) {
+    renderQuestServerSettings([]);
+  }
 }
 
 function renderOneDriveFolderOptions(selectedPath) {
@@ -2507,6 +2703,7 @@ async function handleSettingsSubmit(event) {
     brandLogoUrl: String(form.get("brandLogoUrl") || "").trim(),
     ticketCategories: splitLinesOrCsv(form.get("ticketCategories")),
     cloudNetScreenName: String(form.get("cloudNetScreenName") || "").trim(),
+    questEditorServers: readQuestServerSettings(),
     appealBrandName: String(form.get("appealBrandName") || "").trim(),
     appealTitle: String(form.get("appealTitle") || "").trim(),
     appealStatusTitle: String(form.get("appealStatusTitle") || "").trim(),

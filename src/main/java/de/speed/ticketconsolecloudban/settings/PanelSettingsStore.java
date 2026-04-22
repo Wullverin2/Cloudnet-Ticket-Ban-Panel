@@ -2,10 +2,13 @@ package de.speed.ticketconsolecloudban.settings;
 
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.appeal.OneDriveOAuthClient;
+import de.speed.ticketconsolecloudban.quest.QuestEditorServerSettings;
 import de.speed.ticketconsolecloudban.store.LocalPanelDataBackend;
 import de.speed.ticketconsolecloudban.store.PanelDataBackend;
 import eu.cloudnetservice.driver.document.Document;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -45,6 +48,7 @@ public final class PanelSettingsStore {
       text(request, "brandLogoUrl", existing.brandLogoUrl()),
       ticketCategories(request, existing.ticketCategories()),
       text(request, "cloudNetScreenName", existing.cloudNetScreenName()),
+      questEditorServers(request, existing.questEditorServers()),
       textOrDefaultWhenBlank(request, "appealBrandName", existing.appealBrandName()),
       textOrDefaultWhenBlank(request, "appealTitle", existing.appealTitle()),
       textOrDefaultWhenBlank(request, "appealStatusTitle", existing.appealStatusTitle()),
@@ -112,6 +116,7 @@ public final class PanelSettingsStore {
       source.brandLogoUrl(),
       source.ticketCategories(),
       source.cloudNetScreenName(),
+      source.questEditorServers(),
       source.appealBrandName(),
       source.appealTitle(),
       source.appealStatusTitle(),
@@ -175,6 +180,7 @@ public final class PanelSettingsStore {
       source.brandLogoUrl() == null ? "" : source.brandLogoUrl(),
       sanitizeTicketCategories(source.ticketCategories(), defaults.ticketCategories()),
       source.cloudNetScreenName() == null ? "" : source.cloudNetScreenName(),
+      sanitizeQuestEditorServers(source.questEditorServers(), defaults.questEditorServers()),
       defaultIfBlank(source.appealBrandName(), defaults.appealBrandName()),
       defaultIfBlank(source.appealTitle(), defaults.appealTitle()),
       defaultIfBlank(source.appealStatusTitle(), defaults.appealStatusTitle()),
@@ -275,6 +281,82 @@ public final class PanelSettingsStore {
     }
     var values = request.readObject("ticketCategories", String[].class, new String[0]);
     return sanitizeTicketCategories(List.of(values), fallback);
+  }
+
+  private static List<QuestEditorServerSettings> questEditorServers(
+    Document request,
+    List<QuestEditorServerSettings> fallback
+  ) {
+    if (!request.contains("questEditorServers")) {
+      return sanitizeQuestEditorServers(fallback, List.of());
+    }
+
+    var existingById = new HashMap<String, QuestEditorServerSettings>();
+    for (var existing : sanitizeQuestEditorServers(fallback, List.of())) {
+      existingById.put(existing.id(), existing);
+    }
+
+    var values = request.readObject(
+      "questEditorServers",
+      QuestEditorServerSettings[].class,
+      new QuestEditorServerSettings[0]);
+    var normalized = new ArrayList<QuestEditorServerSettings>();
+    for (int index = 0; index < values.length; index++) {
+      var value = values[index];
+      if (value == null) {
+        continue;
+      }
+      var server = value.normalize(index);
+      var previous = existingById.get(server.id());
+      if ((server.token() == null || server.token().isBlank())
+        && previous != null
+        && previous.token() != null
+        && !previous.token().isBlank()) {
+        server = server.withToken(previous.token());
+      }
+      normalized.add(server);
+    }
+    return sanitizeQuestEditorServers(normalized, fallback);
+  }
+
+  private static List<QuestEditorServerSettings> sanitizeQuestEditorServers(
+    List<QuestEditorServerSettings> values,
+    List<QuestEditorServerSettings> fallback
+  ) {
+    var servers = new ArrayList<QuestEditorServerSettings>();
+    var ids = new LinkedHashSet<String>();
+    if (values != null) {
+      for (var value : values) {
+        if (value == null) {
+          continue;
+        }
+        var server = value.normalize(servers.size());
+        var baseId = server.id();
+        var effectiveId = baseId;
+        var duplicate = 2;
+        while (ids.contains(effectiveId)) {
+          effectiveId = baseId + "-" + duplicate++;
+        }
+        ids.add(effectiveId);
+        servers.add(effectiveId.equals(baseId) ? server : server.withId(effectiveId));
+      }
+    }
+    if (servers.isEmpty() && fallback != null && fallback != values) {
+      return sanitizeQuestEditorServers(fallback, List.of());
+    }
+    if (servers.isEmpty()) {
+      servers.add(new QuestEditorServerSettings(
+        QuestEditorServerSettings.DEFAULT_ID,
+        QuestEditorServerSettings.DEFAULT_NAME,
+        QuestEditorServerSettings.DEFAULT_HOST,
+        QuestEditorServerSettings.DEFAULT_PORT,
+        false,
+        QuestEditorServerSettings.DEFAULT_BASE_PATH,
+        "",
+        QuestEditorServerSettings.DEFAULT_CONNECT_TIMEOUT_MILLIS,
+        QuestEditorServerSettings.DEFAULT_READ_TIMEOUT_MILLIS));
+    }
+    return List.copyOf(servers);
   }
 
   private static List<String> sanitizeTicketCategories(List<String> values, List<String> fallback) {

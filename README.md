@@ -175,7 +175,7 @@ Das Panel nutzt einen eigenen Login. Der alte API-Token-Zugang bleibt für exter
 
 ### CraftplayQuests Browser-Editor
 
-Der Quest-Tab im Panel nutzt die Web-API von CraftplayQuests und reicht Anfragen serverseitig weiter. Dadurch liegt der CraftplayQuests-Token nicht im Browser.
+Der Quest-Tab im Panel nutzt die Web-API von CraftplayQuests und reicht Anfragen serverseitig weiter. Dadurch liegt der CraftplayQuests-Token nicht im Browser. Das Panel kann mehrere Questserver verwalten und im Questeditor per Serverauswahl umschalten.
 
 Aktiviere im CloudNet-Modul in `config.json`:
 
@@ -189,7 +189,16 @@ Aktiviere im CloudNet-Modul in `config.json`:
 }
 ```
 
-Im CraftplayQuests Plugin muss die `web-editor`-API ebenfalls aktiv sein und denselben Token verwenden. Der Panel-Tab braucht das Recht `quests.editor.view`; Admins mit `*` haben es automatisch.
+Die Werte aus `config.json` dienen als erste Standardverbindung. Weitere Questserver werden im Panel unter **Einstellungen -> CraftplayQuests Server** gepflegt. Dort hinterlegst du pro Minecraft-Server:
+
+- Name im Panel
+- IP oder Host
+- API-Port
+- API-Pfad, standardmäßig `/api/craftplayquests/v1`
+- Token aus `web-editor.token`
+- Timeouts
+
+Im CraftplayQuests Plugin muss die `web-editor`-API ebenfalls aktiv sein und denselben Token verwenden. Zusätzlich kann jeder Plugin-Server in `config.yml` unter `server.name` einen eigenen Anzeigenamen setzen; dieser Name erscheint nach erfolgreicher Verbindung im Serverauswahlmenü des Quest-Tabs. Der Panel-Tab braucht das Recht `quests.editor.view`; Admins mit `*` haben es automatisch.
 
 Panel-Daten wie Tickets, Entbannungsanträge, Teampanel-Benutzer, Panelgruppen, Gruppenrechte, Ban-/LiteBans-Snapshots, Aktionsqueues und LuckPerms-Bridge-Daten werden bei `panelStorageBackend=SQL` in der Tabelle `panelSqlTable` gespeichert. `SQL` ist die Standard-Speicherart. Beim Wechsel von `LOCAL` auf `SQL` importiert das Modul vorhandene lokale JSON-Dateien automatisch in die MySQL-Tabelle.
 
@@ -501,6 +510,14 @@ Für dein Setup mit mehreren Rootservern gilt:
 - `POST /api/auth/password`
 - `POST /api/auth/2fa/setup`
 - `POST /api/auth/2fa/verify`
+- `GET /api/quest-editor/config`
+- `GET /api/quest-editor/servers`
+- `GET /api/quest-editor/{serverId}/status`
+- `GET /api/quest-editor/{serverId}/schema`
+- `GET /api/quest-editor/{serverId}/categories`
+- `GET /api/quest-editor/{serverId}/quests`
+- `GET /api/quest-editor/{serverId}/quests/{id}`
+- `GET /api/quest-editor/{serverId}/raw/quests/{id}`
 - `GET /api/security/users`
 - `POST /api/security/users`
 - `PUT /api/security/users/{username}`

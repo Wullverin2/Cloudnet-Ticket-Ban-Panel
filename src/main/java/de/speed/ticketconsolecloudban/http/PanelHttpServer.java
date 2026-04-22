@@ -8,6 +8,7 @@ import de.speed.ticketconsolecloudban.auth.PanelSecurityService;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.quest.CraftplayQuestEditorClient;
 import de.speed.ticketconsolecloudban.service.CloudNetFacade;
+import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -31,11 +32,16 @@ public final class PanelHttpServer {
   private HttpServer server;
   private ExecutorService executor;
 
-  public PanelHttpServer(PanelConfiguration configuration, CloudNetFacade facade, PanelSecurityService security) {
+  public PanelHttpServer(
+    PanelConfiguration configuration,
+    CloudNetFacade facade,
+    PanelSecurityService security,
+    PanelSettingsStore settingsStore
+  ) {
     this.configuration = configuration;
     this.facade = facade;
     this.security = security;
-    this.questEditorClient = new CraftplayQuestEditorClient(configuration);
+    this.questEditorClient = new CraftplayQuestEditorClient(configuration, settingsStore);
   }
 
   public void start() {
@@ -578,6 +584,11 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() == 3 && "servers".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.questEditorClient.servers());
+      return;
+    }
+
     if (segments.size() == 3 && "status".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
       if (!this.questEditorClient.enabled()) {
         HttpExchangeUtils.writeJson(exchange, 200, this.questEditorClient.configView());
@@ -615,11 +626,54 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() >= 4) {
+      var serverId = segments.get(2);
+      var action = segments.get(3);
+
+      if (segments.size() == 4 && "status".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/status");
+        return;
+      }
+
+      if (segments.size() == 4 && "schema".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/schema");
+        return;
+      }
+
+      if (segments.size() == 4 && "categories".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/categories");
+        return;
+      }
+
+      if (segments.size() == 4 && "quests".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/quests");
+        return;
+      }
+
+      if (segments.size() == 5 && "quests".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/quests/" + CraftplayQuestEditorClient.pathSegment(segments.get(4)));
+        return;
+      }
+
+      if (segments.size() == 6
+        && "raw".equals(action)
+        && "quests".equals(segments.get(4))
+        && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/raw/quests/" + CraftplayQuestEditorClient.pathSegment(segments.get(5)));
+        return;
+      }
+    }
+
     HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Quest-Editor-Endpunkt nicht gefunden"));
   }
 
   private void proxyQuestEditor(HttpExchange exchange, String remotePath) throws IOException {
-    var response = this.questEditorClient.get(remotePath);
+    var response = this.questEditorClient.getFirstEnabled(remotePath);
+    HttpExchangeUtils.writeText(exchange, response.statusCode(), response.body(), "application/json; charset=utf-8");
+  }
+
+  private void proxyQuestEditor(HttpExchange exchange, String serverId, String remotePath) throws IOException {
+    var response = this.questEditorClient.get(serverId, remotePath);
     HttpExchangeUtils.writeText(exchange, response.statusCode(), response.body(), "application/json; charset=utf-8");
   }
 

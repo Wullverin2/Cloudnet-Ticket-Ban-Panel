@@ -15,6 +15,7 @@ import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.permission.PermissionActionRequest;
 import de.speed.ticketconsolecloudban.permission.PermissionAuditEntry;
 import de.speed.ticketconsolecloudban.permission.PermissionSubject;
+import de.speed.ticketconsolecloudban.quest.QuestEditorServerView;
 import de.speed.ticketconsolecloudban.player.PlayerActionRequest;
 import de.speed.ticketconsolecloudban.store.BanStore;
 import de.speed.ticketconsolecloudban.store.BanAppealStore;
@@ -693,6 +694,9 @@ public final class CloudNetFacade {
       settings.brandLogoUrl(),
       settings.ticketCategories(),
       settings.cloudNetScreenName(),
+      settings.questEditorServers().stream()
+        .map(server -> server.normalize(0).toView())
+        .toList(),
       settings.appealBrandName(),
       settings.appealTitle(),
       settings.appealStatusTitle(),
@@ -1757,6 +1761,7 @@ public final class CloudNetFacade {
     String brandLogoUrl,
     List<String> ticketCategories,
     String cloudNetScreenName,
+    List<QuestEditorServerView> questEditorServers,
     String appealBrandName,
     String appealTitle,
     String appealStatusTitle,

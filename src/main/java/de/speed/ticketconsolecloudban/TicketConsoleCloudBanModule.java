@@ -81,7 +81,7 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
       this.moduleWrapper().dataDirectory());
 
     this.stopServer();
-    this.httpServer = new PanelHttpServer(configuration, facade, security);
+    this.httpServer = new PanelHttpServer(configuration, facade, security, settingsStore);
     this.httpServer.start();
     this.appealHttpServer = new BanAppealHttpServer(configuration, appealService);
     this.appealHttpServer.start();

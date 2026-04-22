@@ -2,6 +2,7 @@ package de.speed.ticketconsolecloudban.settings;
 
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.appeal.OneDriveOAuthClient;
+import de.speed.ticketconsolecloudban.quest.QuestEditorServerSettings;
 import java.util.List;
 
 public record PanelSettings(
@@ -9,6 +10,7 @@ public record PanelSettings(
   String brandLogoUrl,
   List<String> ticketCategories,
   String cloudNetScreenName,
+  List<QuestEditorServerSettings> questEditorServers,
   String appealBrandName,
   String appealTitle,
   String appealStatusTitle,
@@ -87,6 +89,7 @@ public record PanelSettings(
       configuration.brandLogoUrl(),
       DEFAULT_TICKET_CATEGORIES,
       "",
+      List.of(QuestEditorServerSettings.fromConfiguration(configuration)),
       configuration.brandName(),
       DEFAULT_APPEAL_TITLE,
       DEFAULT_APPEAL_STATUS_TITLE,

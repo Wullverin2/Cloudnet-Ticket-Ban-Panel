@@ -892,6 +892,13 @@
 
           <div class="quest-editor-layout">
             <aside class="quest-editor-sidebar">
+              <label>
+                <span>Server</span>
+                <select id="quest-server-select">
+                  <option value="">Kein Quest-Server</option>
+                </select>
+              </label>
+
               <div class="quest-editor-status-card">
                 <span class="metric-label">Verbindung</span>
                 <strong id="quest-connection-state">Warte auf Verbindung</strong>
@@ -1068,6 +1075,15 @@
                   <input name="cloudNetScreenName" type="text" placeholder="z.B. cloudnet">
                 </label>
                 <p class="muted">Wenn CloudNet in einer GNU-screen-Session läuft, liest das Panel den Scrollback über diesen Screen-Namen. Leer lassen = Logdatei-Fallback nutzen.</p>
+              </fieldset>
+
+              <fieldset class="settings-wide">
+                <legend>CraftplayQuests Server</legend>
+                <p class="muted">Hier hinterlegst du jeden Minecraft-Server, dessen CraftplayQuests-Quests im Browser-Editor gelesen werden sollen. Der Token muss dem `web-editor.token` des jeweiligen Plugins entsprechen.</p>
+                <div id="quest-server-settings-list" class="quest-server-settings-list"></div>
+                <div class="action-row">
+                  <button id="quest-server-add" class="ghost-button" type="button">Quest-Server hinzufügen</button>
+                </div>
               </fieldset>
 
               <fieldset class="settings-wide">
