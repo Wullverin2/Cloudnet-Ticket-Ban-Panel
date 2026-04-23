@@ -100,6 +100,7 @@ public final class CloudNetFacade {
   private final PanelSettingsStore settingsStore;
   private final PermissionBridgeStore permissionBridgeStore;
   private final PlayerActionStore playerActionStore;
+  private final CloudNetRestConsoleClient cloudNetRestConsoleClient;
 
   public CloudNetFacade(
     CloudServiceProvider cloudServiceProvider,
@@ -131,6 +132,7 @@ public final class CloudNetFacade {
     this.settingsStore = settingsStore;
     this.permissionBridgeStore = permissionBridgeStore;
     this.playerActionStore = playerActionStore;
+    this.cloudNetRestConsoleClient = new CloudNetRestConsoleClient(settingsStore, configuration.consoleLineLimit());
   }
 
   public MetaView meta() {
@@ -316,11 +318,20 @@ public final class CloudNetFacade {
 
   public CloudNetConsoleView cloudNetConsole(int requestedLimit) {
     var effectiveLimit = this.clamp(requestedLimit, 25, this.configuration.consoleLineLimit());
+    var restConsole = this.cloudNetRestConsoleClient.console(effectiveLimit);
+    if (restConsole.handled()) {
+      return new CloudNetConsoleView(
+        effectiveLimit,
+        restConsole.lines(),
+        restConsole.source(),
+        Instant.now().toString());
+    }
+
     var screenName = this.nullableText(this.settingsStore.current().cloudNetScreenName());
     if (screenName == null) {
       return new CloudNetConsoleView(
         effectiveLimit,
-        List.of("Kein CloudNet-Screen konfiguriert. Bitte in den Einstellungen den GNU-Screen-Namen eintragen."),
+        List.of("Keine CloudNet-Konsole konfiguriert. Bitte CloudNet REST oder einen GNU-Screen-Namen in den Einstellungen eintragen."),
         null,
         Instant.now().toString());
     }
@@ -338,6 +349,10 @@ public final class CloudNetFacade {
       List.of("GNU Screen '" + screenName + "' konnte nicht gelesen werden: " + screenCapture.message()),
       "screen:" + screenName,
       Instant.now().toString());
+  }
+
+  public void close() {
+    this.cloudNetRestConsoleClient.close();
   }
 
   public CloudNetCommandView runCloudNetCommand(Document request) {
@@ -694,6 +709,10 @@ public final class CloudNetFacade {
       settings.brandLogoUrl(),
       settings.ticketCategories(),
       settings.cloudNetScreenName(),
+      settings.cloudNetRestBaseUrl(),
+      settings.cloudNetRestUsername(),
+      settings.cloudNetRestPassword() != null && !settings.cloudNetRestPassword().isBlank(),
+      settings.cloudNetRestThreshold(),
       settings.questEditorServers().stream()
         .map(server -> server.normalize(0).toView())
         .toList(),
@@ -1761,6 +1780,10 @@ public final class CloudNetFacade {
     String brandLogoUrl,
     List<String> ticketCategories,
     String cloudNetScreenName,
+    String cloudNetRestBaseUrl,
+    String cloudNetRestUsername,
+    boolean cloudNetRestPasswordConfigured,
+    String cloudNetRestThreshold,
     List<QuestEditorServerView> questEditorServers,
     String appealBrandName,
     String appealTitle,

@@ -1070,11 +1070,38 @@
 
               <fieldset>
                 <legend>CloudNet Console</legend>
+                <div class="form-grid">
+                  <label>
+                    <span>CloudNet REST Basis-URL</span>
+                    <input name="cloudNetRestBaseUrl" type="url" placeholder="http://127.0.0.1:2812 oder https://cloud.example.de/api/v3">
+                  </label>
+                  <label>
+                    <span>REST Benutzer</span>
+                    <input name="cloudNetRestUsername" type="text" placeholder="panel-console">
+                  </label>
+                  <label>
+                    <span>REST Passwort</span>
+                    <input name="cloudNetRestPassword" type="password" placeholder="nicht gesetzt">
+                  </label>
+                  <label>
+                    <span>Live-Konsole Log-Level</span>
+                    <select name="cloudNetRestThreshold">
+                      <option value="ALL">ALL</option>
+                      <option value="TRACE">TRACE</option>
+                      <option value="DEBUG">DEBUG</option>
+                      <option value="INFO">INFO</option>
+                      <option value="WARN">WARN</option>
+                      <option value="ERROR">ERROR</option>
+                      <option value="OFF">OFF</option>
+                    </select>
+                  </label>
+                </div>
+                <p class="muted">Wenn Basis-URL, Benutzer und Passwort gesetzt sind, nutzt das Panel CloudNet REST mit `/api/v3/node/logLines` und `/api/v3/node/liveConsole` für die aktuelle Live-Konsole.</p>
                 <label>
-                  <span>GNU Screen Name</span>
+                  <span>GNU Screen Name Fallback</span>
                   <input name="cloudNetScreenName" type="text" placeholder="z.B. cloudnet">
                 </label>
-                <p class="muted">Wenn CloudNet in einer GNU-screen-Session läuft, liest das Panel den Scrollback über diesen Screen-Namen. Leer lassen = Logdatei-Fallback nutzen.</p>
+                <p class="muted">Der Screen wird nur verwendet, wenn CloudNet REST nicht konfiguriert ist. So bleibt ein Fallback erhalten, falls das Rest-Modul nicht erreichbar ist.</p>
               </fieldset>
 
               <fieldset class="settings-wide">

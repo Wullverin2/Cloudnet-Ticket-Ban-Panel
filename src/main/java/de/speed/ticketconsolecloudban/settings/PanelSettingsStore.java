@@ -48,6 +48,10 @@ public final class PanelSettingsStore {
       text(request, "brandLogoUrl", existing.brandLogoUrl()),
       ticketCategories(request, existing.ticketCategories()),
       text(request, "cloudNetScreenName", existing.cloudNetScreenName()),
+      normalizeCloudNetRestBaseUrl(text(request, "cloudNetRestBaseUrl", existing.cloudNetRestBaseUrl())),
+      text(request, "cloudNetRestUsername", existing.cloudNetRestUsername()),
+      password(request, "cloudNetRestPassword", existing.cloudNetRestPassword()),
+      normalizeCloudNetRestThreshold(text(request, "cloudNetRestThreshold", existing.cloudNetRestThreshold())),
       questEditorServers(request, existing.questEditorServers()),
       textOrDefaultWhenBlank(request, "appealBrandName", existing.appealBrandName()),
       textOrDefaultWhenBlank(request, "appealTitle", existing.appealTitle()),
@@ -116,6 +120,10 @@ public final class PanelSettingsStore {
       source.brandLogoUrl(),
       source.ticketCategories(),
       source.cloudNetScreenName(),
+      source.cloudNetRestBaseUrl(),
+      source.cloudNetRestUsername(),
+      source.cloudNetRestPassword(),
+      source.cloudNetRestThreshold(),
       source.questEditorServers(),
       source.appealBrandName(),
       source.appealTitle(),
@@ -180,6 +188,10 @@ public final class PanelSettingsStore {
       source.brandLogoUrl() == null ? "" : source.brandLogoUrl(),
       sanitizeTicketCategories(source.ticketCategories(), defaults.ticketCategories()),
       source.cloudNetScreenName() == null ? "" : source.cloudNetScreenName(),
+      normalizeCloudNetRestBaseUrl(source.cloudNetRestBaseUrl()),
+      source.cloudNetRestUsername() == null ? "" : source.cloudNetRestUsername(),
+      source.cloudNetRestPassword() == null ? "" : source.cloudNetRestPassword(),
+      normalizeCloudNetRestThreshold(defaultIfBlank(source.cloudNetRestThreshold(), defaults.cloudNetRestThreshold())),
       sanitizeQuestEditorServers(source.questEditorServers(), defaults.questEditorServers()),
       defaultIfBlank(source.appealBrandName(), defaults.appealBrandName()),
       defaultIfBlank(source.appealTitle(), defaults.appealTitle()),
@@ -409,6 +421,18 @@ public final class PanelSettingsStore {
     return switch (normalized) {
       case "SFTP", "ONEDRIVE" -> normalized;
       default -> "LOCAL";
+    };
+  }
+
+  private static String normalizeCloudNetRestBaseUrl(String value) {
+    return value == null ? "" : value.trim().replaceAll("/+$", "");
+  }
+
+  private static String normalizeCloudNetRestThreshold(String value) {
+    var normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    return switch (normalized) {
+      case "ALL", "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF" -> normalized;
+      default -> "INFO";
     };
   }
 }

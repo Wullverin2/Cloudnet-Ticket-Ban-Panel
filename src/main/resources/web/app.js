@@ -1922,6 +1922,13 @@ function renderSettings() {
     `<span class="badge">${escapeHtml(category)}</span>`
   )).join("") || `<span class="muted">Keine Ticket-Arten hinterlegt.</span>`;
   setFormValue(form, "cloudNetScreenName", settings.cloudNetScreenName || "");
+  setFormValue(form, "cloudNetRestBaseUrl", settings.cloudNetRestBaseUrl || "");
+  setFormValue(form, "cloudNetRestUsername", settings.cloudNetRestUsername || "");
+  setFormValue(form, "cloudNetRestPassword", "");
+  if (form.cloudNetRestPassword) {
+    form.cloudNetRestPassword.placeholder = settings.cloudNetRestPasswordConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
+  }
+  setFormValue(form, "cloudNetRestThreshold", settings.cloudNetRestThreshold || "INFO");
   renderQuestServerSettings(settings.questEditorServers || []);
   setFormValue(form, "appealBrandName", settings.appealBrandName || settings.brandName || "Craftplay.de");
   setFormValue(form, "appealTitle", settings.appealTitle || "Entbannungsantrag");
@@ -2703,6 +2710,9 @@ async function handleSettingsSubmit(event) {
     brandLogoUrl: String(form.get("brandLogoUrl") || "").trim(),
     ticketCategories: splitLinesOrCsv(form.get("ticketCategories")),
     cloudNetScreenName: String(form.get("cloudNetScreenName") || "").trim(),
+    cloudNetRestBaseUrl: String(form.get("cloudNetRestBaseUrl") || "").trim(),
+    cloudNetRestUsername: String(form.get("cloudNetRestUsername") || "").trim(),
+    cloudNetRestThreshold: String(form.get("cloudNetRestThreshold") || "INFO").trim(),
     questEditorServers: readQuestServerSettings(),
     appealBrandName: String(form.get("appealBrandName") || "").trim(),
     appealTitle: String(form.get("appealTitle") || "").trim(),
@@ -2749,10 +2759,14 @@ async function handleSettingsSubmit(event) {
   };
 
   const smtpPassword = String(form.get("smtpPassword") || "");
+  const cloudNetRestPassword = String(form.get("cloudNetRestPassword") || "");
   const appealEvidenceSftpPassword = String(form.get("appealEvidenceSftpPassword") || "");
   const appealEvidenceOneDriveBearerToken = String(form.get("appealEvidenceOneDriveBearerToken") || "");
   const liteBansDatabasePassword = String(form.get("liteBansDatabasePassword") || "");
   const liteBansBridgeSecret = String(form.get("liteBansBridgeSecret") || "");
+  if (cloudNetRestPassword) {
+    payload.cloudNetRestPassword = cloudNetRestPassword;
+  }
   if (smtpPassword) {
     payload.smtpPassword = smtpPassword;
   }

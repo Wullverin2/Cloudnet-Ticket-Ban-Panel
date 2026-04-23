@@ -34,6 +34,7 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
 
   private PanelHttpServer httpServer;
   private BanAppealHttpServer appealHttpServer;
+  private CloudNetFacade facade;
 
   @ModuleTask
   public void startModule(
@@ -71,6 +72,7 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
       settingsStore,
       new PermissionBridgeStore(this.moduleWrapper().dataDirectory(), panelDataBackend),
       playerActionStore);
+    this.facade = facade;
     var appealService = new BanAppealService(
       configuration,
       banStore,
@@ -125,6 +127,10 @@ public final class TicketConsoleCloudBanModule extends DriverModule {
     if (this.appealHttpServer != null) {
       this.appealHttpServer.stop();
       this.appealHttpServer = null;
+    }
+    if (this.facade != null) {
+      this.facade.close();
+      this.facade = null;
     }
   }
 }
