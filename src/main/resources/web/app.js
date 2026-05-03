@@ -2154,8 +2154,8 @@ function handleQuestServerSettingsClick(event) {
 function renderServerShopServerSettings(servers) {
   const values = asArray(servers);
   const effectiveServers = values.length ? values : [{
-    id: "survival",
-    name: "Survival",
+    id: "Testserver-1",
+    name: "Testserver-1",
     host: "127.0.0.1",
     port: 8096,
     enabled: false,
@@ -2182,11 +2182,11 @@ function serverShopServerSettingsRow(server, index) {
       <div class="form-grid">
         <label>
           <span>ID</span>
-          <input data-serversshop-server-field="id" type="text" value="${escapeAttr(server.id || `shop-server-${index + 1}`)}" placeholder="survival">
+          <input data-serversshop-server-field="id" type="text" value="${escapeAttr(server.id || `Testserver-${index + 1}`)}" placeholder="Testserver-1">
         </label>
         <label>
           <span>Name im Panel</span>
-          <input data-serversshop-server-field="name" type="text" value="${escapeAttr(server.name || "Survival")}" placeholder="Survival">
+          <input data-serversshop-server-field="name" type="text" value="${escapeAttr(server.name || "Testserver-1")}" placeholder="Testserver-1">
         </label>
         <label>
           <span>IP oder Host</span>
@@ -2221,7 +2221,7 @@ function readServerShopServerSettings() {
   return [...elements.serverShopServerSettingsList.querySelectorAll("[data-serversshop-server-row]")].map((row, index) => {
     const value = field => row.querySelector(`[data-serversshop-server-field="${field}"]`);
     return {
-      id: String(value("id")?.value || `shop-server-${index + 1}`).trim(),
+      id: String(value("id")?.value || `Testserver-${index + 1}`).trim(),
       name: String(value("name")?.value || "").trim(),
       host: String(value("host")?.value || "127.0.0.1").trim(),
       port: Number(value("port")?.value || 8096),
@@ -2237,8 +2237,8 @@ function readServerShopServerSettings() {
 function addServerShopServerSettingsRow() {
   const servers = readServerShopServerSettings();
   servers.push({
-    id: `shop-server-${servers.length + 1}`,
-    name: `Shop-Server ${servers.length + 1}`,
+    id: `Testserver-${servers.length + 1}`,
+    name: `Testserver-${servers.length + 1}`,
     host: "127.0.0.1",
     port: 8096,
     enabled: true,
