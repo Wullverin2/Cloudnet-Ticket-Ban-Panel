@@ -17,6 +17,7 @@ import de.speed.ticketconsolecloudban.permission.PermissionAuditEntry;
 import de.speed.ticketconsolecloudban.permission.PermissionSubject;
 import de.speed.ticketconsolecloudban.quest.QuestEditorServerView;
 import de.speed.ticketconsolecloudban.player.PlayerActionRequest;
+import de.speed.ticketconsolecloudban.shop.ServerShopServerView;
 import de.speed.ticketconsolecloudban.store.BanStore;
 import de.speed.ticketconsolecloudban.store.BanAppealStore;
 import de.speed.ticketconsolecloudban.store.PermissionBridgeStore;
@@ -714,6 +715,9 @@ public final class CloudNetFacade {
       settings.cloudNetRestPassword() != null && !settings.cloudNetRestPassword().isBlank(),
       settings.cloudNetRestThreshold(),
       settings.questEditorServers().stream()
+        .map(server -> server.normalize(0).toView())
+        .toList(),
+      settings.serverShopServers().stream()
         .map(server -> server.normalize(0).toView())
         .toList(),
       settings.appealBrandName(),
@@ -1785,6 +1789,7 @@ public final class CloudNetFacade {
     boolean cloudNetRestPasswordConfigured,
     String cloudNetRestThreshold,
     List<QuestEditorServerView> questEditorServers,
+    List<ServerShopServerView> serverShopServers,
     String appealBrandName,
     String appealTitle,
     String appealStatusTitle,

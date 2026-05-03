@@ -44,6 +44,7 @@ const state = {
   questEditorQuests: [],
   selectedQuestServerId: localStorage.getItem("tccb-quest-server") || "",
   selectedQuestId: localStorage.getItem("tccb-quest-id") || "",
+  selectedServerShopServerId: localStorage.getItem("tccb-serversshop-server") || "",
   settings: null,
   selectedPermissionServer: localStorage.getItem("tccb-lp-server") || "proxy",
   selectedPermissionSubject: localStorage.getItem("tccb-lp-subject") || "",
@@ -225,10 +226,25 @@ function bindElements() {
   elements.questTaskTable = document.getElementById("quest-task-table");
   elements.questRewardTable = document.getElementById("quest-reward-table");
   elements.questRawYaml = document.getElementById("quest-raw-yaml");
+  elements.serverShopRefresh = document.getElementById("serversshop-refresh");
+  elements.serverShopServerSelect = document.getElementById("serversshop-server-select");
+  elements.serverShopConnectionState = document.getElementById("serversshop-connection-state");
+  elements.serverShopApiBaseUrl = document.getElementById("serversshop-api-base-url");
+  elements.serverShopApiTokenState = document.getElementById("serversshop-api-token-state");
+  elements.serverShopCategoryCount = document.getElementById("serversshop-category-count");
+  elements.serverShopItemCount = document.getElementById("serversshop-item-count");
+  elements.serverShopDetailTitle = document.getElementById("serversshop-detail-title");
+  elements.serverShopDetailSubtitle = document.getElementById("serversshop-detail-subtitle");
+  elements.serverShopLoad = document.getElementById("serversshop-load");
+  elements.serverShopSave = document.getElementById("serversshop-save");
+  elements.serverShopCategoryTable = document.getElementById("serversshop-category-table");
+  elements.serverShopStatus = document.getElementById("serversshop-status");
   elements.settingsForm = document.getElementById("settings-form");
   elements.settingsStatus = document.getElementById("settings-status");
   elements.questServerSettingsList = document.getElementById("quest-server-settings-list");
   elements.questServerAdd = document.getElementById("quest-server-add");
+  elements.serverShopServerSettingsList = document.getElementById("serversshop-server-settings-list");
+  elements.serverShopServerAdd = document.getElementById("serversshop-server-add");
   elements.oneDriveConnect = document.getElementById("onedrive-connect");
   elements.oneDriveDisconnect = document.getElementById("onedrive-disconnect");
   elements.oneDriveFoldersRefresh = document.getElementById("onedrive-folders-refresh");
@@ -359,9 +375,17 @@ function bindEvents() {
   elements.questSearch.addEventListener("input", renderQuestEditorList);
   elements.questCategoryFilter.addEventListener("change", renderQuestEditorList);
   elements.questLoadRaw.addEventListener("click", loadQuestRawYaml);
+  elements.serverShopRefresh.addEventListener("click", renderServerShopEditor);
+  elements.serverShopServerSelect.addEventListener("change", () => {
+    state.selectedServerShopServerId = elements.serverShopServerSelect.value || "";
+    localStorage.setItem("tccb-serversshop-server", state.selectedServerShopServerId);
+    renderServerShopEditor();
+  });
   elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
   elements.questServerAdd.addEventListener("click", addQuestServerSettingsRow);
   elements.questServerSettingsList.addEventListener("click", handleQuestServerSettingsClick);
+  elements.serverShopServerAdd.addEventListener("click", addServerShopServerSettingsRow);
+  elements.serverShopServerSettingsList.addEventListener("click", handleServerShopServerSettingsClick);
   elements.oneDriveConnect.addEventListener("click", handleOneDriveConnect);
   elements.oneDriveDisconnect.addEventListener("click", handleOneDriveDisconnect);
   elements.oneDriveFoldersRefresh.addEventListener("click", () => loadOneDriveFolders(true));
@@ -1930,6 +1954,8 @@ function renderSettings() {
   }
   setFormValue(form, "cloudNetRestThreshold", settings.cloudNetRestThreshold || "INFO");
   renderQuestServerSettings(settings.questEditorServers || []);
+  renderServerShopServerSettings(settings.serverShopServers || []);
+  renderServerShopEditor();
   setFormValue(form, "appealBrandName", settings.appealBrandName || settings.brandName || "Craftplay.de");
   setFormValue(form, "appealTitle", settings.appealTitle || "Entbannungsantrag");
   setFormValue(form, "appealStatusTitle", settings.appealStatusTitle || "Dein Entbannungsantrag");
@@ -2123,6 +2149,145 @@ function handleQuestServerSettingsClick(event) {
   if (!elements.questServerSettingsList.querySelector("[data-quest-server-row]")) {
     renderQuestServerSettings([]);
   }
+}
+
+function renderServerShopServerSettings(servers) {
+  const values = asArray(servers);
+  const effectiveServers = values.length ? values : [{
+    id: "survival",
+    name: "Survival",
+    host: "127.0.0.1",
+    port: 8096,
+    enabled: false,
+    basePath: "/api/craftplayshop/v1",
+    connectTimeoutMillis: 3000,
+    readTimeoutMillis: 5000,
+    tokenConfigured: false,
+  }];
+
+  elements.serverShopServerSettingsList.innerHTML = effectiveServers.map((server, index) => serverShopServerSettingsRow(server, index)).join("");
+}
+
+function serverShopServerSettingsRow(server, index) {
+  const tokenPlaceholder = server.tokenConfigured ? "gesetzt, leer lassen = behalten" : "Token eintragen";
+  return `
+    <article class="quest-server-settings-row" data-serversshop-server-row>
+      <div class="quest-server-settings-head">
+        <label class="inline-label">
+          <input data-serversshop-server-field="enabled" type="checkbox" ${server.enabled ? "checked" : ""}>
+          <span>Aktiv</span>
+        </label>
+        <button data-serversshop-server-remove type="button" class="ghost-button">Entfernen</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>ID</span>
+          <input data-serversshop-server-field="id" type="text" value="${escapeAttr(server.id || `shop-server-${index + 1}`)}" placeholder="survival">
+        </label>
+        <label>
+          <span>Name im Panel</span>
+          <input data-serversshop-server-field="name" type="text" value="${escapeAttr(server.name || "Survival")}" placeholder="Survival">
+        </label>
+        <label>
+          <span>IP oder Host</span>
+          <input data-serversshop-server-field="host" type="text" value="${escapeAttr(server.host || "127.0.0.1")}" placeholder="127.0.0.1">
+        </label>
+        <label>
+          <span>Port</span>
+          <input data-serversshop-server-field="port" type="number" min="1" max="65535" value="${escapeAttr(server.port || 8096)}">
+        </label>
+        <label>
+          <span>API-Pfad</span>
+          <input data-serversshop-server-field="basePath" type="text" value="${escapeAttr(server.basePath || "/api/craftplayshop/v1")}">
+        </label>
+        <label>
+          <span>Token</span>
+          <input data-serversshop-server-field="token" type="password" placeholder="${escapeAttr(tokenPlaceholder)}">
+        </label>
+        <label>
+          <span>Connect Timeout ms</span>
+          <input data-serversshop-server-field="connectTimeoutMillis" type="number" min="500" max="30000" value="${escapeAttr(server.connectTimeoutMillis || 3000)}">
+        </label>
+        <label>
+          <span>Read Timeout ms</span>
+          <input data-serversshop-server-field="readTimeoutMillis" type="number" min="500" max="60000" value="${escapeAttr(server.readTimeoutMillis || 5000)}">
+        </label>
+      </div>
+    </article>
+  `;
+}
+
+function readServerShopServerSettings() {
+  return [...elements.serverShopServerSettingsList.querySelectorAll("[data-serversshop-server-row]")].map((row, index) => {
+    const value = field => row.querySelector(`[data-serversshop-server-field="${field}"]`);
+    return {
+      id: String(value("id")?.value || `shop-server-${index + 1}`).trim(),
+      name: String(value("name")?.value || "").trim(),
+      host: String(value("host")?.value || "127.0.0.1").trim(),
+      port: Number(value("port")?.value || 8096),
+      enabled: Boolean(value("enabled")?.checked),
+      basePath: String(value("basePath")?.value || "/api/craftplayshop/v1").trim(),
+      token: String(value("token")?.value || ""),
+      connectTimeoutMillis: Number(value("connectTimeoutMillis")?.value || 3000),
+      readTimeoutMillis: Number(value("readTimeoutMillis")?.value || 5000),
+    };
+  });
+}
+
+function addServerShopServerSettingsRow() {
+  const servers = readServerShopServerSettings();
+  servers.push({
+    id: `shop-server-${servers.length + 1}`,
+    name: `Shop-Server ${servers.length + 1}`,
+    host: "127.0.0.1",
+    port: 8096,
+    enabled: true,
+    basePath: "/api/craftplayshop/v1",
+    tokenConfigured: false,
+    connectTimeoutMillis: 3000,
+    readTimeoutMillis: 5000,
+  });
+  renderServerShopServerSettings(servers);
+}
+
+function handleServerShopServerSettingsClick(event) {
+  const button = event.target.closest("[data-serversshop-server-remove]");
+  if (!button) {
+    return;
+  }
+  const row = button.closest("[data-serversshop-server-row]");
+  row?.remove();
+  if (!elements.serverShopServerSettingsList.querySelector("[data-serversshop-server-row]")) {
+    renderServerShopServerSettings([]);
+  }
+}
+
+function renderServerShopEditor() {
+  const servers = asArray(state.settings?.serverShopServers).filter(server => server.enabled);
+  if (!servers.some(server => server.id === state.selectedServerShopServerId)) {
+    state.selectedServerShopServerId = servers[0]?.id || "";
+  }
+  if (elements.serverShopServerSelect) {
+    elements.serverShopServerSelect.innerHTML = servers.length
+      ? servers.map(server => `<option value="${escapeAttr(server.id)}">${escapeHtml(server.name || server.id)}</option>`).join("")
+      : `<option value="">Kein Server konfiguriert</option>`;
+    elements.serverShopServerSelect.value = state.selectedServerShopServerId;
+  }
+
+  const selected = servers.find(server => server.id === state.selectedServerShopServerId);
+  elements.serverShopConnectionState.textContent = selected ? "API vorbereitet" : "Nicht verbunden";
+  elements.serverShopApiBaseUrl.textContent = selected ? selected.baseUrl || `${selected.host}:${selected.port}${selected.basePath}` : "-";
+  elements.serverShopApiTokenState.textContent = selected?.tokenConfigured ? "Token gesetzt" : "Kein Token";
+  elements.serverShopCategoryCount.textContent = "0";
+  elements.serverShopItemCount.textContent = "0";
+  elements.serverShopDetailTitle.textContent = selected ? selected.name || selected.id : "Kein Server ausgewählt";
+  elements.serverShopDetailSubtitle.textContent = selected
+    ? "ServerShop-Kategorien werden geladen, sobald die CraftplayShop Panel-API verfügbar ist."
+    : "Lege in den Einstellungen mindestens einen aktiven CraftplayShop-Server an.";
+  elements.serverShopLoad.disabled = true;
+  elements.serverShopSave.disabled = true;
+  elements.serverShopCategoryTable.innerHTML = `<tr><td colspan="4" class="muted">Noch keine CraftplayShop Panel-API verbunden.</td></tr>`;
+  elements.serverShopStatus.textContent = "Der Ingame/Adminshop-Editor ist im Panel vorbereitet. Schreiben bleibt deaktiviert, bis CraftplayShop eine gesicherte Panel-API bereitstellt.";
 }
 
 function renderOneDriveFolderOptions(selectedPath) {
@@ -2714,6 +2879,7 @@ async function handleSettingsSubmit(event) {
     cloudNetRestUsername: String(form.get("cloudNetRestUsername") || "").trim(),
     cloudNetRestThreshold: String(form.get("cloudNetRestThreshold") || "INFO").trim(),
     questEditorServers: readQuestServerSettings(),
+    serverShopServers: readServerShopServerSettings(),
     appealBrandName: String(form.get("appealBrandName") || "").trim(),
     appealTitle: String(form.get("appealTitle") || "").trim(),
     appealStatusTitle: String(form.get("appealStatusTitle") || "").trim(),

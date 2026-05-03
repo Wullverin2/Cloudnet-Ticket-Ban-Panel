@@ -3,6 +3,7 @@ package de.speed.ticketconsolecloudban.settings;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.appeal.OneDriveOAuthClient;
 import de.speed.ticketconsolecloudban.quest.QuestEditorServerSettings;
+import de.speed.ticketconsolecloudban.shop.ServerShopServerSettings;
 import de.speed.ticketconsolecloudban.store.LocalPanelDataBackend;
 import de.speed.ticketconsolecloudban.store.PanelDataBackend;
 import eu.cloudnetservice.driver.document.Document;
@@ -53,6 +54,7 @@ public final class PanelSettingsStore {
       password(request, "cloudNetRestPassword", existing.cloudNetRestPassword()),
       normalizeCloudNetRestThreshold(text(request, "cloudNetRestThreshold", existing.cloudNetRestThreshold())),
       questEditorServers(request, existing.questEditorServers()),
+      serverShopServers(request, existing.serverShopServers()),
       textOrDefaultWhenBlank(request, "appealBrandName", existing.appealBrandName()),
       textOrDefaultWhenBlank(request, "appealTitle", existing.appealTitle()),
       textOrDefaultWhenBlank(request, "appealStatusTitle", existing.appealStatusTitle()),
@@ -125,6 +127,7 @@ public final class PanelSettingsStore {
       source.cloudNetRestPassword(),
       source.cloudNetRestThreshold(),
       source.questEditorServers(),
+      source.serverShopServers(),
       source.appealBrandName(),
       source.appealTitle(),
       source.appealStatusTitle(),
@@ -193,6 +196,7 @@ public final class PanelSettingsStore {
       source.cloudNetRestPassword() == null ? "" : source.cloudNetRestPassword(),
       normalizeCloudNetRestThreshold(defaultIfBlank(source.cloudNetRestThreshold(), defaults.cloudNetRestThreshold())),
       sanitizeQuestEditorServers(source.questEditorServers(), defaults.questEditorServers()),
+      sanitizeServerShopServers(source.serverShopServers(), defaults.serverShopServers()),
       defaultIfBlank(source.appealBrandName(), defaults.appealBrandName()),
       defaultIfBlank(source.appealTitle(), defaults.appealTitle()),
       defaultIfBlank(source.appealStatusTitle(), defaults.appealStatusTitle()),
@@ -367,6 +371,73 @@ public final class PanelSettingsStore {
         "",
         QuestEditorServerSettings.DEFAULT_CONNECT_TIMEOUT_MILLIS,
         QuestEditorServerSettings.DEFAULT_READ_TIMEOUT_MILLIS));
+    }
+    return List.copyOf(servers);
+  }
+
+  private static List<ServerShopServerSettings> serverShopServers(
+    Document request,
+    List<ServerShopServerSettings> fallback
+  ) {
+    if (!request.contains("serverShopServers")) {
+      return sanitizeServerShopServers(fallback, List.of());
+    }
+
+    var existingById = new HashMap<String, ServerShopServerSettings>();
+    for (var existing : sanitizeServerShopServers(fallback, List.of())) {
+      existingById.put(existing.id(), existing);
+    }
+
+    var values = request.readObject(
+      "serverShopServers",
+      ServerShopServerSettings[].class,
+      new ServerShopServerSettings[0]);
+    var normalized = new ArrayList<ServerShopServerSettings>();
+    for (int index = 0; index < values.length; index++) {
+      var value = values[index];
+      if (value == null) {
+        continue;
+      }
+      var server = value.normalize(index);
+      var previous = existingById.get(server.id());
+      if ((server.token() == null || server.token().isBlank())
+        && previous != null
+        && previous.token() != null
+        && !previous.token().isBlank()) {
+        server = server.withToken(previous.token());
+      }
+      normalized.add(server);
+    }
+    return sanitizeServerShopServers(normalized, fallback);
+  }
+
+  private static List<ServerShopServerSettings> sanitizeServerShopServers(
+    List<ServerShopServerSettings> values,
+    List<ServerShopServerSettings> fallback
+  ) {
+    var servers = new ArrayList<ServerShopServerSettings>();
+    var ids = new LinkedHashSet<String>();
+    if (values != null) {
+      for (var value : values) {
+        if (value == null) {
+          continue;
+        }
+        var server = value.normalize(servers.size());
+        var baseId = server.id();
+        var effectiveId = baseId;
+        var duplicate = 2;
+        while (ids.contains(effectiveId)) {
+          effectiveId = baseId + "-" + duplicate++;
+        }
+        ids.add(effectiveId);
+        servers.add(effectiveId.equals(baseId) ? server : server.withId(effectiveId));
+      }
+    }
+    if (servers.isEmpty() && fallback != null && fallback != values) {
+      return sanitizeServerShopServers(fallback, List.of());
+    }
+    if (servers.isEmpty()) {
+      servers.add(ServerShopServerSettings.defaultServer());
     }
     return List.copyOf(servers);
   }

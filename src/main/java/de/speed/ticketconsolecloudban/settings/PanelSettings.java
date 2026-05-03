@@ -3,6 +3,7 @@ package de.speed.ticketconsolecloudban.settings;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
 import de.speed.ticketconsolecloudban.appeal.OneDriveOAuthClient;
 import de.speed.ticketconsolecloudban.quest.QuestEditorServerSettings;
+import de.speed.ticketconsolecloudban.shop.ServerShopServerSettings;
 import java.util.List;
 
 public record PanelSettings(
@@ -15,6 +16,7 @@ public record PanelSettings(
   String cloudNetRestPassword,
   String cloudNetRestThreshold,
   List<QuestEditorServerSettings> questEditorServers,
+  List<ServerShopServerSettings> serverShopServers,
   String appealBrandName,
   String appealTitle,
   String appealStatusTitle,
@@ -98,6 +100,7 @@ public record PanelSettings(
       "",
       "INFO",
       List.of(QuestEditorServerSettings.fromConfiguration(configuration)),
+      List.of(ServerShopServerSettings.defaultServer()),
       configuration.brandName(),
       DEFAULT_APPEAL_TITLE,
       DEFAULT_APPEAL_STATUS_TITLE,

@@ -106,6 +106,7 @@
       <button data-page-target="security" data-permission="users.manage" type="button">Rechte</button>
       <button data-page-target="luckperms" data-permission="permissions.proxy.manage,permissions.server.manage" type="button">LuckPerms</button>
       <button data-page-target="quest-editor" data-permission="quests.editor.view" type="button">Quests</button>
+      <button data-page-target="serversshop" data-permission="settings.manage" type="button">Serversshop</button>
       <button data-page-target="settings" data-permission="settings.manage" type="button">Einstellungen</button>
     </nav>
 
@@ -1032,6 +1033,94 @@
       </div>
     </section>
 
+    <section id="page-serversshop" class="page-panel hidden" data-page="serversshop" data-permission="settings.manage">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">CraftplayShop</p>
+              <h2>Serversshop</h2>
+              <p class="muted">Adminshop-Editor mit Serverauswahl. Die Server werden in den Panel-Einstellungen gepflegt.</p>
+            </div>
+            <button id="serversshop-refresh" class="ghost-button" type="button">Aktualisieren</button>
+          </div>
+
+          <div class="quest-editor-layout">
+            <aside class="quest-editor-sidebar">
+              <label>
+                <span>Minecraft-Server</span>
+                <select id="serversshop-server-select">
+                  <option value="">Kein Server konfiguriert</option>
+                </select>
+              </label>
+
+              <div class="quest-editor-status-card">
+                <span class="metric-label">Verbindung</span>
+                <strong id="serversshop-connection-state">Nicht verbunden</strong>
+                <small id="serversshop-api-base-url" class="muted">-</small>
+                <small id="serversshop-api-token-state" class="muted">-</small>
+              </div>
+
+              <div class="quest-stat-grid">
+                <article class="metric-card compact-metric">
+                  <span class="metric-label">Kategorien</span>
+                  <strong id="serversshop-category-count">0</strong>
+                </article>
+                <article class="metric-card compact-metric">
+                  <span class="metric-label">Produkte</span>
+                  <strong id="serversshop-item-count">0</strong>
+                </article>
+              </div>
+            </aside>
+
+            <section class="quest-editor-workspace">
+              <div class="panel-head compact-head">
+                <div>
+                  <p class="eyebrow">Editor</p>
+                  <h2 id="serversshop-detail-title">Kein Server ausgewählt</h2>
+                  <p id="serversshop-detail-subtitle" class="muted">Wähle links einen CraftplayShop-Server aus.</p>
+                </div>
+                <div class="action-row">
+                  <button id="serversshop-load" class="ghost-button" type="button" disabled>Shop laden</button>
+                  <button id="serversshop-save" type="button" disabled>Speichern</button>
+                </div>
+              </div>
+
+              <div class="quest-editor-section">
+                <div>
+                  <p class="eyebrow">AdminShop</p>
+                  <h2>Kategorien</h2>
+                </div>
+                <div class="table-shell quest-table-shell">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Slot</th>
+                        <th>Items</th>
+                      </tr>
+                    </thead>
+                    <tbody id="serversshop-category-table">
+                      <tr><td colspan="4" class="muted">Noch keine CraftplayShop Panel-API verbunden.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="quest-editor-section">
+                <div>
+                  <p class="eyebrow">Status</p>
+                  <h2>Phase 1</h2>
+                </div>
+                <p id="serversshop-status" class="muted">Der Tab ist vorbereitet. Lesen und Schreiben wird aktiv, sobald CraftplayShop eine gesicherte Panel-API bereitstellt.</p>
+              </div>
+            </section>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <section id="page-settings" class="page-panel hidden" data-page="settings" data-permission="settings.manage">
       <div class="panel-grid">
         <article class="panel-card panel-wide">
@@ -1110,6 +1199,15 @@
                 <div id="quest-server-settings-list" class="quest-server-settings-list"></div>
                 <div class="action-row">
                   <button id="quest-server-add" class="ghost-button" type="button">Quest-Server hinzufügen</button>
+                </div>
+              </fieldset>
+
+              <fieldset class="settings-wide">
+                <legend>CraftplayShop Server</legend>
+                <p class="muted">Diese Server erscheinen im Serversshop-Tab. Der Token ist für die spätere CraftplayShop Panel-API vorgesehen.</p>
+                <div id="serversshop-server-settings-list" class="quest-server-settings-list"></div>
+                <div class="action-row">
+                  <button id="serversshop-server-add" class="ghost-button" type="button">Shop-Server hinzufügen</button>
                 </div>
               </fieldset>
 
