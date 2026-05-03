@@ -12,8 +12,8 @@ public record ServerShopServerSettings(
   int readTimeoutMillis
 ) {
 
-  public static final String DEFAULT_ID = "Testserver-1";
-  public static final String DEFAULT_NAME = "Testserver-1";
+  public static final String DEFAULT_ID = "server-1";
+  public static final String DEFAULT_NAME = "Server 1";
   public static final String DEFAULT_HOST = "127.0.0.1";
   public static final int DEFAULT_PORT = 8096;
   public static final String DEFAULT_BASE_PATH = "/api/craftplayshop/v1";
