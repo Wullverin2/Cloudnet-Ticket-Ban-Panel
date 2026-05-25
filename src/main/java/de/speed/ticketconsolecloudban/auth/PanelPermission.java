@@ -19,6 +19,8 @@ public final class PanelPermission {
   public static final String SERVER_PERMISSIONS_MANAGE = "permissions.server.manage";
   public static final String SETTINGS_MANAGE = "settings.manage";
   public static final String QUEST_EDITOR_VIEW = "quests.editor.view";
+  public static final String JOINBOT_VIEW = "joinbot.view";
+  public static final String JOINBOT_MANAGE = "joinbot.manage";
 
   private static final List<PermissionView> CATALOG = List.of(
     new PermissionView(ALL, "System", "Alle Rechte", "Vollzugriff auf alle Panel-Funktionen."),
@@ -35,7 +37,9 @@ public final class PanelPermission {
     new PermissionView(PROXY_PERMISSIONS_MANAGE, "Rechte", "Proxy- und LuckPerms-Rechte", "LuckPerms-Subjects anzeigen und Permission-Aktionen ueber Velocity ausfuehren."),
     new PermissionView(SERVER_PERMISSIONS_MANAGE, "Rechte", "Unterserver-Rechte", "Reserviertes Recht für spätere server-spezifische LuckPerms-Kontexte."),
     new PermissionView(SETTINGS_MANAGE, "System", "Panel-Einstellungen", "Mailserver, LiteBans-DB und Panel-Speicher ansehen und bearbeiten."),
-    new PermissionView(QUEST_EDITOR_VIEW, "Quests", "Quest-Editor anzeigen", "CraftplayQuests im Browser-Editor anzeigen und Rohdaten laden."));
+    new PermissionView(QUEST_EDITOR_VIEW, "Quests", "Quest-Editor anzeigen", "CraftplayQuests im Browser-Editor anzeigen und Rohdaten laden."),
+    new PermissionView(JOINBOT_VIEW, "JoinBot", "JoinBot ansehen", "Status, Bots, Queue, Spieler und Metriken des Console-JoinBots anzeigen."),
+    new PermissionView(JOINBOT_MANAGE, "JoinBot", "JoinBot verwalten", "Bots anlegen, bearbeiten, authentifizieren, starten, pausieren und stoppen."));
 
   private PanelPermission() {
   }

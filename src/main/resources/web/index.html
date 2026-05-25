@@ -106,6 +106,7 @@
       <button data-page-target="security" data-permission="users.manage" type="button">Rechte</button>
       <button data-page-target="luckperms" data-permission="permissions.proxy.manage,permissions.server.manage" type="button">LuckPerms</button>
       <button data-page-target="quest-editor" data-permission="quests.editor.view" type="button">Quests</button>
+      <button data-page-target="joinbot" data-permission="joinbot.view,joinbot.manage" type="button">JoinBot</button>
       <button data-page-target="serversshop" data-permission="settings.manage" type="button">Serversshop</button>
       <button data-page-target="settings" data-permission="settings.manage" type="button">Einstellungen</button>
     </nav>
@@ -1116,6 +1117,138 @@
                 <p id="serversshop-status" class="muted">Der Tab ist vorbereitet. Lesen und Schreiben wird aktiv, sobald CraftplayShop eine gesicherte Panel-API bereitstellt.</p>
               </div>
             </section>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="page-joinbot" class="page-panel hidden" data-page="joinbot" data-permission="joinbot.view,joinbot.manage">
+      <section class="summary-grid">
+        <article class="metric-card">
+          <span class="metric-label">Service</span>
+          <strong id="joinbot-status">-</strong>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">Bots online</span>
+          <strong id="joinbot-bots-online">-</strong>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">Sessions</span>
+          <strong id="joinbot-active-sessions">-</strong>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">Queue</span>
+          <strong id="joinbot-queue-size">-</strong>
+        </article>
+      </section>
+
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Console JoinBot</p>
+              <h2>Bedrock Gateway</h2>
+              <p id="joinbot-target" class="muted">-</p>
+            </div>
+            <button id="joinbot-refresh" class="ghost-button" type="button">Aktualisieren</button>
+          </div>
+        </article>
+
+        <article class="panel-card" data-permission="joinbot.manage">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Bots</p>
+              <h2>Bot anlegen</h2>
+            </div>
+          </div>
+          <form id="joinbot-create-form" class="stack-form">
+            <label>
+              <span>Interner Name</span>
+              <input name="displayName" type="text" placeholder="CraftplayJoin2" required>
+            </label>
+            <label>
+              <span>Max Spieler</span>
+              <input name="maxPlayers" type="number" min="1" max="1000" value="20">
+            </label>
+            <label class="check-row">
+              <input name="enabled" type="checkbox" checked>
+              <span>Aktiviert</span>
+            </label>
+            <label class="check-row">
+              <input name="publicJoinable" type="checkbox">
+              <span>Oeffentlich joinbar</span>
+            </label>
+            <label class="check-row">
+              <input name="force" type="checkbox">
+              <span>Oeffentlichen Bot wechseln</span>
+            </label>
+            <button type="submit">Bot erstellen</button>
+          </form>
+        </article>
+
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Bots</p>
+              <h2>Verwaltung</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Bot</th>
+                  <th>Status</th>
+                  <th>Auth</th>
+                  <th>Public</th>
+                  <th>Slots</th>
+                  <th data-permission="joinbot.manage">Aktion</th>
+                </tr>
+              </thead>
+              <tbody id="joinbot-bot-table"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel-card">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Queue</p>
+              <h2>Warteschlange</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>XUID</th>
+                  <th>Position</th>
+                  <th data-permission="joinbot.manage">Aktion</th>
+                </tr>
+              </thead>
+              <tbody id="joinbot-queue-table"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel-card">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Spieler</p>
+              <h2>Aktive Sessions</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Spieler</th>
+                  <th>Bot</th>
+                  <th data-permission="joinbot.manage">Aktion</th>
+                </tr>
+              </thead>
+              <tbody id="joinbot-player-table"></tbody>
+            </table>
           </div>
         </article>
       </div>

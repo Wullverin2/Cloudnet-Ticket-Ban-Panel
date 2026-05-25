@@ -26,6 +26,7 @@ public final class PanelSecurityService {
   private final PanelUserStore userStore;
   private final PanelConfiguration configuration;
   private final SmtpMailService mailService;
+  private final Map<String, String> sessions = new ConcurrentHashMap<>();
   private final Map<String, TwoFactorChallenge> twoFactorChallenges = new ConcurrentHashMap<>();
   private final Map<String, PendingTotpSetup> pendingTotpSetups = new ConcurrentHashMap<>();
 
@@ -55,9 +56,20 @@ public final class PanelSecurityService {
       return null;
     }
 
-    return this.userStore.findUserBySessionToken(token)
-      .map(user -> this.principal(token, user))
+    var username = this.sessions.get(token);
+    if (username == null) {
+      return null;
+    }
+
+    var user = this.userStore.findUser(username)
+      .filter(PanelUser::enabled)
       .orElse(null);
+    if (user == null) {
+      this.sessions.remove(token);
+      return null;
+    }
+
+    return this.principal(token, user);
   }
 
   public LoginView login(Document request) {
@@ -145,7 +157,7 @@ public final class PanelSecurityService {
 
   public void logout(PanelPrincipal principal) {
     if (principal != null && principal.sessionToken() != null) {
-      this.userStore.deleteSession(principal.sessionToken());
+      this.sessions.remove(principal.sessionToken());
     }
   }
 
@@ -225,7 +237,7 @@ public final class PanelSecurityService {
 
   public void deleteUser(String username) {
     this.userStore.deleteUser(username);
-    this.userStore.deleteSessionsForUser(username);
+    this.sessions.entrySet().removeIf(entry -> entry.getValue().equalsIgnoreCase(username));
     this.pendingTotpSetups.remove(username.toLowerCase());
     this.twoFactorChallenges.entrySet().removeIf(entry -> entry.getValue().username().equalsIgnoreCase(username));
   }
@@ -277,9 +289,10 @@ public final class PanelSecurityService {
   }
 
   private LoginView createSessionLoginView(PanelUser user) {
-    var session = this.userStore.createSession(user.username());
+    var token = this.newToken();
+    this.sessions.put(token, user.username());
     return new LoginView(
-      session.token(),
+      token,
       this.userView(user),
       PanelPermission.catalog(),
       false,

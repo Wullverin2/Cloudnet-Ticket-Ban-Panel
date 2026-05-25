@@ -1,5 +1,7 @@
 # TicketConsoleCloudBan
 
+Aktueller lokaler Stand: an `2TicketConsoleCloudBan.jar` angeglichen. Diese Version enthält JoinBot-Unterstützung und nutzt Panel-Login-Sessions nur zur Laufzeit.
+
 Ein CloudNet-v4-Modul mit eingebautem Webpanel für:
 
 - Task erstellen, bearbeiten und löschen
@@ -10,7 +12,6 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel für:
 - Tickets erstellen, kommentieren, zuweisen, abschließen und archivieren
 - Zentrale Cloud-Bans anlegen und deaktivieren
 - Panel-Login mit Benutzern, Gruppen und Rechteverwaltung
-- Persistente Panel-Sessions, damit ein Login nach einem Panel-Neustart erhalten bleibt
 - Android-App als native WebView-Hülle für das bestehende Panel
 - Optionale 2-Faktor-Authentifikation pro Panel-Benutzer per E-Mail-Code oder Google Authenticator App
 - Benutzerprofil mit E-Mail für Passwort-vergessen-Prozesse und optionalem Minecraft-Account
@@ -21,6 +22,8 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel für:
 - LuckPerms-Unterseite mit Subject-Sync, Aktionsqueue und Auditlog
 - Panel-Teleport-Button für Ticket-Ersteller über die Velocity-Aktionsqueue
 - CraftplayQuests-Tab als Browser-Gegenstelle zur Plugin-Web-API
+- JoinBot-Tab mit Status, Metriken, Bots, Queue und aktiven Sessions
+- Serversshop/CraftplayShop-Tab vorbereitet; Lesen und Schreiben werden aktiv, sobald die gesicherte CraftplayShop-Panel-API bereitsteht
 
 Die UI ist direkt im Modul enthalten und wird über einen kleinen HTTP-Server ausgeliefert.
 
@@ -55,8 +58,14 @@ Das Panel ist bewusst als MVP gebaut:
 - Passwort-Reset läuft mit gehashten Einmal-Tokens und optionaler SMTP-Mail
 - Live-Konsole läuft aktuell per Polling auf dem Log-Cache
 
+Zusätzlich in dieser Version:
+
+- JoinBot kann als eigener Tab eingebunden werden. Das Panel leitet autorisierte Anfragen serverseitig an die JoinBot-API weiter, damit der JoinBot-Key nicht im Browser liegt.
+- Der Serversshop/CraftplayShop-Tab ist als UI und Serverkonfiguration vorhanden, bleibt aber für Laden/Speichern deaktiviert, bis CraftplayShop eine gesicherte Panel-API bereitstellt.
+
 Noch nicht enthalten:
 
+- Persistente Panel-Sessions nach einem Panel-/CloudNet-Neustart
 - Rootserver-SSH oder echte Root-Console
 - Eigene Purpur-Ban-Durchsetzung ohne LiteBans
 - Vollständiger LuckPerms-Webeditor mit allen Metadaten/Expiry/Context-Kombinationen
@@ -175,6 +184,11 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemäß so aus:
   "questEditorToken": "",
   "questEditorConnectTimeoutMillis": 3000,
   "questEditorReadTimeoutMillis": 5000,
+  "joinBotEnabled": false,
+  "joinBotBaseUrl": "http://127.0.0.1:8085/api/v1",
+  "joinBotApiKey": "",
+  "joinBotConnectTimeoutMillis": 3000,
+  "joinBotReadTimeoutMillis": 5000,
   "apiTokens": [
     "dein-generiertes-token"
   ]
@@ -183,7 +197,7 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemäß so aus:
 
 Das Panel nutzt einen eigenen Login. Der alte API-Token-Zugang bleibt für externe Tools oder ein späteres Velocity-/Purpur-Companion-Plugin erhalten und hat Vollzugriff.
 
-Normale Panel-Logins erzeugen persistente, gehashte Session-Tokens im Panel-Speicher. Dadurch bleibt der Login im Browser und in der Android-App auch nach einem Panel- oder CloudNet-Neustart erhalten. Eine Session läuft nach 30 Tagen ab oder wird beim Abmelden sofort entfernt.
+Normale Panel-Logins erzeugen in dieser Version Laufzeit-Sessions im Speicher. Nach einem Panel- oder CloudNet-Neustart muss man sich erneut anmelden. Externe Integrationen nutzen weiterhin API-Tokens aus der Modul-Konfiguration.
 
 ### CraftplayQuests Browser-Editor
 
@@ -211,6 +225,24 @@ Die Werte aus `config.json` dienen als erste Standardverbindung. Weitere Questse
 - Timeouts
 
 Im CraftplayQuests Plugin muss die `web-editor`-API ebenfalls aktiv sein und denselben Token verwenden. Zusätzlich kann jeder Plugin-Server in `config.yml` unter `server.name` einen eigenen Anzeigenamen setzen; dieser Name erscheint nach erfolgreicher Verbindung im Serverauswahlmenü des Quest-Tabs. Der Panel-Tab braucht das Recht `quests.editor.view`; Admins mit `*` haben es automatisch.
+
+### JoinBot
+
+Der JoinBot-Tab nutzt die externe Console-JoinBot-API und reicht Anfragen serverseitig weiter. Der Browser sieht dadurch nur `/api/joinbot/...`; der eigentliche JoinBot-Key bleibt in der Modul-Konfiguration oder in der Umgebungsvariable `JOINBOT_API_KEY`.
+
+Aktiviere im CloudNet-Modul in `config.json`:
+
+```json
+{
+  "joinBotEnabled": true,
+  "joinBotBaseUrl": "http://127.0.0.1:8085/api/v1",
+  "joinBotApiKey": "DEIN_JOINBOT_KEY",
+  "joinBotConnectTimeoutMillis": 3000,
+  "joinBotReadTimeoutMillis": 5000
+}
+```
+
+Der Tab braucht `joinbot.view` zum Anzeigen und `joinbot.manage` zum Erstellen, Bearbeiten, Starten, Pausieren, Stoppen, Löschen und Authentifizieren von Bots.
 
 Panel-Daten wie Tickets, Entbannungsanträge, Teampanel-Benutzer, Panelgruppen, Gruppenrechte, Ban-/LiteBans-Snapshots, Aktionsqueues und LuckPerms-Bridge-Daten werden bei `panelStorageBackend=SQL` in der Tabelle `panelSqlTable` gespeichert. `SQL` ist die Standard-Speicherart. Beim Wechsel von `LOCAL` auf `SQL` importiert das Modul vorhandene lokale JSON-Dateien automatisch in die MySQL-Tabelle.
 
@@ -451,6 +483,10 @@ Verfügbare Rechte:
 - `users.manage`
 - `permissions.proxy.manage`
 - `permissions.server.manage`
+- `settings.manage`
+- `quests.editor.view`
+- `joinbot.view`
+- `joinbot.manage`
 - `*` für Vollzugriff
 
 ## Einsatz im Cluster
@@ -530,6 +566,23 @@ Für dein Setup mit mehreren Rootservern gilt:
 - `GET /api/quest-editor/{serverId}/quests`
 - `GET /api/quest-editor/{serverId}/quests/{id}`
 - `GET /api/quest-editor/{serverId}/raw/quests/{id}`
+- `GET /api/joinbot` als Kurzform für JoinBot-Status
+- `GET /api/joinbot/status`
+- `GET /api/joinbot/bots`
+- `POST /api/joinbot/bots`
+- `PUT /api/joinbot/bots/{id}`
+- `DELETE /api/joinbot/bots/{id}`
+- `POST /api/joinbot/bots/{id}/start`
+- `POST /api/joinbot/bots/{id}/pause`
+- `POST /api/joinbot/bots/{id}/restart`
+- `POST /api/joinbot/bots/{id}/public`
+- `POST /api/joinbot/bots/{id}/stop`
+- `POST /api/joinbot/auth/bots/{id}/start`
+- `GET /api/joinbot/queue`
+- `DELETE /api/joinbot/queue/{xuid}`
+- `GET /api/joinbot/players`
+- `POST /api/joinbot/players/{xuid}/kick`
+- `GET /api/joinbot/metrics`
 - `GET /api/security/users`
 - `POST /api/security/users`
 - `PUT /api/security/users/{username}`

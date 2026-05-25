@@ -5,7 +5,6 @@ import java.util.List;
 public record PanelUserStoreData(
   List<PanelUser> users,
   List<PanelGroup> groups,
-  List<PasswordResetToken> passwordResetTokens,
-  List<PanelSession> sessions
+  List<PasswordResetToken> passwordResetTokens
 ) {
 }

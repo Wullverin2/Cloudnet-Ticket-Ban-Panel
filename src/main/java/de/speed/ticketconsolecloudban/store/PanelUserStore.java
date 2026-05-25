@@ -2,7 +2,6 @@ package de.speed.ticketconsolecloudban.store;
 
 import de.speed.ticketconsolecloudban.auth.PanelGroup;
 import de.speed.ticketconsolecloudban.auth.PanelPermission;
-import de.speed.ticketconsolecloudban.auth.PanelSession;
 import de.speed.ticketconsolecloudban.auth.PanelUser;
 import de.speed.ticketconsolecloudban.auth.PanelUserStoreData;
 import de.speed.ticketconsolecloudban.auth.PasswordResetToken;
@@ -35,7 +34,6 @@ public final class PanelUserStore {
   private final List<PanelUser> users = new ArrayList<>();
   private final List<PanelGroup> groups = new ArrayList<>();
   private final List<PasswordResetToken> passwordResetTokens = new ArrayList<>();
-  private final List<PanelSession> sessions = new ArrayList<>();
   private String initialAdminPassword;
 
   public PanelUserStore(Path dataDirectory) {
@@ -109,83 +107,6 @@ public final class PanelUserStore {
       now);
     this.replaceUser(updated);
     return updated;
-  }
-
-  public synchronized SessionIssue createSession(String username) {
-    var user = this.requireUser(username);
-    var rawToken = HexFormat.of().formatHex(randomBytes(32));
-    var now = Instant.now();
-    var expiresAt = now.plus(30, ChronoUnit.DAYS).toString();
-    this.cleanupExpiredSessions(now);
-    var session = new PanelSession(
-      sha256(rawToken),
-      user.username(),
-      now.toString(),
-      now.toString(),
-      expiresAt);
-    this.sessions.add(session);
-    this.save();
-    return new SessionIssue(rawToken, expiresAt);
-  }
-
-  public synchronized Optional<PanelUser> findUserBySessionToken(String rawToken) {
-    if (rawToken == null || rawToken.isBlank()) {
-      return Optional.empty();
-    }
-
-    var now = Instant.now();
-    var changed = this.cleanupExpiredSessions(now);
-    var tokenHash = sha256(rawToken.trim());
-    PanelSession matchedSession = null;
-    for (var session : this.sessions) {
-      if (secureEquals(session.tokenHash(), tokenHash)) {
-        matchedSession = session;
-        break;
-      }
-    }
-
-    if (matchedSession == null) {
-      if (changed) {
-        this.save();
-      }
-      return Optional.empty();
-    }
-
-    var user = this.findUser(matchedSession.username())
-      .filter(PanelUser::enabled)
-      .orElse(null);
-    if (user == null) {
-      this.sessions.remove(matchedSession);
-      this.save();
-      return Optional.empty();
-    }
-
-    if (this.shouldRefreshLastSeen(matchedSession, now)) {
-      this.replaceSession(matchedSession.withLastSeenAt(now.toString()));
-      this.save();
-    } else if (changed) {
-      this.save();
-    }
-
-    return Optional.of(user);
-  }
-
-  public synchronized void deleteSession(String rawToken) {
-    if (rawToken == null || rawToken.isBlank()) {
-      return;
-    }
-
-    var tokenHash = sha256(rawToken.trim());
-    if (this.sessions.removeIf(session -> secureEquals(session.tokenHash(), tokenHash))) {
-      this.save();
-    }
-  }
-
-  public synchronized void deleteSessionsForUser(String username) {
-    var normalized = normalizeName(username);
-    if (this.sessions.removeIf(session -> session.username() != null && session.username().equals(normalized))) {
-      this.save();
-    }
   }
 
   public synchronized PanelUser createUser(
@@ -680,11 +601,6 @@ public final class PanelUserStore {
       if (data.passwordResetTokens() != null) {
         this.passwordResetTokens.addAll(data.passwordResetTokens());
       }
-      this.sessions.clear();
-      if (data.sessions() != null) {
-        this.sessions.addAll(data.sessions());
-      }
-      this.cleanupExpiredSessions(Instant.now());
 
       if (this.users.isEmpty()) {
         this.bootstrap();
@@ -750,8 +666,7 @@ public final class PanelUserStore {
         new PanelUserStoreData(
           List.copyOf(this.users),
           List.copyOf(this.groups),
-          List.copyOf(this.passwordResetTokens),
-          List.copyOf(this.sessions)));
+          List.copyOf(this.passwordResetTokens)));
     } catch (Exception exception) {
       throw new IllegalStateException("Panel-Benutzer konnten nicht gespeichert werden.", exception);
     }
@@ -790,52 +705,6 @@ public final class PanelUserStore {
     }
   }
 
-  private boolean cleanupExpiredSessions(Instant now) {
-    return this.sessions.removeIf(session -> this.sessionExpired(session, now));
-  }
-
-  private boolean sessionExpired(PanelSession session, Instant now) {
-    if (session == null || session.expiresAt() == null || session.expiresAt().isBlank()) {
-      return true;
-    }
-
-    try {
-      return Instant.parse(session.expiresAt()).isBefore(now);
-    } catch (Exception exception) {
-      return true;
-    }
-  }
-
-  private boolean shouldRefreshLastSeen(PanelSession session, Instant now) {
-    if (session.lastSeenAt() == null || session.lastSeenAt().isBlank()) {
-      return true;
-    }
-
-    try {
-      return Instant.parse(session.lastSeenAt()).plus(15, ChronoUnit.MINUTES).isBefore(now);
-    } catch (Exception exception) {
-      return true;
-    }
-  }
-
-  private void replaceSession(PanelSession updated) {
-    for (int index = 0; index < this.sessions.size(); index++) {
-      if (secureEquals(this.sessions.get(index).tokenHash(), updated.tokenHash())) {
-        this.sessions.set(index, updated);
-        return;
-      }
-    }
-  }
-
-  private static boolean secureEquals(String left, String right) {
-    if (left == null || right == null) {
-      return false;
-    }
-    return MessageDigest.isEqual(
-      left.getBytes(StandardCharsets.UTF_8),
-      right.getBytes(StandardCharsets.UTF_8));
-  }
-
   private record PasswordMaterial(String hash, String salt, int iterations) {
   }
 
@@ -843,12 +712,6 @@ public final class PanelUserStore {
     String username,
     String email,
     String rawToken,
-    String expiresAt
-  ) {
-  }
-
-  public record SessionIssue(
-    String token,
     String expiresAt
   ) {
   }

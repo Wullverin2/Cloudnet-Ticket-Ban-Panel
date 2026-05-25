@@ -13,6 +13,8 @@ const PERMISSIONS = {
   SERVER_PERMISSIONS_MANAGE: "permissions.server.manage",
   SETTINGS_MANAGE: "settings.manage",
   QUEST_EDITOR_VIEW: "quests.editor.view",
+  JOINBOT_VIEW: "joinbot.view",
+  JOINBOT_MANAGE: "joinbot.manage",
 };
 
 const CONSOLE_REFRESH_INTERVALS = [5, 10, 15, 30, 60];
@@ -45,6 +47,11 @@ const state = {
   selectedQuestServerId: localStorage.getItem("tccb-quest-server") || "",
   selectedQuestId: localStorage.getItem("tccb-quest-id") || "",
   selectedServerShopServerId: localStorage.getItem("tccb-serversshop-server") || "",
+  joinBotStatus: null,
+  joinBotMetrics: null,
+  joinBotBots: [],
+  joinBotQueue: [],
+  joinBotPlayers: [],
   settings: null,
   selectedPermissionServer: localStorage.getItem("tccb-lp-server") || "proxy",
   selectedPermissionSubject: localStorage.getItem("tccb-lp-subject") || "",
@@ -121,6 +128,16 @@ function bindElements() {
   elements.homeOpenAppeals = document.getElementById("home-open-appeals");
   elements.homeArchivedAppeals = document.getElementById("home-archived-appeals");
   elements.homeActiveLiteBans = document.getElementById("home-active-litebans");
+  elements.joinBotRefresh = document.getElementById("joinbot-refresh");
+  elements.joinBotStatus = document.getElementById("joinbot-status");
+  elements.joinBotTarget = document.getElementById("joinbot-target");
+  elements.joinBotBotsOnline = document.getElementById("joinbot-bots-online");
+  elements.joinBotActiveSessions = document.getElementById("joinbot-active-sessions");
+  elements.joinBotQueueSize = document.getElementById("joinbot-queue-size");
+  elements.joinBotCreateForm = document.getElementById("joinbot-create-form");
+  elements.joinBotBotTable = document.getElementById("joinbot-bot-table");
+  elements.joinBotQueueTable = document.getElementById("joinbot-queue-table");
+  elements.joinBotPlayerTable = document.getElementById("joinbot-player-table");
 
   elements.environmentSelect = document.getElementById("environment-select");
   elements.runtimeSelect = document.getElementById("runtime-select");
@@ -271,6 +288,11 @@ function bindEvents() {
   elements.pageNav.addEventListener("click", handlePageNavClick);
   elements.homePanel.addEventListener("click", handleHomePanelClick);
   elements.homeRefresh.addEventListener("click", refreshAll);
+  elements.joinBotRefresh?.addEventListener("click", () => refreshJoinBot(true));
+  elements.joinBotCreateForm?.addEventListener("submit", handleJoinBotCreateSubmit);
+  elements.joinBotBotTable?.addEventListener("click", handleJoinBotBotTableClick);
+  elements.joinBotQueueTable?.addEventListener("click", handleJoinBotQueueTableClick);
+  elements.joinBotPlayerTable?.addEventListener("click", handleJoinBotPlayerTableClick);
 
   elements.taskForm.addEventListener("submit", handleTaskSubmit);
   elements.taskReset.addEventListener("click", handleTaskResetClick);
@@ -726,6 +748,11 @@ function clearSession() {
   state.questEditorCategories = [];
   state.questEditorQuests = [];
   state.selectedQuestId = "";
+  state.joinBotStatus = null;
+  state.joinBotMetrics = null;
+  state.joinBotBots = [];
+  state.joinBotQueue = [];
+  state.joinBotPlayers = [];
   state.settings = null;
   state.selectedPermissionSubject = "";
   state.twoFactorChallengeId = "";
@@ -753,6 +780,9 @@ function handlePageNavClick(event) {
   }
   if (button.dataset.pageTarget === "quest-editor") {
     refreshQuestEditor();
+  }
+  if (button.dataset.pageTarget === "joinbot") {
+    refreshJoinBot(false);
   }
   if (button.dataset.banTabTarget) {
     switchBanTab(button.dataset.banTabTarget);
@@ -921,6 +951,10 @@ async function refreshAll() {
     await loadQuestEditorOverview(false);
   }
 
+  if (hasPermission(`${PERMISSIONS.JOINBOT_VIEW},${PERMISSIONS.JOINBOT_MANAGE}`)) {
+    await refreshJoinBot(false);
+  }
+
   if (hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
     state.settings = await api("/api/settings");
     syncTicketCategoriesFromSettings();
@@ -982,6 +1016,239 @@ async function refreshBanAppealsOnly() {
 
 async function refreshQuestEditor() {
   await loadQuestEditorOverview(true);
+}
+
+async function refreshJoinBot(showStatus) {
+  if (!hasPermission(`${PERMISSIONS.JOINBOT_VIEW},${PERMISSIONS.JOINBOT_MANAGE}`)) {
+    return;
+  }
+
+  try {
+    if (showStatus) {
+      setStatus(elements.joinBotTarget, "JoinBot wird aktualisiert ...", false);
+    }
+    const [status, bots, queue, players, metrics] = await Promise.all([
+      joinBotApi("/status"),
+      joinBotApi("/bots"),
+      joinBotApi("/queue"),
+      joinBotApi("/players"),
+      joinBotApi("/metrics"),
+    ]);
+    state.joinBotStatus = status;
+    state.joinBotBots = responseArray(bots, "bots");
+    state.joinBotQueue = responseArray(queue, "queue");
+    state.joinBotPlayers = responseArray(players, "players");
+    state.joinBotMetrics = metrics;
+    renderJoinBot();
+  } catch (error) {
+    handleApiError(error, elements.joinBotTarget);
+    renderJoinBot();
+  }
+}
+
+function renderJoinBot() {
+  const checks = state.joinBotStatus?.checks || {};
+  elements.joinBotStatus.textContent = state.joinBotStatus?.ok ? "online" : "offline";
+  elements.joinBotBotsOnline.textContent = String(state.joinBotMetrics?.botsOnline ?? state.joinBotBots.filter(bot => bot.status === "online").length);
+  elements.joinBotActiveSessions.textContent = String(state.joinBotMetrics?.activeSessions ?? state.joinBotPlayers.length);
+  elements.joinBotQueueSize.textContent = String(state.joinBotMetrics?.queueSize ?? state.joinBotQueue.length);
+  elements.joinBotTarget.textContent = joinBotTargetText(checks);
+  renderJoinBotBots();
+  renderJoinBotQueue();
+  renderJoinBotPlayers();
+}
+
+function joinBotTargetText(checks = state.joinBotStatus?.checks || {}) {
+  const target = state.joinBotStatus?.target;
+  if (!target) {
+    return "JoinBot-Verbindung nicht geladen.";
+  }
+  const targetState = checks.target ? "Geyser erreichbar" : "Geyser offline";
+  return `${target.host}:${target.port} (${target.type || "geyser"}) - ${targetState}`;
+}
+
+function renderJoinBotBots() {
+  if (!elements.joinBotBotTable) {
+    return;
+  }
+  if (!state.joinBotBots.length) {
+    elements.joinBotBotTable.innerHTML = `<tr><td colspan="6" class="muted">Keine Bots vorhanden.</td></tr>`;
+    return;
+  }
+
+  const canManage = hasPermission(PERMISSIONS.JOINBOT_MANAGE);
+  elements.joinBotBotTable.innerHTML = state.joinBotBots.map(bot => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(bot.displayName || bot.id)}</strong>
+        <small class="muted">${escapeHtml(bot.id)}</small>
+      </td>
+      <td><span class="status-pill ${joinBotStatusClass(bot.status)}">${escapeHtml(bot.status || "-")}</span></td>
+      <td>${escapeHtml(bot.authState || "-")}</td>
+      <td>${bot.publicJoinable ? "ja" : "nein"}</td>
+      <td>${Number(bot.maxPlayers || 0)}</td>
+      <td data-permission="joinbot.manage">${canManage ? joinBotBotActions(bot) : ""}</td>
+    </tr>
+  `).join("");
+  applyPermissions();
+}
+
+function joinBotBotActions(bot) {
+  const id = escapeAttr(bot.id);
+  return `
+    <div class="action-row compact-actions">
+      <button data-joinbot-action="auth" data-bot-id="${id}" type="button">Login</button>
+      <button data-joinbot-action="start" data-bot-id="${id}" type="button">Start</button>
+      <button data-joinbot-action="pause" data-bot-id="${id}" type="button">Pause</button>
+      <button data-joinbot-action="restart" data-bot-id="${id}" type="button">Restart</button>
+      <button data-joinbot-action="public" data-bot-id="${id}" type="button">Public</button>
+      <button data-joinbot-action="stop" data-bot-id="${id}" class="ghost-button" type="button">Stop</button>
+      <button data-joinbot-action="delete" data-bot-id="${id}" class="ghost-button" type="button">Delete</button>
+    </div>
+  `;
+}
+
+function renderJoinBotQueue() {
+  if (!elements.joinBotQueueTable) {
+    return;
+  }
+  if (!state.joinBotQueue.length) {
+    elements.joinBotQueueTable.innerHTML = `<tr><td colspan="3" class="muted">Queue ist leer.</td></tr>`;
+    return;
+  }
+  const canManage = hasPermission(PERMISSIONS.JOINBOT_MANAGE);
+  elements.joinBotQueueTable.innerHTML = state.joinBotQueue.map(entry => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(entry.gamertag || entry.xuid)}</strong>
+        <small class="muted">${escapeHtml(entry.xuid)}</small>
+      </td>
+      <td>${Number(entry.position || 0)}</td>
+      <td data-permission="joinbot.manage">
+        ${canManage ? `<button data-joinbot-queue-remove="${escapeAttr(entry.xuid)}" class="ghost-button" type="button">Entfernen</button>` : ""}
+      </td>
+    </tr>
+  `).join("");
+  applyPermissions();
+}
+
+function renderJoinBotPlayers() {
+  if (!elements.joinBotPlayerTable) {
+    return;
+  }
+  if (!state.joinBotPlayers.length) {
+    elements.joinBotPlayerTable.innerHTML = `<tr><td colspan="3" class="muted">Keine aktiven Sessions.</td></tr>`;
+    return;
+  }
+  const canManage = hasPermission(PERMISSIONS.JOINBOT_MANAGE);
+  elements.joinBotPlayerTable.innerHTML = state.joinBotPlayers.map(player => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(player.gamertag || player.xuid)}</strong>
+        <small class="muted">${escapeHtml(player.xuid)}</small>
+      </td>
+      <td>${escapeHtml(player.botId || "-")}</td>
+      <td data-permission="joinbot.manage">
+        ${canManage ? `<button data-joinbot-kick="${escapeAttr(player.xuid)}" class="ghost-button" type="button">Kicken</button>` : ""}
+      </td>
+    </tr>
+  `).join("");
+  applyPermissions();
+}
+
+function joinBotStatusClass(status) {
+  return status === "online" ? "status-success" : status === "failed" || status === "auth_required" ? "status-danger" : "status-muted";
+}
+
+async function handleJoinBotCreateSubmit(event) {
+  event.preventDefault();
+  if (!hasPermission(PERMISSIONS.JOINBOT_MANAGE)) {
+    return;
+  }
+
+  const form = new FormData(elements.joinBotCreateForm);
+  const force = Boolean(form.get("force"));
+  const payload = {
+    displayName: String(form.get("displayName") || "").trim(),
+    publicJoinable: Boolean(form.get("publicJoinable")),
+    maxPlayers: Number(form.get("maxPlayers") || 20),
+    enabled: Boolean(form.get("enabled")),
+  };
+
+  try {
+    await joinBotApi(`/bots${force ? "?force=true" : ""}`, { method: "POST", body: payload });
+    elements.joinBotCreateForm.reset();
+    elements.joinBotCreateForm.elements.enabled.checked = true;
+    elements.joinBotCreateForm.elements.maxPlayers.value = "20";
+    await refreshJoinBot(true);
+  } catch (error) {
+    handleApiError(error, elements.joinBotTarget);
+  }
+}
+
+async function handleJoinBotBotTableClick(event) {
+  const button = event.target.closest("button[data-joinbot-action]");
+  if (!button || !hasPermission(PERMISSIONS.JOINBOT_MANAGE)) {
+    return;
+  }
+  const botId = button.dataset.botId;
+  const action = button.dataset.joinbotAction;
+  try {
+    if (action === "delete") {
+      if (!confirm(`Bot ${botId} wirklich loeschen?`)) {
+        return;
+      }
+      await joinBotApi(`/bots/${encodeURIComponent(botId)}`, { method: "DELETE" });
+    } else if (action === "auth") {
+      const result = await joinBotApi(`/auth/bots/${encodeURIComponent(botId)}/start`, { method: "POST" });
+      if (result.verificationUrl) {
+        window.open(result.verificationUrl, "_blank", "noopener");
+      }
+      const codeText = result.userCode ? ` Login-Code: ${result.userCode}` : "";
+      setStatus(elements.joinBotTarget, `${result.status || "waiting_for_login"}.${codeText}`, false);
+    } else if (action === "public") {
+      const force = confirm("Diesen Bot oeffentlich setzen und den bisherigen Public-Bot deaktivieren?");
+      await joinBotApi(`/bots/${encodeURIComponent(botId)}${force ? "?force=true" : ""}`, {
+        method: "PATCH",
+        body: { publicJoinable: true },
+      });
+    } else {
+      await joinBotApi(`/bots/${encodeURIComponent(botId)}/${action}`, { method: "POST" });
+    }
+    await refreshJoinBot(false);
+  } catch (error) {
+    handleApiError(error, elements.joinBotTarget);
+  }
+}
+
+async function handleJoinBotQueueTableClick(event) {
+  const button = event.target.closest("button[data-joinbot-queue-remove]");
+  if (!button || !hasPermission(PERMISSIONS.JOINBOT_MANAGE)) {
+    return;
+  }
+  try {
+    await joinBotApi(`/queue/${encodeURIComponent(button.dataset.joinbotQueueRemove)}`, { method: "DELETE" });
+    await refreshJoinBot(false);
+  } catch (error) {
+    handleApiError(error, elements.joinBotTarget);
+  }
+}
+
+async function handleJoinBotPlayerTableClick(event) {
+  const button = event.target.closest("button[data-joinbot-kick]");
+  if (!button || !hasPermission(PERMISSIONS.JOINBOT_MANAGE)) {
+    return;
+  }
+  try {
+    await joinBotApi(`/players/${encodeURIComponent(button.dataset.joinbotKick)}/kick`, { method: "POST" });
+    await refreshJoinBot(false);
+  } catch (error) {
+    handleApiError(error, elements.joinBotTarget);
+  }
+}
+
+function joinBotApi(path, options = {}) {
+  return api(`/api/joinbot${path}`, options);
 }
 
 async function loadQuestEditorOverview(showStatus) {
@@ -4212,7 +4479,10 @@ async function api(path, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error || `HTTP ${response.status}`);
+    const message = typeof data.error === "object"
+      ? data.error.message || data.error.code
+      : data.error;
+    throw new Error(message || `HTTP ${response.status}`);
   }
   return data;
 }

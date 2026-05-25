@@ -706,6 +706,38 @@ button:hover {
   align-items: center;
 }
 
+.compact-actions {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.status-success {
+  color: var(--success);
+  border-color: rgba(124, 215, 176, 0.3);
+}
+
+.status-danger {
+  color: var(--danger);
+  border-color: rgba(255, 114, 104, 0.3);
+}
+
+.status-muted {
+  color: var(--muted);
+}
+
 .auth-row input,
 .console-form input {
   flex: 1;
@@ -780,7 +812,8 @@ button:hover {
   color: var(--text);
 }
 
-.table-shell {
+.table-shell,
+.table-wrap {
   overflow-x: hidden;
   overflow-y: visible;
   border-radius: 18px;
@@ -1118,7 +1151,8 @@ tbody button {
     width: 100%;
   }
 
-  .table-shell {
+  .table-shell,
+  .table-wrap {
     border: 0;
     background: transparent;
     overflow: visible;

@@ -6,6 +6,7 @@ import de.speed.ticketconsolecloudban.auth.PanelPermission;
 import de.speed.ticketconsolecloudban.auth.PanelPrincipal;
 import de.speed.ticketconsolecloudban.auth.PanelSecurityService;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.joinbot.JoinBotApiClient;
 import de.speed.ticketconsolecloudban.quest.CraftplayQuestEditorClient;
 import de.speed.ticketconsolecloudban.service.CloudNetFacade;
 import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
@@ -28,6 +29,7 @@ public final class PanelHttpServer {
   private final CloudNetFacade facade;
   private final PanelSecurityService security;
   private final CraftplayQuestEditorClient questEditorClient;
+  private final JoinBotApiClient joinBotClient;
 
   private HttpServer server;
   private ExecutorService executor;
@@ -42,6 +44,7 @@ public final class PanelHttpServer {
     this.facade = facade;
     this.security = security;
     this.questEditorClient = new CraftplayQuestEditorClient(configuration, settingsStore);
+    this.joinBotClient = new JoinBotApiClient(configuration);
   }
 
   public void start() {
@@ -191,6 +194,11 @@ public final class PanelHttpServer {
 
     if (segments.size() >= 2 && "quest-editor".equals(segments.get(1))) {
       this.handleQuestEditorApi(exchange, segments, principal);
+      return;
+    }
+
+    if (segments.size() >= 2 && "joinbot".equals(segments.get(1))) {
+      this.handleJoinBotApi(exchange, segments, principal);
       return;
     }
 
@@ -406,21 +414,7 @@ public final class PanelHttpServer {
         HttpExchangeUtils.writeJson(exchange, 200, this.facade.assignTicket(ticketId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
         return;
       }
-      if (this.isTicketCommentAction(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
-        if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_VIEW)) {
-          return;
-        }
-        HttpExchangeUtils.writeJson(exchange, 200, this.facade.getTicket(ticketId).comments());
-        return;
-      }
       if ("comments".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
-        if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
-          return;
-        }
-        HttpExchangeUtils.writeJson(exchange, 200, this.facade.addTicketComment(ticketId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
-        return;
-      }
-      if (("reply".equals(action) || "replies".equals(action)) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
         if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
           return;
         }
@@ -691,6 +685,40 @@ public final class PanelHttpServer {
     HttpExchangeUtils.writeText(exchange, response.statusCode(), response.body(), "application/json; charset=utf-8");
   }
 
+  private void handleJoinBotApi(HttpExchange exchange, List<String> segments, PanelPrincipal principal) throws IOException {
+    var method = exchange.getRequestMethod().toUpperCase();
+    var mutating = !"GET".equals(method);
+    if (mutating
+      ? !this.requirePermission(exchange, principal, PanelPermission.JOINBOT_MANAGE)
+      : !this.requireAnyPermission(exchange, principal, PanelPermission.JOINBOT_VIEW, PanelPermission.JOINBOT_MANAGE)) {
+      return;
+    }
+
+    if (segments.size() == 2) {
+      var response = this.joinBotClient.proxy("GET", List.of("status"), exchange.getRequestURI().getRawQuery(), new byte[0]);
+      this.writeJoinBotProxyResponse(exchange, response);
+      return;
+    }
+
+    var joinBotSegments = segments.subList(2, segments.size());
+    var body = allowsJoinBotBody(method) ? exchange.getRequestBody().readAllBytes() : new byte[0];
+    var response = this.joinBotClient.proxy(method, joinBotSegments, exchange.getRequestURI().getRawQuery(), body);
+    this.writeJoinBotProxyResponse(exchange, response);
+  }
+
+  private void writeJoinBotProxyResponse(HttpExchange exchange, JoinBotApiClient.ProxyResponse response) throws IOException {
+    if (response.statusCode() == 204 || response.body() == null || response.body().isBlank()) {
+      HttpExchangeUtils.sendNoContent(exchange);
+      return;
+    }
+
+    HttpExchangeUtils.writeText(exchange, response.statusCode(), response.body(), response.contentType());
+  }
+
+  private static boolean allowsJoinBotBody(String method) {
+    return "POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method);
+  }
+
   private void handleSecurityApi(HttpExchange exchange, List<String> segments, PanelPrincipal principal) throws IOException {
     if (!this.requirePermission(exchange, principal, PanelPermission.USERS_MANAGE)) {
       return;
@@ -849,10 +877,6 @@ public final class PanelHttpServer {
       ? PanelPermission.PROXY_PERMISSIONS_MANAGE
       : PanelPermission.SERVER_PERMISSIONS_MANAGE;
     return this.requirePermission(exchange, principal, permission);
-  }
-
-  private boolean isTicketCommentAction(String action) {
-    return "comments".equals(action) || "replies".equals(action) || "answers".equals(action);
   }
 
   private boolean requireAnyPermission(HttpExchange exchange, PanelPrincipal principal, String... permissions) throws IOException {

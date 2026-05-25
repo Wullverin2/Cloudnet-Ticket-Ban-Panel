@@ -57,7 +57,12 @@ public record PanelConfiguration(
   String questEditorBaseUrl,
   String questEditorToken,
   int questEditorConnectTimeoutMillis,
-  int questEditorReadTimeoutMillis
+  int questEditorReadTimeoutMillis,
+  boolean joinBotEnabled,
+  String joinBotBaseUrl,
+  String joinBotApiKey,
+  int joinBotConnectTimeoutMillis,
+  int joinBotReadTimeoutMillis
 ) {
 
   private static final SecureRandom RANDOM = new SecureRandom();
@@ -113,6 +118,11 @@ public record PanelConfiguration(
       5000,
       false,
       "http://127.0.0.1:8095/api/craftplayquests/v1",
+      "",
+      3000,
+      5000,
+      false,
+      "http://127.0.0.1:8085/api/v1",
       "",
       3000,
       5000);
@@ -186,6 +196,15 @@ public record PanelConfiguration(
     var normalizedQuestEditorReadTimeout = this.questEditorReadTimeoutMillis <= 0
       ? 5000
       : clamp(this.questEditorReadTimeoutMillis, 500, 60_000);
+    var normalizedJoinBotBaseUrl = this.joinBotBaseUrl == null || this.joinBotBaseUrl.isBlank()
+      ? "http://127.0.0.1:8085/api/v1"
+      : this.joinBotBaseUrl.trim().replaceAll("/+$", "");
+    var normalizedJoinBotConnectTimeout = this.joinBotConnectTimeoutMillis <= 0
+      ? 3000
+      : clamp(this.joinBotConnectTimeoutMillis, 500, 30_000);
+    var normalizedJoinBotReadTimeout = this.joinBotReadTimeoutMillis <= 0
+      ? 5000
+      : clamp(this.joinBotReadTimeoutMillis, 500, 60_000);
 
     var normalizedTokens = new ArrayList<String>();
     if (this.apiTokens != null) {
@@ -254,7 +273,21 @@ public record PanelConfiguration(
       normalizedQuestEditorBaseUrl,
       this.questEditorToken == null ? "" : this.questEditorToken,
       normalizedQuestEditorConnectTimeout,
-      normalizedQuestEditorReadTimeout);
+      normalizedQuestEditorReadTimeout,
+      this.joinBotEnabled,
+      normalizedJoinBotBaseUrl,
+      this.joinBotApiKey == null ? "" : this.joinBotApiKey,
+      normalizedJoinBotConnectTimeout,
+      normalizedJoinBotReadTimeout);
+  }
+
+  public String effectiveJoinBotApiKey() {
+    if (this.joinBotApiKey != null && !this.joinBotApiKey.isBlank()) {
+      return this.joinBotApiKey.trim();
+    }
+
+    var envKey = System.getenv("JOINBOT_API_KEY");
+    return envKey == null ? "" : envKey.trim();
   }
 
   public String effectiveLiteBansBridgeSecret() {
