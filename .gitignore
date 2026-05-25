@@ -1,5 +1,7 @@
 /.gradle/
 /build/
+**/.gradle/
+**/build/
 /target/
 **/target/
 /out/
@@ -9,3 +11,6 @@
 /.project
 /.settings/
 /bin/
+android-app/local.properties
+*.apk
+*.aab

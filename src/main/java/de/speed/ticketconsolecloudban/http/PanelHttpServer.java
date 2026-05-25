@@ -406,7 +406,21 @@ public final class PanelHttpServer {
         HttpExchangeUtils.writeJson(exchange, 200, this.facade.assignTicket(ticketId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
         return;
       }
+      if (this.isTicketCommentAction(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_VIEW)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.getTicket(ticketId).comments());
+        return;
+      }
       if ("comments".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.addTicketComment(ticketId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
+        return;
+      }
+      if (("reply".equals(action) || "replies".equals(action)) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
         if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
           return;
         }
@@ -835,6 +849,10 @@ public final class PanelHttpServer {
       ? PanelPermission.PROXY_PERMISSIONS_MANAGE
       : PanelPermission.SERVER_PERMISSIONS_MANAGE;
     return this.requirePermission(exchange, principal, permission);
+  }
+
+  private boolean isTicketCommentAction(String action) {
+    return "comments".equals(action) || "replies".equals(action) || "answers".equals(action);
   }
 
   private boolean requireAnyPermission(HttpExchange exchange, PanelPrincipal principal, String... permissions) throws IOException {

@@ -10,6 +10,8 @@ Ein CloudNet-v4-Modul mit eingebautem Webpanel für:
 - Tickets erstellen, kommentieren, zuweisen, abschließen und archivieren
 - Zentrale Cloud-Bans anlegen und deaktivieren
 - Panel-Login mit Benutzern, Gruppen und Rechteverwaltung
+- Persistente Panel-Sessions, damit ein Login nach einem Panel-Neustart erhalten bleibt
+- Android-App als native WebView-Hülle für das bestehende Panel
 - Optionale 2-Faktor-Authentifikation pro Panel-Benutzer per E-Mail-Code oder Google Authenticator App
 - Benutzerprofil mit E-Mail für Passwort-vergessen-Prozesse und optionalem Minecraft-Account
 - Auditlogs und Archivansichten für Tickets und Entbannungsanträge
@@ -104,6 +106,14 @@ purpur-plugin/target/TicketConsoleCloudBan-Purpur.jar
 
 Optional liegt auch ein `build.gradle.kts` bei, falls du lieber mit Gradle arbeitest.
 
+Android-App:
+
+```text
+android-app/
+```
+
+Den Ordner `android-app` in Android Studio öffnen und als normale Android-App starten oder bauen. Im Emulator ist `http://10.0.2.2:8088` als Standard-Panel-URL hinterlegt; auf einem echten Gerät trägst du deine Panel-Domain oder Rootserver-IP ein.
+
 ## Installation in CloudNet
 
 1. Baue das Modul.
@@ -172,6 +182,8 @@ Die Modul-Konfiguration wird automatisch erstellt und sieht sinngemäß so aus:
 ```
 
 Das Panel nutzt einen eigenen Login. Der alte API-Token-Zugang bleibt für externe Tools oder ein späteres Velocity-/Purpur-Companion-Plugin erhalten und hat Vollzugriff.
+
+Normale Panel-Logins erzeugen persistente, gehashte Session-Tokens im Panel-Speicher. Dadurch bleibt der Login im Browser und in der Android-App auch nach einem Panel- oder CloudNet-Neustart erhalten. Eine Session läuft nach 30 Tagen ab oder wird beim Abmelden sofort entfernt.
 
 ### CraftplayQuests Browser-Editor
 
