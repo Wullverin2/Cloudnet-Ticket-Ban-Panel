@@ -394,27 +394,6 @@ legend {
   overflow-wrap: anywhere;
 }
 
-.quest-server-settings-list {
-  display: grid;
-  gap: 14px;
-}
-
-.quest-server-settings-row {
-  display: grid;
-  gap: 14px;
-  padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  background: rgba(6, 11, 17, 0.54);
-}
-
-.quest-server-settings-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 label {
   display: grid;
   gap: 8px;
@@ -588,107 +567,6 @@ button:hover {
   margin-bottom: 12px;
 }
 
-.luckperms-toolbar {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.35fr) minmax(260px, 1fr);
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.luckperms-editor {
-  display: grid;
-  grid-template-columns: minmax(260px, 0.34fr) minmax(0, 1fr);
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
-.luckperms-sidebar,
-.luckperms-workspace {
-  min-height: 420px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 22px;
-  background: rgba(6, 12, 18, 0.58);
-  padding: 16px;
-}
-
-.subject-list,
-.node-list {
-  display: grid;
-  gap: 10px;
-}
-
-.subject-list {
-  max-height: 560px;
-  overflow: auto;
-  padding-right: 4px;
-}
-
-.subject-card {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 10px;
-  justify-items: start;
-  text-align: left;
-  width: 100%;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.subject-card strong,
-.subject-card small {
-  grid-column: 2;
-}
-
-.subject-card small,
-.node-card-editor small {
-  color: var(--muted);
-}
-
-.subject-card.active {
-  border-color: var(--line-strong);
-  background: rgba(244, 188, 70, 0.12);
-}
-
-.selected-subject {
-  display: flex;
-  align-items: center;
-  min-height: 56px;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.04);
-  margin-bottom: 16px;
-}
-
-.selected-subject div,
-.node-card-editor div {
-  display: grid;
-  gap: 5px;
-}
-
-.luckperms-add-form {
-  margin-bottom: 20px;
-}
-
-.node-section {
-  display: grid;
-  gap: 12px;
-}
-
-.node-card-editor {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(8, 17, 26, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.node-card-editor.node-negative {
-  border-color: rgba(255, 114, 104, 0.34);
-}
-
 .page-panel {
   margin-top: 0;
 }
@@ -825,10 +703,6 @@ tbody button {
   margin-bottom: 6px;
 }
 
-.liteban-table {
-  min-width: 0;
-}
-
 .actions-cell {
   min-width: 0;
 }
@@ -899,104 +773,6 @@ tbody button {
 .badge-danger {
   background: rgba(255, 114, 104, 0.16);
   color: var(--danger);
-}
-
-.quest-editor-layout {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.35fr) minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-}
-
-.quest-editor-sidebar,
-.quest-editor-workspace {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
-  padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 22px;
-  background: rgba(6, 12, 18, 0.58);
-}
-
-.quest-editor-status-card {
-  display: grid;
-  gap: 8px;
-  padding: 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(244, 188, 70, 0.18);
-  background: rgba(255, 255, 255, 0.035);
-}
-
-.quest-editor-status-card strong,
-.quest-editor-status-card small {
-  overflow-wrap: anywhere;
-}
-
-.quest-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.compact-metric {
-  padding: 16px;
-}
-
-.compact-metric strong {
-  font-size: 1.65rem;
-}
-
-.quest-list {
-  display: grid;
-  gap: 10px;
-  max-height: 620px;
-  overflow: auto;
-  padding-right: 4px;
-}
-
-.quest-card-button {
-  display: grid;
-  gap: 6px;
-  width: 100%;
-  text-align: left;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.quest-card-button span {
-  color: var(--muted);
-  font-weight: 500;
-  overflow-wrap: anywhere;
-}
-
-.quest-card-button.active {
-  border-color: var(--line-strong);
-  background: rgba(244, 188, 70, 0.12);
-}
-
-.quest-detail-grid {
-  margin-bottom: 8px;
-}
-
-.quest-editor-section {
-  display: grid;
-  gap: 12px;
-}
-
-.quest-table-shell {
-  overflow-x: auto;
-}
-
-.quest-table-shell table {
-  min-width: 760px;
-}
-
-.quest-raw-yaml {
-  min-height: 260px;
-  font-family: "Cascadia Code", "Consolas", monospace;
-  line-height: 1.45;
 }
 
 .empty-state {
@@ -1159,12 +935,6 @@ tbody button {
   tbody button {
     width: 100%;
     margin: 0 0 6px;
-  }
-
-  .luckperms-toolbar,
-  .luckperms-editor,
-  .quest-editor-layout {
-    grid-template-columns: 1fr;
   }
 
   .brand-title {
