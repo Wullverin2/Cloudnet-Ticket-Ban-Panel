@@ -3,8 +3,16 @@ const PERMISSIONS = {
   CLOUDNET_MANAGE: "cloudnet.manage",
   CLOUDNET_CONSOLE: "cloudnet.console",
   CLOUDNET_COMMAND: "cloudnet.command",
+  TICKETS_VIEW: "tickets.view",
+  TICKETS_CREATE: "tickets.create",
+  TICKETS_MANAGE: "tickets.manage",
+  BANS_VIEW: "bans.view",
+  BANS_MANAGE: "bans.manage",
   USERS_MANAGE: "users.manage",
+  PROXY_PERMISSIONS_MANAGE: "permissions.proxy.manage",
+  SERVER_PERMISSIONS_MANAGE: "permissions.server.manage",
   SETTINGS_MANAGE: "settings.manage",
+  QUEST_EDITOR_VIEW: "quests.editor.view",
 };
 
 const CONSOLE_REFRESH_INTERVALS = [5, 10, 15, 30, 60];
@@ -18,9 +26,28 @@ const state = {
   tasks: [],
   services: [],
   nodes: [],
+  tickets: [],
+  ticketAudit: [],
+  bans: [],
+  liteBans: [],
+  banAppeals: [],
+  banAudit: [],
   securityUsers: [],
   securityGroups: [],
+  permissionSubjects: [],
+  permissionAudit: [],
+  questEditorConfig: null,
+  questEditorServers: [],
+  questEditorStatus: null,
+  questEditorSchema: {},
+  questEditorCategories: [],
+  questEditorQuests: [],
+  selectedQuestServerId: localStorage.getItem("tccb-quest-server") || "",
+  selectedQuestId: localStorage.getItem("tccb-quest-id") || "",
+  selectedServerShopServerId: localStorage.getItem("tccb-serversshop-server") || "",
   settings: null,
+  selectedPermissionServer: localStorage.getItem("tccb-lp-server") || "proxy",
+  selectedPermissionSubject: localStorage.getItem("tccb-lp-subject") || "",
   selectedTaskName: localStorage.getItem("tccb-task") || "",
   activeCloudNetSection: localStorage.getItem("tccb-cloudnet-section") || "cloud",
   activeCloudNetView: "overview",
@@ -33,6 +60,10 @@ const state = {
   lastConsoleRefreshAt: 0,
   consoleAutoRefresh: true,
   consoleRefreshIntervalSeconds: consoleRefreshIntervalValue(localStorage.getItem("tccb-console-refresh-interval")),
+  oneDrivePollTimer: null,
+  oneDriveFolders: [],
+  oneDriveFoldersLoading: false,
+  oneDriveFoldersLoaded: false,
   cloudConsoleRequestInFlight: false,
   lastCloudConsoleText: "",
   lastCloudConsoleRefreshAt: 0,
@@ -85,6 +116,11 @@ function bindElements() {
   elements.metricNodes = document.getElementById("metric-nodes");
   elements.homePanel = document.getElementById("home-panel");
   elements.homeRefresh = document.getElementById("home-refresh");
+  elements.homeOpenTickets = document.getElementById("home-open-tickets");
+  elements.homeClosedTickets = document.getElementById("home-closed-tickets");
+  elements.homeOpenAppeals = document.getElementById("home-open-appeals");
+  elements.homeArchivedAppeals = document.getElementById("home-archived-appeals");
+  elements.homeActiveLiteBans = document.getElementById("home-active-litebans");
 
   elements.environmentSelect = document.getElementById("environment-select");
   elements.runtimeSelect = document.getElementById("runtime-select");
@@ -122,6 +158,26 @@ function bindElements() {
 
   elements.nodeGrid = document.getElementById("node-grid");
 
+  elements.ticketForm = document.getElementById("ticket-form");
+  elements.ticketStatus = document.getElementById("ticket-status");
+  elements.ticketRefresh = document.getElementById("ticket-refresh");
+  elements.ticketTable = document.getElementById("ticket-table");
+  elements.ticketArchiveTable = document.getElementById("ticket-archive-table");
+  elements.ticketAuditTable = document.getElementById("ticket-audit-table");
+  elements.ticketCategorySelect = document.getElementById("ticket-category-select");
+  elements.ticketPrioritySelect = document.getElementById("ticket-priority-select");
+  elements.ticketCategorySettingsList = document.getElementById("ticket-category-settings-list");
+  elements.serviceNameList = document.getElementById("service-name-list");
+
+  elements.banForm = document.getElementById("ban-form");
+  elements.banStatus = document.getElementById("ban-status");
+  elements.banTable = document.getElementById("ban-table");
+  elements.liteBanTable = document.getElementById("liteban-table");
+  elements.banAppealRefresh = document.getElementById("ban-appeal-refresh");
+  elements.banAppealTable = document.getElementById("ban-appeal-table");
+  elements.banAppealArchiveTable = document.getElementById("ban-appeal-archive-table");
+  elements.banAuditTable = document.getElementById("ban-audit-table");
+
   elements.groupForm = document.getElementById("group-form");
   elements.groupReset = document.getElementById("group-reset");
   elements.groupSubmit = document.getElementById("group-submit");
@@ -135,8 +191,65 @@ function bindElements() {
   elements.userStatus = document.getElementById("user-status");
   elements.userGroupGrid = document.getElementById("user-group-grid");
   elements.userTable = document.getElementById("user-table");
+
+  elements.permissionActionForm = document.getElementById("permission-action-form");
+  elements.permissionRefresh = document.getElementById("permission-refresh");
+  elements.permissionServerSelect = document.getElementById("permission-server-select");
+  elements.permissionSubjectSearch = document.getElementById("permission-subject-search");
+  elements.permissionSubjectList = document.getElementById("permission-subject-list");
+  elements.permissionSelectedSummary = document.getElementById("permission-selected-summary");
+  elements.permissionNodeList = document.getElementById("permission-node-list");
+  elements.permissionAuditTable = document.getElementById("permission-audit-table");
+  elements.permissionStatus = document.getElementById("permission-status");
+  elements.questRefresh = document.getElementById("quest-refresh");
+  elements.questServerSelect = document.getElementById("quest-server-select");
+  elements.questConnectionState = document.getElementById("quest-connection-state");
+  elements.questApiBaseUrl = document.getElementById("quest-api-base-url");
+  elements.questApiTokenState = document.getElementById("quest-api-token-state");
+  elements.questCount = document.getElementById("quest-count");
+  elements.questCategoryCount = document.getElementById("quest-category-count");
+  elements.questSearch = document.getElementById("quest-search");
+  elements.questCategoryFilter = document.getElementById("quest-category-filter");
+  elements.questList = document.getElementById("quest-list");
+  elements.questDetailTitle = document.getElementById("quest-detail-title");
+  elements.questDetailSubtitle = document.getElementById("quest-detail-subtitle");
+  elements.questLoadRaw = document.getElementById("quest-load-raw");
+  elements.questSave = document.getElementById("quest-save");
+  elements.questFieldId = document.getElementById("quest-field-id");
+  elements.questFieldName = document.getElementById("quest-field-name");
+  elements.questFieldType = document.getElementById("quest-field-type");
+  elements.questFieldCategory = document.getElementById("quest-field-category");
+  elements.questFieldIcon = document.getElementById("quest-field-icon");
+  elements.questFieldBedrockName = document.getElementById("quest-field-bedrock-name");
+  elements.questFieldBedrockIcon = document.getElementById("quest-field-bedrock-icon");
+  elements.questFieldResetProfile = document.getElementById("quest-field-reset-profile");
+  elements.questTaskTable = document.getElementById("quest-task-table");
+  elements.questRewardTable = document.getElementById("quest-reward-table");
+  elements.questRawYaml = document.getElementById("quest-raw-yaml");
+  elements.serverShopRefresh = document.getElementById("serversshop-refresh");
+  elements.serverShopServerSelect = document.getElementById("serversshop-server-select");
+  elements.serverShopConnectionState = document.getElementById("serversshop-connection-state");
+  elements.serverShopApiBaseUrl = document.getElementById("serversshop-api-base-url");
+  elements.serverShopApiTokenState = document.getElementById("serversshop-api-token-state");
+  elements.serverShopCategoryCount = document.getElementById("serversshop-category-count");
+  elements.serverShopItemCount = document.getElementById("serversshop-item-count");
+  elements.serverShopDetailTitle = document.getElementById("serversshop-detail-title");
+  elements.serverShopDetailSubtitle = document.getElementById("serversshop-detail-subtitle");
+  elements.serverShopLoad = document.getElementById("serversshop-load");
+  elements.serverShopSave = document.getElementById("serversshop-save");
+  elements.serverShopCategoryTable = document.getElementById("serversshop-category-table");
+  elements.serverShopStatus = document.getElementById("serversshop-status");
   elements.settingsForm = document.getElementById("settings-form");
   elements.settingsStatus = document.getElementById("settings-status");
+  elements.questServerSettingsList = document.getElementById("quest-server-settings-list");
+  elements.questServerAdd = document.getElementById("quest-server-add");
+  elements.serverShopServerSettingsList = document.getElementById("serversshop-server-settings-list");
+  elements.serverShopServerAdd = document.getElementById("serversshop-server-add");
+  elements.oneDriveConnect = document.getElementById("onedrive-connect");
+  elements.oneDriveDisconnect = document.getElementById("onedrive-disconnect");
+  elements.oneDriveFoldersRefresh = document.getElementById("onedrive-folders-refresh");
+  elements.oneDriveLoginLink = document.getElementById("onedrive-login-link");
+  elements.oneDriveStatus = document.getElementById("onedrive-status");
   elements.testMailForm = document.getElementById("test-mail-form");
   elements.testMailStatus = document.getElementById("test-mail-status");
 }
@@ -156,6 +269,7 @@ function bindEvents() {
   elements.twoFactorMethod.addEventListener("change", updateTwoFactorProfileControls);
   elements.totpSetupButton.addEventListener("click", prepareTotpSetup);
   elements.pageNav.addEventListener("click", handlePageNavClick);
+  elements.homePanel.addEventListener("click", handleHomePanelClick);
   elements.homeRefresh.addEventListener("click", refreshAll);
 
   elements.taskForm.addEventListener("submit", handleTaskSubmit);
@@ -215,6 +329,23 @@ function bindEvents() {
   });
   elements.consoleCommandForm.addEventListener("submit", handleConsoleCommandSubmit);
 
+  elements.ticketForm.addEventListener("submit", handleTicketSubmit);
+  elements.ticketRefresh.addEventListener("click", refreshTicketsOnly);
+  elements.ticketTable.addEventListener("click", handleTicketTableClick);
+  document.querySelectorAll("button[data-ticket-tab]").forEach(button => {
+    button.addEventListener("click", () => switchTicketTab(button.dataset.ticketTab));
+  });
+
+  elements.banForm.addEventListener("submit", handleBanSubmit);
+  elements.banTable.addEventListener("click", handleBanTableClick);
+  elements.liteBanTable.addEventListener("click", handleLiteBanTableClick);
+  elements.banAppealRefresh.addEventListener("click", refreshBanAppealsOnly);
+  elements.banAppealTable.addEventListener("click", handleBanAppealTableClick);
+  elements.banAppealArchiveTable.addEventListener("click", handleBanAppealTableClick);
+  document.querySelectorAll("button[data-ban-tab]").forEach(button => {
+    button.addEventListener("click", () => switchBanTab(button.dataset.banTab));
+  });
+
   elements.groupForm.addEventListener("submit", handleGroupSubmit);
   elements.groupReset.addEventListener("click", resetGroupForm);
   elements.groupTable.addEventListener("click", handleGroupTableClick);
@@ -222,7 +353,42 @@ function bindEvents() {
   elements.userForm.addEventListener("submit", handleUserSubmit);
   elements.userReset.addEventListener("click", resetUserForm);
   elements.userTable.addEventListener("click", handleUserTableClick);
+  elements.permissionActionForm.addEventListener("submit", handlePermissionActionSubmit);
+  elements.permissionRefresh.addEventListener("click", refreshAll);
+  elements.permissionServerSelect.addEventListener("change", () => {
+    state.selectedPermissionServer = elements.permissionServerSelect.value || "proxy";
+    state.selectedPermissionSubject = "";
+    localStorage.setItem("tccb-lp-server", state.selectedPermissionServer);
+    localStorage.removeItem("tccb-lp-subject");
+    renderPermissionSubjects();
+  });
+  elements.permissionSubjectSearch.addEventListener("input", renderPermissionSubjects);
+  elements.permissionSubjectList.addEventListener("click", handlePermissionSubjectClick);
+  elements.permissionNodeList.addEventListener("click", handlePermissionNodeClick);
+  elements.questRefresh.addEventListener("click", refreshQuestEditor);
+  elements.questServerSelect.addEventListener("change", () => {
+    state.selectedQuestServerId = elements.questServerSelect.value || "";
+    localStorage.setItem("tccb-quest-server", state.selectedQuestServerId);
+    clearQuestEditorDetail();
+    loadQuestEditorOverview(true);
+  });
+  elements.questSearch.addEventListener("input", renderQuestEditorList);
+  elements.questCategoryFilter.addEventListener("change", renderQuestEditorList);
+  elements.questLoadRaw.addEventListener("click", loadQuestRawYaml);
+  elements.serverShopRefresh.addEventListener("click", renderServerShopEditor);
+  elements.serverShopServerSelect.addEventListener("change", () => {
+    state.selectedServerShopServerId = elements.serverShopServerSelect.value || "";
+    localStorage.setItem("tccb-serversshop-server", state.selectedServerShopServerId);
+    renderServerShopEditor();
+  });
   elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
+  elements.questServerAdd.addEventListener("click", addQuestServerSettingsRow);
+  elements.questServerSettingsList.addEventListener("click", handleQuestServerSettingsClick);
+  elements.serverShopServerAdd.addEventListener("click", addServerShopServerSettingsRow);
+  elements.serverShopServerSettingsList.addEventListener("click", handleServerShopServerSettingsClick);
+  elements.oneDriveConnect.addEventListener("click", handleOneDriveConnect);
+  elements.oneDriveDisconnect.addEventListener("click", handleOneDriveDisconnect);
+  elements.oneDriveFoldersRefresh.addEventListener("click", () => loadOneDriveFolders(true));
   elements.testMailForm.addEventListener("submit", handleTestMailSubmit);
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -236,6 +402,8 @@ async function boot() {
     applyBranding(state.meta);
     populateSelect(elements.environmentSelect, state.meta.environments);
     populateSelect(elements.runtimeSelect, state.meta.runtimes);
+    populateSelect(elements.ticketCategorySelect, state.meta.ticketCategories);
+    populateSelect(elements.ticketPrioritySelect, state.meta.ticketPriorities);
     renderPermissionGrid();
     resetTaskForm();
     resetGroupForm();
@@ -541,9 +709,25 @@ function clearSession() {
   state.tasks = [];
   state.services = [];
   state.nodes = [];
+  state.tickets = [];
+  state.ticketAudit = [];
+  state.bans = [];
+  state.liteBans = [];
+  state.banAppeals = [];
+  state.banAudit = [];
   state.securityUsers = [];
   state.securityGroups = [];
+  state.permissionSubjects = [];
+  state.permissionAudit = [];
+  state.questEditorConfig = null;
+  state.questEditorServers = [];
+  state.questEditorStatus = null;
+  state.questEditorSchema = {};
+  state.questEditorCategories = [];
+  state.questEditorQuests = [];
+  state.selectedQuestId = "";
   state.settings = null;
+  state.selectedPermissionSubject = "";
   state.twoFactorChallengeId = "";
   localStorage.removeItem("tccb-session");
   if (state.consoleTimer) {
@@ -567,6 +751,14 @@ function handlePageNavClick(event) {
   if (button.dataset.pageTarget === "cloudnet") {
     switchCloudNetSection(state.activeCloudNetSection || "cloud");
   }
+  if (button.dataset.pageTarget === "quest-editor") {
+    refreshQuestEditor();
+  }
+  if (button.dataset.banTabTarget) {
+    switchBanTab(button.dataset.banTabTarget);
+    elements.pageNav.querySelectorAll("button[data-page-target]").forEach(entry => entry.classList.remove("active"));
+    button.classList.add("active");
+  }
 }
 
 function switchPage(page) {
@@ -582,7 +774,7 @@ function switchPage(page) {
     panel.classList.toggle("hidden", panel.dataset.page !== target);
   });
   elements.pageNav.querySelectorAll("button[data-page-target]").forEach(button => {
-    button.classList.toggle("active", button.dataset.pageTarget === target);
+    button.classList.toggle("active", button.dataset.pageTarget === target && !button.dataset.banTabTarget);
   });
   if (target === "cloudnet") {
     updateCloudNetVisibility();
@@ -667,6 +859,36 @@ async function refreshAll() {
     refreshServiceSelectors();
   }
 
+  if (hasPermission(PERMISSIONS.TICKETS_VIEW)) {
+    const [tickets, ticketAudit] = await Promise.all([
+      api("/api/tickets"),
+      api("/api/tickets/audit"),
+    ]);
+    state.tickets = asArray(tickets);
+    state.ticketAudit = asArray(ticketAudit);
+    renderTickets();
+    renderTicketArchive();
+    renderTicketAudit();
+  }
+
+  if (hasPermission(PERMISSIONS.BANS_VIEW)) {
+    const [bans, liteBans, banAppeals, banAudit] = await Promise.all([
+      api("/api/bans"),
+      api("/api/bans/litebans"),
+      api("/api/ban-appeals"),
+      api("/api/bans/audit"),
+    ]);
+    state.bans = asArray(bans);
+    state.liteBans = asArray(liteBans);
+    state.banAppeals = asArray(banAppeals);
+    state.banAudit = asArray(banAudit);
+    renderBans();
+    renderLiteBans();
+    renderBanAppeals();
+    renderBanAppealArchive();
+    renderBanAudit();
+  }
+
   if (hasPermission(PERMISSIONS.USERS_MANAGE)) {
     const [groups, users] = await Promise.all([
       api("/api/security/groups"),
@@ -683,9 +905,28 @@ async function refreshAll() {
     renderUsers();
   }
 
+  if (hasPermission(`${PERMISSIONS.PROXY_PERMISSIONS_MANAGE},${PERMISSIONS.SERVER_PERMISSIONS_MANAGE}`)) {
+    const [subjects, audit] = await Promise.all([
+      api("/api/permissions/subjects"),
+      api("/api/permissions/audit"),
+    ]);
+    state.permissionSubjects = asArray(subjects);
+    state.permissionAudit = asArray(audit);
+    refreshPermissionServerSelect();
+    renderPermissionSubjects();
+    renderPermissionAudit();
+  }
+
+  if (hasPermission(PERMISSIONS.QUEST_EDITOR_VIEW)) {
+    await loadQuestEditorOverview(false);
+  }
+
   if (hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
     state.settings = await api("/api/settings");
+    syncTicketCategoriesFromSettings();
     renderSettings();
+    renderBanAppeals();
+    renderBanAppealArchive();
   }
 
   if (hasPermission(PERMISSIONS.CLOUDNET_CONSOLE)) {
@@ -699,6 +940,384 @@ async function refreshAll() {
   renderHome();
   applyPermissions();
   switchPage(state.activePage);
+}
+
+async function refreshTicketsOnly() {
+  if (!hasPermission(PERMISSIONS.TICKETS_VIEW)) {
+    return;
+  }
+
+  try {
+    const [tickets, ticketAudit] = await Promise.all([
+      api("/api/tickets"),
+      api("/api/tickets/audit"),
+    ]);
+    state.tickets = asArray(tickets);
+    state.ticketAudit = asArray(ticketAudit);
+    renderTickets();
+    renderTicketArchive();
+    renderTicketAudit();
+    renderHome();
+    setStatus(elements.ticketStatus, "Tickets wurden aktualisiert.", false);
+  } catch (error) {
+    handleApiError(error, elements.ticketStatus);
+  }
+}
+
+async function refreshBanAppealsOnly() {
+  if (!hasPermission(PERMISSIONS.BANS_VIEW)) {
+    return;
+  }
+
+  try {
+    state.banAppeals = asArray(await api("/api/ban-appeals"));
+    renderBanAppeals();
+    renderBanAppealArchive();
+    renderHome();
+    setStatus(elements.banStatus, "Entbannungsanträge wurden aktualisiert.", false);
+  } catch (error) {
+    handleApiError(error, elements.banStatus);
+  }
+}
+
+async function refreshQuestEditor() {
+  await loadQuestEditorOverview(true);
+}
+
+async function loadQuestEditorOverview(showStatus) {
+  if (!hasPermission(PERMISSIONS.QUEST_EDITOR_VIEW)) {
+    return;
+  }
+
+  try {
+    if (showStatus) {
+      setStatus(elements.questConnectionState, "Verbinde mit CraftplayQuests ...", false);
+    }
+
+    state.questEditorConfig = await api("/api/quest-editor/config");
+    state.questEditorServers = responseArray(state.questEditorConfig.servers, "servers");
+    renderQuestEditorServerSelect();
+    const selectedServer = ensureQuestEditorServerSelection();
+    renderQuestEditorConfig();
+    if (!selectedServer?.enabled) {
+      state.questEditorStatus = state.questEditorConfig;
+      state.questEditorSchema = {};
+      state.questEditorCategories = [];
+      state.questEditorQuests = [];
+      renderQuestEditorOverview();
+      clearQuestEditorDetail();
+      setStatus(elements.questConnectionState, "Bitte einen aktiven Quest-Server in den Einstellungen hinterlegen.", true);
+      return;
+    }
+
+    const [status, schema, categories, quests] = await Promise.all([
+      api(questEditorApiPath("status")),
+      api(questEditorApiPath("schema")),
+      api(questEditorApiPath("categories")),
+      api(questEditorApiPath("quests")),
+    ]);
+
+    state.questEditorStatus = status;
+    if (status?.serverName) {
+      state.questEditorServers = state.questEditorServers.map(server => (
+        server.id === state.selectedQuestServerId
+          ? { ...server, pluginServerName: status.serverName }
+          : server
+      ));
+      renderQuestEditorServerSelect();
+    }
+    state.questEditorSchema = schema || {};
+    state.questEditorCategories = responseArray(categories, "categories");
+    state.questEditorQuests = responseArray(quests, "quests");
+
+    renderQuestEditorOverview();
+    if (state.selectedQuestId && state.questEditorQuests.some(quest => quest.id === state.selectedQuestId)) {
+      await selectQuestEditorQuest(state.selectedQuestId);
+    } else {
+      clearQuestEditorDetail();
+    }
+    setStatus(elements.questConnectionState, questEditorStatusText(), false);
+  } catch (error) {
+    handleApiError(error, elements.questConnectionState);
+    renderQuestEditorOverview();
+  }
+}
+
+function renderQuestEditorConfig() {
+  const server = selectedQuestEditorServer();
+  elements.questApiBaseUrl.textContent = server?.baseUrl || "-";
+  elements.questApiTokenState.textContent = server?.tokenConfigured ? "Token gesetzt" : "Kein Token gesetzt";
+}
+
+function renderQuestEditorServerSelect() {
+  const selected = state.selectedQuestServerId || elements.questServerSelect.value;
+  elements.questServerSelect.innerHTML = "";
+  if (!state.questEditorServers.length) {
+    appendOption(elements.questServerSelect, "", "Kein Quest-Server");
+    return;
+  }
+  state.questEditorServers.forEach(server => {
+    appendOption(elements.questServerSelect, server.id || "", questEditorServerLabel(server));
+  });
+  const selectedServer = state.questEditorServers.find(server => server.id === selected)
+    || state.questEditorServers.find(server => server.enabled)
+    || state.questEditorServers[0];
+  elements.questServerSelect.value = selectedServer?.id || "";
+  state.selectedQuestServerId = elements.questServerSelect.value;
+  if (state.selectedQuestServerId) {
+    localStorage.setItem("tccb-quest-server", state.selectedQuestServerId);
+  }
+}
+
+function renderQuestEditorOverview() {
+  elements.questCount.textContent = String(state.questEditorQuests.length);
+  elements.questCategoryCount.textContent = String(state.questEditorCategories.length);
+  renderQuestEditorCategoryFilter();
+  renderQuestEditorFieldOptions();
+  renderQuestEditorList();
+}
+
+function renderQuestEditorCategoryFilter() {
+  const selected = elements.questCategoryFilter.value;
+  elements.questCategoryFilter.innerHTML = "";
+  appendOption(elements.questCategoryFilter, "", "Alle Kategorien");
+  state.questEditorCategories.forEach(category => {
+    const id = questCategoryId(category);
+    appendOption(elements.questCategoryFilter, id, questCategoryName(category));
+  });
+  elements.questCategoryFilter.value = selected;
+}
+
+function renderQuestEditorFieldOptions() {
+  fillSelectWithFallback(elements.questFieldType, state.questEditorSchema.questTypes || ["STANDARD", "DAILY", "WEEKLY", "COMMUNITY"], elements.questFieldType.value);
+  fillSelectWithFallback(
+    elements.questFieldCategory,
+    state.questEditorCategories.map(category => questCategoryId(category)),
+    elements.questFieldCategory.value);
+  fillSelectWithFallback(elements.questFieldResetProfile, state.questEditorSchema.resetProfiles || ["NONE", "DAILY", "WEEKLY"], elements.questFieldResetProfile.value);
+}
+
+function renderQuestEditorList() {
+  const query = String(elements.questSearch.value || "").trim().toLowerCase();
+  const categoryFilter = elements.questCategoryFilter.value;
+  const quests = state.questEditorQuests
+    .filter(quest => {
+      const category = questCategoryValue(quest);
+      const text = [
+        quest.id,
+        quest.name,
+        quest.displayName,
+        quest.bedrockName,
+        category,
+        quest.type,
+      ].join(" ").toLowerCase();
+      return (!categoryFilter || category === categoryFilter)
+        && (!query || text.includes(query));
+    });
+
+  elements.questList.innerHTML = "";
+  if (!selectedQuestEditorServer()?.enabled) {
+    elements.questList.innerHTML = `<div class="empty-state">Aktiviere mindestens einen Quest-Server in den Einstellungen.</div>`;
+    return;
+  }
+  if (!quests.length) {
+    elements.questList.innerHTML = `<div class="empty-state">Keine Quests gefunden.</div>`;
+    return;
+  }
+
+  quests.forEach(quest => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `quest-card-button${quest.id === state.selectedQuestId ? " active" : ""}`;
+    button.innerHTML = `
+      <strong>${escapeHtml(quest.name || quest.displayName || quest.id)}</strong>
+      <span>${escapeHtml(quest.id || "-")} · ${escapeHtml(questCategoryValue(quest) || "ohne Kategorie")}</span>
+    `;
+    button.addEventListener("click", () => selectQuestEditorQuest(quest.id));
+    elements.questList.append(button);
+  });
+}
+
+async function selectQuestEditorQuest(id) {
+  if (!id) {
+    return;
+  }
+  state.selectedQuestId = id;
+  localStorage.setItem("tccb-quest-id", id);
+  renderQuestEditorList();
+  setQuestEditorDetailLoading(id);
+
+  try {
+    const quest = await api(questEditorApiPath(`quests/${encodeURIComponent(id)}`));
+    renderQuestEditorDetail(quest);
+  } catch (error) {
+    handleApiError(error, elements.questConnectionState);
+    elements.questDetailTitle.textContent = "Quest konnte nicht geladen werden";
+    elements.questDetailSubtitle.textContent = error.message;
+  }
+}
+
+function renderQuestEditorDetail(quest) {
+  const bedrock = quest.bedrock || {};
+  elements.questDetailTitle.textContent = quest.name || quest.displayName || quest.id || "Quest";
+  elements.questDetailSubtitle.textContent = `${quest.id || "-"} · ${questCategoryValue(quest) || "ohne Kategorie"}`;
+  setFormValue(elements, "questFieldId", quest.id || "");
+  setFormValue(elements, "questFieldName", quest.name || quest.displayName || "");
+  setSelectValueWithFallback(elements.questFieldType, quest.type || "STANDARD");
+  setSelectValueWithFallback(elements.questFieldCategory, questCategoryValue(quest));
+  setFormValue(elements, "questFieldIcon", quest.icon || quest.item || quest.material || "");
+  setFormValue(elements, "questFieldBedrockName", bedrock.name || quest.bedrockName || "");
+  setFormValue(elements, "questFieldBedrockIcon", bedrock.icon || quest.bedrockIcon || "");
+  setSelectValueWithFallback(elements.questFieldResetProfile, quest.resetProfile || quest.reset || "NONE");
+  renderQuestEditorTasks(responseArray(quest.tasks, "tasks"));
+  renderQuestEditorRewards(responseArray(quest.rewards, "rewards"));
+  elements.questRawYaml.value = "";
+  elements.questLoadRaw.disabled = false;
+  elements.questSave.disabled = true;
+}
+
+function renderQuestEditorTasks(tasks) {
+  elements.questTaskTable.innerHTML = "";
+  if (!tasks.length) {
+    elements.questTaskTable.innerHTML = `<tr><td colspan="5">Keine Aufgaben hinterlegt.</td></tr>`;
+    return;
+  }
+  elements.questTaskTable.innerHTML = tasks.map(task => `
+    <tr>
+      <td>${escapeHtml(task.id || "-")}</td>
+      <td>${escapeHtml(task.type || "-")}</td>
+      <td>${escapeHtml(task.target || task.item || task.entity || "-")}</td>
+      <td>${escapeHtml(task.amount ?? task.required ?? "-")}</td>
+      <td>${escapeHtml(task.text || task.displayText || task.description || "-")}</td>
+    </tr>
+  `).join("");
+}
+
+function renderQuestEditorRewards(rewards) {
+  elements.questRewardTable.innerHTML = "";
+  if (!rewards.length) {
+    elements.questRewardTable.innerHTML = `<tr><td colspan="3">Keine Belohnungen hinterlegt.</td></tr>`;
+    return;
+  }
+  elements.questRewardTable.innerHTML = rewards.map(reward => `
+    <tr>
+      <td>${escapeHtml(reward.type || "-")}</td>
+      <td>${escapeHtml(reward.value || reward.command || reward.item || reward.amount || "-")}</td>
+      <td>${escapeHtml(reward.text || reward.displayText || reward.description || "-")}</td>
+    </tr>
+  `).join("");
+}
+
+async function loadQuestRawYaml() {
+  if (!state.selectedQuestId) {
+    return;
+  }
+
+  elements.questLoadRaw.disabled = true;
+  elements.questRawYaml.value = "Lade YAML ...";
+  try {
+    const raw = await api(questEditorApiPath(`raw/quests/${encodeURIComponent(state.selectedQuestId)}`));
+    elements.questRawYaml.value = raw.content || raw.yaml || JSON.stringify(raw, null, 2);
+  } catch (error) {
+    elements.questRawYaml.value = `YAML konnte nicht geladen werden: ${error.message}`;
+    handleApiError(error, elements.questConnectionState);
+  } finally {
+    elements.questLoadRaw.disabled = false;
+  }
+}
+
+function setQuestEditorDetailLoading(id) {
+  elements.questDetailTitle.textContent = "Lade Quest ...";
+  elements.questDetailSubtitle.textContent = id;
+  elements.questTaskTable.innerHTML = "";
+  elements.questRewardTable.innerHTML = "";
+  elements.questRawYaml.value = "";
+  elements.questLoadRaw.disabled = true;
+}
+
+function clearQuestEditorDetail() {
+  state.selectedQuestId = "";
+  localStorage.removeItem("tccb-quest-id");
+  elements.questDetailTitle.textContent = "Keine Quest ausgewählt";
+  elements.questDetailSubtitle.textContent = "Wähle links eine Quest aus.";
+  setFormValue(elements, "questFieldId", "");
+  setFormValue(elements, "questFieldName", "");
+  setFormValue(elements, "questFieldIcon", "");
+  setFormValue(elements, "questFieldBedrockName", "");
+  setFormValue(elements, "questFieldBedrockIcon", "");
+  elements.questRawYaml.value = "";
+  renderQuestEditorTasks([]);
+  renderQuestEditorRewards([]);
+  elements.questLoadRaw.disabled = true;
+  elements.questSave.disabled = true;
+}
+
+function questEditorStatusText() {
+  const status = state.questEditorStatus || {};
+  const questCount = status.questCount ?? status.quests ?? state.questEditorQuests.length;
+  const categoryCount = status.categoryCount ?? status.categories ?? state.questEditorCategories.length;
+  const serverName = status.serverName || selectedQuestEditorServer()?.name || "Quest-Server";
+  return `${serverName} verbunden · ${questCount} Quests · ${categoryCount} Kategorien`;
+}
+
+function questCategoryId(category) {
+  return String(category?.id || category?.key || category?.name || "");
+}
+
+function ensureQuestEditorServerSelection() {
+  const selected = state.questEditorServers.find(server => server.id === state.selectedQuestServerId)
+    || state.questEditorServers.find(server => server.enabled)
+    || state.questEditorServers[0]
+    || null;
+  state.selectedQuestServerId = selected?.id || "";
+  if (state.selectedQuestServerId) {
+    localStorage.setItem("tccb-quest-server", state.selectedQuestServerId);
+  }
+  if (elements.questServerSelect) {
+    elements.questServerSelect.value = state.selectedQuestServerId;
+  }
+  return selected;
+}
+
+function selectedQuestEditorServer() {
+  return state.questEditorServers.find(server => server.id === state.selectedQuestServerId)
+    || state.questEditorServers.find(server => server.enabled)
+    || state.questEditorServers[0]
+    || null;
+}
+
+function questEditorApiPath(path) {
+  const server = ensureQuestEditorServerSelection();
+  const normalizedPath = String(path || "").replace(/^\/+/, "");
+  return `/api/quest-editor/${encodeURIComponent(server?.id || "")}/${normalizedPath}`;
+}
+
+function questEditorServerLabel(server) {
+  const configuredName = server?.name || server?.id || "Quest-Server";
+  const pluginName = String(server?.pluginServerName || "").trim();
+  const suffix = server?.enabled ? "" : " (deaktiviert)";
+  if (pluginName && pluginName !== configuredName) {
+    return `${pluginName} (${configuredName})${suffix}`;
+  }
+  return `${configuredName}${suffix}`;
+}
+
+function questCategoryName(category) {
+  return String(category?.name || category?.displayName || category?.id || category?.key || "-");
+}
+
+function questCategoryValue(quest) {
+  return String(quest?.category || quest?.categoryId || "");
+}
+
+function responseArray(value, key) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (Array.isArray(value?.[key])) {
+    return value[key];
+  }
+  return asArray(value);
 }
 
 function fillSelectWithFallback(select, values, selected) {
@@ -724,7 +1343,30 @@ function appendOption(select, value, label) {
 }
 
 function renderHome() {
-  // Startseite enthält aktuell nur statische Panel-Hinweise.
+  setHomeMetric(
+    elements.homeOpenTickets,
+    hasPermission(PERMISSIONS.TICKETS_VIEW),
+    state.tickets.filter(ticket => !isClosedTicket(ticket)).length);
+  setHomeMetric(
+    elements.homeClosedTickets,
+    hasPermission(PERMISSIONS.TICKETS_VIEW),
+    state.tickets.filter(isClosedTicket).length);
+  setHomeMetric(
+    elements.homeOpenAppeals,
+    hasPermission(PERMISSIONS.BANS_VIEW),
+    state.banAppeals.filter(appeal => !isArchivedAppeal(appeal)).length);
+  setHomeMetric(
+    elements.homeArchivedAppeals,
+    hasPermission(PERMISSIONS.BANS_VIEW),
+    state.banAppeals.filter(isArchivedAppeal).length);
+  setHomeMetric(
+    elements.homeActiveLiteBans,
+    hasPermission(PERMISSIONS.BANS_VIEW),
+    state.liteBans.filter(ban => ban.active).length);
+}
+
+function setHomeMetric(element, allowed, value) {
+  element.textContent = allowed ? String(value) : "-";
 }
 
 function renderOverview() {
@@ -837,6 +1479,336 @@ function renderNodes() {
   `).join("");
 }
 
+function renderTickets() {
+  const activeTickets = state.tickets.filter(ticket => !isClosedTicket(ticket));
+  if (!activeTickets.length) {
+    elements.ticketTable.innerHTML = `<tr><td colspan="7" class="muted">Keine aktiven Tickets vorhanden.</td></tr>`;
+    return;
+  }
+
+  elements.ticketTable.innerHTML = activeTickets.map(ticket => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(ticket.subject)}</strong><br>
+        <span class="muted">${escapeHtml(ticket.category)} | ${escapeHtml(ticket.createdAt || "-")}</span>
+      </td>
+      <td>${escapeHtml(ticket.creatorName)}</td>
+      <td>${escapeHtml(ticket.sourceServer || ticket.serviceName || "-")}</td>
+      <td>${escapeHtml(ticket.status)}</td>
+      <td>${escapeHtml(ticket.priority)}</td>
+      <td>${escapeHtml(ticket.assignedTo || "-")}</td>
+      <td>${ticketActions(ticket)}</td>
+    </tr>
+  `).join("");
+}
+
+function renderTicketArchive() {
+  const archivedTickets = state.tickets.filter(isClosedTicket);
+  if (!archivedTickets.length) {
+    elements.ticketArchiveTable.innerHTML = `<tr><td colspan="7" class="muted">Noch keine geschlossenen Tickets im Archiv.</td></tr>`;
+    return;
+  }
+
+  elements.ticketArchiveTable.innerHTML = archivedTickets.map(ticket => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(ticket.subject)}</strong><br>
+        <span class="muted">${escapeHtml(ticket.category)} | ${escapeHtml(ticket.createdAt || "-")}</span>
+      </td>
+      <td>${escapeHtml(ticket.creatorName)}</td>
+      <td>${escapeHtml(ticket.sourceServer || ticket.serviceName || "-")}</td>
+      <td>${escapeHtml(ticket.status)}</td>
+      <td>${escapeHtml(ticket.priority)}</td>
+      <td>${escapeHtml(ticket.assignedTo || "-")}</td>
+      <td>${escapeHtml(ticket.updatedAt || "-")}</td>
+    </tr>
+  `).join("");
+}
+
+function ticketActions(ticket) {
+  if (!hasPermission(PERMISSIONS.TICKETS_MANAGE)) {
+    return `<span class="muted">Nur Ansicht</span>`;
+  }
+
+  return `
+    <button data-ticket-action="teleport" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Teleport</button>
+    <button data-ticket-action="open" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Öffnen</button>
+    <button data-ticket-action="progress" data-ticket-id="${escapeAttr(ticket.id)}" type="button">In Bearbeitung</button>
+    <button data-ticket-action="close" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Schließen</button>
+    <button data-ticket-action="assign" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Zuweisen</button>
+    <button data-ticket-action="comment" data-ticket-id="${escapeAttr(ticket.id)}" type="button">Kommentar</button>
+  `;
+}
+
+function renderTicketAudit() {
+  if (!state.ticketAudit.length) {
+    elements.ticketAuditTable.innerHTML = `<tr><td colspan="5" class="muted">Noch kein Ticket-Audit vorhanden.</td></tr>`;
+    return;
+  }
+
+  elements.ticketAuditTable.innerHTML = state.ticketAudit.slice(0, 80).map(entry => `
+    <tr>
+      <td>${escapeHtml(entry.createdAt || "-")}</td>
+      <td>${escapeHtml(shortId(entry.ticketId))}</td>
+      <td>${escapeHtml(entry.action)}</td>
+      <td>${escapeHtml(entry.actor || "-")}</td>
+      <td>${escapeHtml(entry.message || "-")}</td>
+    </tr>
+  `).join("");
+}
+
+function renderBans() {
+  if (!state.bans.length) {
+    elements.banTable.innerHTML = `<tr><td colspan="5" class="muted">Keine Bans vorhanden.</td></tr>`;
+    return;
+  }
+
+  elements.banTable.innerHTML = state.bans.map(ban => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(ban.targetName)}</strong><br>
+        <span class="muted">${escapeHtml(ban.targetUniqueId || ban.targetAddress || "-")}</span>
+      </td>
+      <td>
+        <span class="badge ${ban.active ? "badge-danger" : "badge-success"}">
+          ${ban.active ? (ban.expired ? "abgelaufen" : "aktiv") : "entbannt"}
+        </span>
+      </td>
+      <td>${escapeHtml(ban.reason)}</td>
+      <td>${escapeHtml(ban.expiresAt || "permanent")}</td>
+      <td>${banActions(ban)}</td>
+    </tr>
+  `).join("");
+}
+
+function banActions(ban) {
+  if (!hasPermission(PERMISSIONS.BANS_MANAGE) || !ban.active) {
+    return `<span class="muted">-</span>`;
+  }
+  return `<button data-ban-action="deactivate" data-ban-id="${escapeAttr(ban.id)}" type="button">Deaktivieren</button>`;
+}
+
+function renderLiteBans() {
+  if (!state.liteBans.length) {
+    elements.liteBanTable.innerHTML = `<tr><td colspan="7" class="muted">Noch keine LiteBans synchronisiert.</td></tr>`;
+    return;
+  }
+
+  elements.liteBanTable.innerHTML = state.liteBans.map(ban => `
+    <tr>
+      <td>${liteBanIdCell(ban)}</td>
+      <td>
+        <strong>${escapeHtml(ban.targetName || "-")}</strong><br>
+        <span class="muted">${escapeHtml(ban.targetUniqueId || ban.targetAddress || "-")}</span>
+      </td>
+      <td>${escapeHtml(ban.issuedBy || "-")}</td>
+      <td>
+        <span class="badge ${ban.active ? "badge-danger" : "badge-success"}">
+          ${ban.active ? "aktiv" : "inaktiv"}
+        </span>
+      </td>
+      <td>
+        <span>${escapeHtml(formatDateTime(ban.createdAt))}</span><br>
+        <span class="muted">bis ${escapeHtml(formatDateTime(ban.expiresAt) || "Permanent")}</span>
+      </td>
+      <td>${escapeHtml(ban.reason || "-")}</td>
+      <td class="actions-cell">${liteBanActions(ban)}</td>
+    </tr>
+  `).join("");
+}
+
+function liteBanIdCell(ban) {
+  const publicId = String(ban.publicId || "").trim();
+  const internalId = String(ban.id || "").trim();
+  if (isResolvedPublicBanId(publicId, internalId)) {
+    return `
+      <strong>${escapeHtml(publicId)}</strong><br>
+      <span class="muted">intern: ${escapeHtml(internalId || "-")}</span>
+    `;
+  }
+  return `
+    <strong class="danger-text">Random-ID fehlt</strong><br>
+    <span class="muted">Bridge prüfen, intern: ${escapeHtml(internalId || "-")}</span>
+  `;
+}
+
+function isClosedTicket(ticket) {
+  return String(ticket.status || "").toUpperCase() === "CLOSED";
+}
+
+function liteBanActions(ban) {
+  if (!hasPermission(PERMISSIONS.BANS_MANAGE)) {
+    return `<span class="muted">bans.manage fehlt</span>`;
+  }
+
+  if (!ban.active) {
+    return `
+      <div class="action-buttons">
+        <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Neu setzen</button>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="action-buttons">
+      <button data-liteban-action="unban" data-ban-id="${escapeAttr(ban.id)}" type="button">Aufheben</button>
+      <button data-liteban-action="extend" data-ban-id="${escapeAttr(ban.id)}" type="button">Verlängern</button>
+    </div>
+  `;
+}
+
+function renderBanAppeals() {
+  const activeAppeals = state.banAppeals.filter(appeal => !isArchivedAppeal(appeal));
+  if (!activeAppeals.length) {
+    elements.banAppealTable.innerHTML = `<tr><td colspan="8" class="muted">Keine offenen Entbannungsanträge vorhanden.</td></tr>`;
+    return;
+  }
+
+  elements.banAppealTable.innerHTML = activeAppeals.map(appeal => `
+    <tr>
+      <td>
+        <span class="badge ${appealStatusClass(appeal.status)}">${escapeHtml(appealStatusLabel(appeal.status))}</span><br>
+        <span class="muted">${escapeHtml(appealStatusText(appeal.status))}</span>
+      </td>
+      <td>
+        <strong>${escapeHtml(appeal.publicBanId || "-")}</strong><br>
+        <span class="muted">intern: ${escapeHtml(appeal.liteBanId || "-")}</span>
+      </td>
+      <td>${escapeHtml(appeal.playerName || "-")}</td>
+      <td>${escapeHtml(appeal.email || "-")}</td>
+      <td>${escapeHtml(shortText(appeal.reason, 90))}</td>
+      <td>${appealEvidence(appeal)}</td>
+      <td>${escapeHtml(appeal.createdAt || "-")}</td>
+      <td>${banAppealActions(appeal)}</td>
+    </tr>
+  `).join("");
+}
+
+function renderBanAppealArchive() {
+  const archivedAppeals = state.banAppeals.filter(isArchivedAppeal);
+  if (!archivedAppeals.length) {
+    elements.banAppealArchiveTable.innerHTML = `<tr><td colspan="8" class="muted">Noch keine abgeschlossenen Entbannungsanträge im Archiv.</td></tr>`;
+    return;
+  }
+
+  elements.banAppealArchiveTable.innerHTML = archivedAppeals.map(appeal => `
+    <tr>
+      <td>
+        <span class="badge ${appealStatusClass(appeal.status)}">${escapeHtml(appealStatusLabel(appeal.status))}</span><br>
+        <span class="muted">${escapeHtml(appealStatusText(appeal.status))}</span>
+      </td>
+      <td>
+        <strong>${escapeHtml(appeal.publicBanId || "-")}</strong><br>
+        <span class="muted">intern: ${escapeHtml(appeal.liteBanId || "-")}</span>
+      </td>
+      <td>${escapeHtml(appeal.playerName || "-")}</td>
+      <td>${escapeHtml(appeal.email || "-")}</td>
+      <td>${escapeHtml(shortText(appeal.reason, 90))}</td>
+      <td>${appealEvidence(appeal)}</td>
+      <td>${escapeHtml(appeal.updatedAt || appeal.createdAt || "-")}</td>
+      <td>${escapeHtml(appeal.updatedBy || "-")}</td>
+    </tr>
+  `).join("");
+}
+
+function isArchivedAppeal(appeal) {
+  return ["ACCEPTED", "REJECTED", "CLOSED"].includes(String(appeal.status || "").toUpperCase());
+}
+
+function appealStatusClass(status) {
+  const normalized = String(status || "").toUpperCase();
+  return normalized === "ACCEPTED" ? "badge-success" : normalized === "REJECTED" ? "badge-danger" : "";
+}
+
+function appealStatusLabel(status) {
+  const settings = state.settings || {};
+  switch (String(status || "").toUpperCase()) {
+    case "IN_REVIEW":
+      return settings.appealStatusInReviewLabel || "In Prüfung";
+    case "ACCEPTED":
+      return settings.appealStatusAcceptedLabel || "Angenommen";
+    case "REJECTED":
+      return settings.appealStatusRejectedLabel || "Abgelehnt";
+    case "CLOSED":
+      return settings.appealStatusClosedLabel || "Geschlossen";
+    default:
+      return settings.appealStatusOpenLabel || "Offen";
+  }
+}
+
+function appealStatusText(status) {
+  const settings = state.settings || {};
+  switch (String(status || "").toUpperCase()) {
+    case "IN_REVIEW":
+      return settings.appealStatusInReviewText || "";
+    case "ACCEPTED":
+      return settings.appealStatusAcceptedText || "";
+    case "REJECTED":
+      return settings.appealStatusRejectedText || "";
+    case "CLOSED":
+      return settings.appealStatusClosedText || "";
+    default:
+      return settings.appealStatusOpenText || "";
+  }
+}
+
+function appealEvidence(appeal) {
+  const links = [];
+  if (appeal.videoLink) {
+    links.push(`<a href="${escapeAttr(appeal.videoLink)}" target="_blank" rel="noreferrer">Video</a>`);
+  }
+  (appeal.attachments || []).forEach(attachment => {
+    links.push(appealAttachmentLink(appeal, attachment));
+  });
+  return links.join("<br>") || `<span class="muted">-</span>`;
+}
+
+function appealAttachmentLink(appeal, attachment) {
+  const label = attachment.fileName || attachment.storageType || "Beweisdatei";
+  const reference = String(attachment.storageReference || "").trim();
+  if (isHttpUrl(reference)) {
+    return `<a href="${escapeAttr(reference)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>`;
+  }
+  const url = `/api/ban-appeals/${encodeURIComponent(appeal.id)}/attachments/${encodeURIComponent(attachment.id)}`;
+  return `
+    <a
+      href="${escapeAttr(url)}"
+      data-evidence-url="${escapeAttr(url)}"
+      data-evidence-name="${escapeAttr(label)}"
+      title="${escapeAttr(reference)}">${escapeHtml(label)}</a>
+  `;
+}
+
+function banAppealActions(appeal) {
+  if (!hasPermission(PERMISSIONS.BANS_MANAGE)) {
+    return `<span class="muted">Nur Ansicht</span>`;
+  }
+  return `
+    <button data-appeal-action="IN_REVIEW" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Prüfung</button>
+    <button data-appeal-action="ACCEPTED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Annehmen</button>
+    <button data-appeal-action="REJECTED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Ablehnen</button>
+    <button data-appeal-action="CLOSED" data-appeal-id="${escapeAttr(appeal.id)}" type="button">Schließen</button>
+  `;
+}
+
+function renderBanAudit() {
+  if (!state.banAudit.length) {
+    elements.banAuditTable.innerHTML = `<tr><td colspan="6" class="muted">Noch kein Ban-Audit vorhanden.</td></tr>`;
+    return;
+  }
+
+  elements.banAuditTable.innerHTML = state.banAudit.slice(0, 120).map(entry => `
+    <tr>
+      <td>${escapeHtml(entry.createdAt || "-")}</td>
+      <td>${escapeHtml(entry.source || "-")}</td>
+      <td>${escapeHtml(entry.publicId || entry.banId || "-")}</td>
+      <td>${escapeHtml(entry.action || "-")}</td>
+      <td>${escapeHtml(entry.actor || "-")}</td>
+      <td>${escapeHtml(entry.message || "-")}</td>
+    </tr>
+  `).join("");
+}
+
 function renderPermissionGrid() {
   const permissions = state.meta?.availablePermissions || [];
   elements.permissionGrid.innerHTML = permissions.map(permission => `
@@ -910,6 +1882,55 @@ function renderUsers() {
   `).join("");
 }
 
+function renderPermissionSubjects() {
+  const subjects = filteredPermissionSubjects();
+  if (!subjects.length) {
+    elements.permissionSubjectList.innerHTML = `<p class="muted">Noch keine Subjects für diesen Server synchronisiert.</p>`;
+    elements.permissionSelectedSummary.textContent = "Wähle einen Server mit synchronisierten LuckPerms-Daten aus.";
+    elements.permissionNodeList.innerHTML = "";
+    return;
+  }
+
+  if (!subjects.some(subject => permissionSubjectValue(subject) === state.selectedPermissionSubject)) {
+    state.selectedPermissionSubject = permissionSubjectValue(subjects[0]);
+    localStorage.setItem("tccb-lp-subject", state.selectedPermissionSubject);
+  }
+
+  elements.permissionSubjectList.innerHTML = subjects.map(subject => {
+    const value = permissionSubjectValue(subject);
+    const active = value === state.selectedPermissionSubject ? "active" : "";
+    const permissionCount = (subject.permissions || []).length;
+    const parentCount = (subject.parents || []).length;
+    return `
+      <button class="subject-card ${active}" data-subject-value="${escapeAttr(value)}" type="button">
+        <span class="badge ${subject.type === "GROUP" ? "badge-success" : "badge-danger"}">${escapeHtml(subject.type || "-")}</span>
+        <strong>${escapeHtml(subject.name || subject.id || "-")}</strong>
+        <small>${permissionCount} Permissions | ${parentCount} Parents</small>
+      </button>
+    `;
+  }).join("");
+
+  renderSelectedPermissionSubject();
+}
+
+function renderPermissionAudit() {
+  if (!state.permissionAudit.length) {
+    elements.permissionAuditTable.innerHTML = `<tr><td colspan="6" class="muted">Noch kein LuckPerms-Audit vorhanden.</td></tr>`;
+    return;
+  }
+
+  elements.permissionAuditTable.innerHTML = state.permissionAudit.slice(0, 120).map(entry => `
+    <tr>
+      <td>${escapeHtml(entry.serverId || "proxy")}</td>
+      <td>${escapeHtml(entry.createdAt || "-")}</td>
+      <td>${escapeHtml(entry.subjectType || "-")}:${escapeHtml(entry.subjectId || "-")}</td>
+      <td>${escapeHtml(entry.action || "-")}</td>
+      <td>${escapeHtml(entry.actor || "-")}</td>
+      <td>${escapeHtml(entry.message || "-")}</td>
+    </tr>
+  `).join("");
+}
+
 function renderSettings() {
   const settings = state.settings;
   if (!settings || !elements.settingsForm) {
@@ -919,6 +1940,11 @@ function renderSettings() {
   const form = elements.settingsForm.elements;
   setFormValue(form, "brandName", settings.brandName || state.meta?.brandName || "Network Control");
   setFormValue(form, "brandLogoUrl", settings.brandLogoUrl || "");
+  const ticketCategories = asArray(settings.ticketCategories).length ? asArray(settings.ticketCategories) : asArray(state.meta?.ticketCategories);
+  setFormValue(form, "ticketCategories", ticketCategories.join("\n"));
+  elements.ticketCategorySettingsList.innerHTML = ticketCategories.map(category => (
+    `<span class="badge">${escapeHtml(category)}</span>`
+  )).join("") || `<span class="muted">Keine Ticket-Arten hinterlegt.</span>`;
   setFormValue(form, "cloudNetScreenName", settings.cloudNetScreenName || "");
   setFormValue(form, "cloudNetRestBaseUrl", settings.cloudNetRestBaseUrl || "");
   setFormValue(form, "cloudNetRestUsername", settings.cloudNetRestUsername || "");
@@ -927,6 +1953,65 @@ function renderSettings() {
     form.cloudNetRestPassword.placeholder = settings.cloudNetRestPasswordConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
   }
   setFormValue(form, "cloudNetRestThreshold", settings.cloudNetRestThreshold || "INFO");
+  renderQuestServerSettings(settings.questEditorServers || []);
+  renderServerShopServerSettings(settings.serverShopServers || []);
+  renderServerShopEditor();
+  setFormValue(form, "appealBrandName", settings.appealBrandName || settings.brandName || "Craftplay.de");
+  setFormValue(form, "appealTitle", settings.appealTitle || "Entbannungsantrag");
+  setFormValue(form, "appealStatusTitle", settings.appealStatusTitle || "Dein Entbannungsantrag");
+  setFormValue(form, "appealStatusOpenLabel", settings.appealStatusOpenLabel || "Offen");
+  setFormValue(form, "appealStatusInReviewLabel", settings.appealStatusInReviewLabel || "In Prüfung");
+  setFormValue(form, "appealStatusAcceptedLabel", settings.appealStatusAcceptedLabel || "Angenommen");
+  setFormValue(form, "appealStatusRejectedLabel", settings.appealStatusRejectedLabel || "Abgelehnt");
+  setFormValue(form, "appealStatusClosedLabel", settings.appealStatusClosedLabel || "Geschlossen");
+  setFormValue(form, "appealStatusOpenText", settings.appealStatusOpenText || "");
+  setFormValue(form, "appealStatusInReviewText", settings.appealStatusInReviewText || "");
+  setFormValue(form, "appealStatusAcceptedText", settings.appealStatusAcceptedText || "");
+  setFormValue(form, "appealStatusRejectedText", settings.appealStatusRejectedText || "");
+  setFormValue(form, "appealStatusClosedText", settings.appealStatusClosedText || "");
+  setFormValue(form, "appealPublicBaseUrl", settings.appealPublicBaseUrl || "");
+  setFormValue(form, "appealMaxFiles", settings.appealMaxFiles ?? 3);
+  setFormValue(form, "appealMaxFileBytes", settings.appealMaxFileBytes ?? 10485760);
+  setFormValue(form, "appealEvidenceStorage", settings.appealEvidenceStorage || "LOCAL");
+  setFormValue(form, "appealEvidenceLocalDirectory", settings.appealEvidenceLocalDirectory || "appeal-evidence");
+  setFormValue(form, "appealEvidenceSftpHost", settings.appealEvidenceSftpHost || "");
+  setFormValue(form, "appealEvidenceSftpPort", settings.appealEvidenceSftpPort || 22);
+  setFormValue(form, "appealEvidenceSftpUsername", settings.appealEvidenceSftpUsername || "");
+  setFormValue(form, "appealEvidenceSftpPassword", "");
+  if (form.appealEvidenceSftpPassword) {
+    form.appealEvidenceSftpPassword.placeholder = settings.appealEvidenceSftpPasswordConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
+  }
+  setFormValue(form, "appealEvidenceSftpPrivateKeyPath", settings.appealEvidenceSftpPrivateKeyPath || "");
+  setFormValue(form, "appealEvidenceSftpRemoteDirectory", settings.appealEvidenceSftpRemoteDirectory || "/appeals");
+  setFormValue(form, "appealEvidenceOneDriveUploadUrlTemplate", settings.appealEvidenceOneDriveUploadUrlTemplate || "");
+  setFormValue(form, "appealEvidenceOneDriveTenant", settings.appealEvidenceOneDriveTenant || "common");
+  setFormValue(form, "appealEvidenceOneDriveClientId", settings.appealEvidenceOneDriveClientId || "");
+  renderOneDriveFolderOptions(settings.appealEvidenceOneDriveFolderPath || "Entbannungsantraege");
+  setFormValue(
+    form,
+    "appealEvidenceOneDriveConnection",
+    settings.appealEvidenceOneDriveRefreshTokenConfigured ? "Verbunden" : "Nicht verbunden"
+  );
+  setFormValue(form, "appealEvidenceOneDriveBearerToken", "");
+  if (form.appealEvidenceOneDriveBearerToken) {
+    form.appealEvidenceOneDriveBearerToken.placeholder = settings.appealEvidenceOneDriveBearerTokenConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
+  }
+  if (elements.oneDriveStatus && !state.oneDrivePollTimer) {
+    setStatus(
+      elements.oneDriveStatus,
+      settings.appealEvidenceOneDriveRefreshTokenConfigured
+        ? "OneDrive OAuth ist verbunden."
+        : "Noch keine OneDrive OAuth-Verbindung eingerichtet.",
+      false
+    );
+  }
+  if (elements.oneDriveLoginLink && !state.oneDrivePollTimer) {
+    elements.oneDriveLoginLink.classList.add("hidden");
+    elements.oneDriveLoginLink.removeAttribute("href");
+  }
+  if (settings.appealEvidenceOneDriveRefreshTokenConfigured && !state.oneDriveFoldersLoaded && !state.oneDriveFoldersLoading) {
+    loadOneDriveFolders(false);
+  }
   setFormValue(form, "panelStorageBackend", settings.panelStorageBackend || "SQL");
   setFormValue(form, "panelSqlJdbcUrl", settings.panelSqlJdbcUrl || "");
   setFormValue(form, "panelSqlUsername", settings.panelSqlUsername || "");
@@ -936,13 +2021,300 @@ function renderSettings() {
   setFormValue(form, "smtpPort", settings.smtpPort || 587);
   setFormValue(form, "smtpUsername", settings.smtpUsername || "");
   setFormValue(form, "smtpPassword", "");
-  if (form.smtpPassword) {
-    form.smtpPassword.placeholder = settings.smtpPasswordConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
-  }
+  form.smtpPassword.placeholder = settings.smtpPasswordConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
   setFormValue(form, "smtpFrom", settings.smtpFrom || "");
   setFormChecked(form, "smtpStartTls", settings.smtpStartTls);
   setFormChecked(form, "smtpSsl", settings.smtpSsl);
+  setFormChecked(form, "liteBansDatabaseEnabled", settings.liteBansDatabaseEnabled);
+  setFormValue(form, "liteBansJdbcUrl", settings.liteBansJdbcUrl || "");
+  setFormValue(form, "liteBansDatabaseUsername", settings.liteBansDatabaseUsername || "");
+  setFormValue(form, "liteBansDatabasePassword", "");
+  form.liteBansDatabasePassword.placeholder = settings.liteBansDatabasePasswordConfigured ? "gesetzt, leer lassen = behalten" : "nicht gesetzt";
+  setFormValue(form, "liteBansTablePrefix", settings.liteBansTablePrefix || "litebans_");
+  setFormValue(form, "liteBansDatabaseMaxRows", settings.liteBansDatabaseMaxRows || 1000);
+  setFormValue(form, "liteBansBridgeBaseUrl", settings.liteBansBridgeBaseUrl || "");
+  setFormValue(form, "liteBansBridgeSecret", "");
+  form.liteBansBridgeSecret.placeholder = settings.liteBansBridgeSecretConfigured ? "gesetzt, leer lassen = behalten" : "leer = API Token";
+  setFormValue(form, "liteBansBridgeConnectTimeoutMillis", settings.liteBansBridgeConnectTimeoutMillis || 2500);
+  setFormValue(form, "liteBansBridgeReadTimeoutMillis", settings.liteBansBridgeReadTimeoutMillis || 5000);
   applyBranding(settings);
+}
+
+function renderQuestServerSettings(servers) {
+  const values = asArray(servers);
+  const effectiveServers = values.length ? values : [{
+    id: "default",
+    name: "Craftplay Server",
+    host: "127.0.0.1",
+    port: 8095,
+    enabled: false,
+    basePath: "/api/craftplayquests/v1",
+    connectTimeoutMillis: 3000,
+    readTimeoutMillis: 5000,
+    tokenConfigured: false,
+  }];
+
+  elements.questServerSettingsList.innerHTML = effectiveServers.map((server, index) => questServerSettingsRow(server, index)).join("");
+}
+
+function questServerSettingsRow(server, index) {
+  const tokenPlaceholder = server.tokenConfigured ? "gesetzt, leer lassen = behalten" : "Token eintragen";
+  return `
+    <article class="quest-server-settings-row" data-quest-server-row>
+      <div class="quest-server-settings-head">
+        <label class="inline-label">
+          <input data-quest-server-field="enabled" type="checkbox" ${server.enabled ? "checked" : ""}>
+          <span>Aktiv</span>
+        </label>
+        <button data-quest-server-remove type="button" class="ghost-button">Entfernen</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>ID</span>
+          <input data-quest-server-field="id" type="text" value="${escapeAttr(server.id || `server-${index + 1}`)}" placeholder="survival-1">
+        </label>
+        <label>
+          <span>Name im Panel</span>
+          <input data-quest-server-field="name" type="text" value="${escapeAttr(server.name || "Craftplay Server")}" placeholder="Survival-1">
+        </label>
+        <label>
+          <span>IP oder Host</span>
+          <input data-quest-server-field="host" type="text" value="${escapeAttr(server.host || "127.0.0.1")}" placeholder="127.0.0.1">
+        </label>
+        <label>
+          <span>Port</span>
+          <input data-quest-server-field="port" type="number" min="1" max="65535" value="${escapeAttr(server.port || 8095)}">
+        </label>
+        <label>
+          <span>API-Pfad</span>
+          <input data-quest-server-field="basePath" type="text" value="${escapeAttr(server.basePath || "/api/craftplayquests/v1")}">
+        </label>
+        <label>
+          <span>Token</span>
+          <input data-quest-server-field="token" type="password" placeholder="${escapeAttr(tokenPlaceholder)}">
+        </label>
+        <label>
+          <span>Connect Timeout ms</span>
+          <input data-quest-server-field="connectTimeoutMillis" type="number" min="500" max="30000" value="${escapeAttr(server.connectTimeoutMillis || 3000)}">
+        </label>
+        <label>
+          <span>Read Timeout ms</span>
+          <input data-quest-server-field="readTimeoutMillis" type="number" min="500" max="60000" value="${escapeAttr(server.readTimeoutMillis || 5000)}">
+        </label>
+      </div>
+    </article>
+  `;
+}
+
+function readQuestServerSettings() {
+  return [...elements.questServerSettingsList.querySelectorAll("[data-quest-server-row]")].map((row, index) => {
+    const value = field => row.querySelector(`[data-quest-server-field="${field}"]`);
+    return {
+      id: String(value("id")?.value || `server-${index + 1}`).trim(),
+      name: String(value("name")?.value || "").trim(),
+      host: String(value("host")?.value || "127.0.0.1").trim(),
+      port: Number(value("port")?.value || 8095),
+      enabled: Boolean(value("enabled")?.checked),
+      basePath: String(value("basePath")?.value || "/api/craftplayquests/v1").trim(),
+      token: String(value("token")?.value || ""),
+      connectTimeoutMillis: Number(value("connectTimeoutMillis")?.value || 3000),
+      readTimeoutMillis: Number(value("readTimeoutMillis")?.value || 5000),
+    };
+  });
+}
+
+function addQuestServerSettingsRow() {
+  const servers = readQuestServerSettings();
+  servers.push({
+    id: `server-${servers.length + 1}`,
+    name: `Quest-Server ${servers.length + 1}`,
+    host: "127.0.0.1",
+    port: 8095,
+    enabled: true,
+    basePath: "/api/craftplayquests/v1",
+    tokenConfigured: false,
+    connectTimeoutMillis: 3000,
+    readTimeoutMillis: 5000,
+  });
+  renderQuestServerSettings(servers);
+}
+
+function handleQuestServerSettingsClick(event) {
+  const button = event.target.closest("[data-quest-server-remove]");
+  if (!button) {
+    return;
+  }
+  const row = button.closest("[data-quest-server-row]");
+  row?.remove();
+  if (!elements.questServerSettingsList.querySelector("[data-quest-server-row]")) {
+    renderQuestServerSettings([]);
+  }
+}
+
+function renderServerShopServerSettings(servers) {
+  const values = asArray(servers);
+  const effectiveServers = values.length ? values : [{
+    id: "server-1",
+    name: "Server 1",
+    host: "127.0.0.1",
+    port: 8096,
+    enabled: false,
+    basePath: "/api/craftplayshop/v1",
+    connectTimeoutMillis: 3000,
+    readTimeoutMillis: 5000,
+    tokenConfigured: false,
+  }];
+
+  elements.serverShopServerSettingsList.innerHTML = effectiveServers.map((server, index) => serverShopServerSettingsRow(server, index)).join("");
+}
+
+function serverShopServerSettingsRow(server, index) {
+  const tokenPlaceholder = server.tokenConfigured ? "gesetzt, leer lassen = behalten" : "Token eintragen";
+  return `
+    <article class="quest-server-settings-row" data-serversshop-server-row>
+      <div class="quest-server-settings-head">
+        <label class="inline-label">
+          <input data-serversshop-server-field="enabled" type="checkbox" ${server.enabled ? "checked" : ""}>
+          <span>Aktiv</span>
+        </label>
+        <button data-serversshop-server-remove type="button" class="ghost-button">Entfernen</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>ID</span>
+          <input data-serversshop-server-field="id" type="text" value="${escapeAttr(server.id || `server-${index + 1}`)}" placeholder="z.B. Testserver-1">
+        </label>
+        <label>
+          <span>Name im Panel</span>
+          <input data-serversshop-server-field="name" type="text" value="${escapeAttr(server.name || "Server 1")}" placeholder="z.B. Testserver-1">
+        </label>
+        <label>
+          <span>IP oder Host</span>
+          <input data-serversshop-server-field="host" type="text" value="${escapeAttr(server.host || "127.0.0.1")}" placeholder="127.0.0.1">
+        </label>
+        <label>
+          <span>Port</span>
+          <input data-serversshop-server-field="port" type="number" min="1" max="65535" value="${escapeAttr(server.port || 8096)}">
+        </label>
+        <label>
+          <span>API-Pfad</span>
+          <input data-serversshop-server-field="basePath" type="text" value="${escapeAttr(server.basePath || "/api/craftplayshop/v1")}">
+        </label>
+        <label>
+          <span>Token</span>
+          <input data-serversshop-server-field="token" type="password" placeholder="${escapeAttr(tokenPlaceholder)}">
+        </label>
+        <label>
+          <span>Connect Timeout ms</span>
+          <input data-serversshop-server-field="connectTimeoutMillis" type="number" min="500" max="30000" value="${escapeAttr(server.connectTimeoutMillis || 3000)}">
+        </label>
+        <label>
+          <span>Read Timeout ms</span>
+          <input data-serversshop-server-field="readTimeoutMillis" type="number" min="500" max="60000" value="${escapeAttr(server.readTimeoutMillis || 5000)}">
+        </label>
+      </div>
+    </article>
+  `;
+}
+
+function readServerShopServerSettings() {
+  return [...elements.serverShopServerSettingsList.querySelectorAll("[data-serversshop-server-row]")].map((row, index) => {
+    const value = field => row.querySelector(`[data-serversshop-server-field="${field}"]`);
+    return {
+      id: String(value("id")?.value || `server-${index + 1}`).trim(),
+      name: String(value("name")?.value || "").trim(),
+      host: String(value("host")?.value || "127.0.0.1").trim(),
+      port: Number(value("port")?.value || 8096),
+      enabled: Boolean(value("enabled")?.checked),
+      basePath: String(value("basePath")?.value || "/api/craftplayshop/v1").trim(),
+      token: String(value("token")?.value || ""),
+      connectTimeoutMillis: Number(value("connectTimeoutMillis")?.value || 3000),
+      readTimeoutMillis: Number(value("readTimeoutMillis")?.value || 5000),
+    };
+  });
+}
+
+function addServerShopServerSettingsRow() {
+  const servers = readServerShopServerSettings();
+  servers.push({
+    id: `server-${servers.length + 1}`,
+    name: `Server ${servers.length + 1}`,
+    host: "127.0.0.1",
+    port: 8096,
+    enabled: true,
+    basePath: "/api/craftplayshop/v1",
+    tokenConfigured: false,
+    connectTimeoutMillis: 3000,
+    readTimeoutMillis: 5000,
+  });
+  renderServerShopServerSettings(servers);
+}
+
+function handleServerShopServerSettingsClick(event) {
+  const button = event.target.closest("[data-serversshop-server-remove]");
+  if (!button) {
+    return;
+  }
+  const row = button.closest("[data-serversshop-server-row]");
+  row?.remove();
+  if (!elements.serverShopServerSettingsList.querySelector("[data-serversshop-server-row]")) {
+    renderServerShopServerSettings([]);
+  }
+}
+
+function renderServerShopEditor() {
+  const servers = asArray(state.settings?.serverShopServers).filter(server => server.enabled);
+  if (!servers.some(server => server.id === state.selectedServerShopServerId)) {
+    state.selectedServerShopServerId = servers[0]?.id || "";
+  }
+  if (elements.serverShopServerSelect) {
+    elements.serverShopServerSelect.innerHTML = servers.length
+      ? servers.map(server => `<option value="${escapeAttr(server.id)}">${escapeHtml(server.name || server.id)}</option>`).join("")
+      : `<option value="">Kein Server konfiguriert</option>`;
+    elements.serverShopServerSelect.value = state.selectedServerShopServerId;
+  }
+
+  const selected = servers.find(server => server.id === state.selectedServerShopServerId);
+  elements.serverShopConnectionState.textContent = selected ? "API vorbereitet" : "Nicht verbunden";
+  elements.serverShopApiBaseUrl.textContent = selected ? selected.baseUrl || `${selected.host}:${selected.port}${selected.basePath}` : "-";
+  elements.serverShopApiTokenState.textContent = selected?.tokenConfigured ? "Token gesetzt" : "Kein Token";
+  elements.serverShopCategoryCount.textContent = "0";
+  elements.serverShopItemCount.textContent = "0";
+  elements.serverShopDetailTitle.textContent = selected ? selected.name || selected.id : "Kein Server ausgewählt";
+  elements.serverShopDetailSubtitle.textContent = selected
+    ? "ServerShop-Kategorien werden geladen, sobald die CraftplayShop Panel-API verfügbar ist."
+    : "Lege in den Einstellungen mindestens einen aktiven CraftplayShop-Server an.";
+  elements.serverShopLoad.disabled = true;
+  elements.serverShopSave.disabled = true;
+  elements.serverShopCategoryTable.innerHTML = `<tr><td colspan="4" class="muted">Noch keine CraftplayShop Panel-API verbunden.</td></tr>`;
+  elements.serverShopStatus.textContent = "Der Ingame/Adminshop-Editor ist im Panel vorbereitet. Schreiben bleibt deaktiviert, bis CraftplayShop eine gesicherte Panel-API bereitstellt.";
+}
+
+function renderOneDriveFolderOptions(selectedPath) {
+  const select = elements.settingsForm?.elements?.appealEvidenceOneDriveFolderPath;
+  if (!select) {
+    return;
+  }
+
+  const selected = String(selectedPath || "Entbannungsantraege").trim();
+  const options = new Map();
+  if (selected) {
+    options.set(selected, `${selected} (aktuell)`);
+  }
+  state.oneDriveFolders.forEach(folder => {
+    const path = String(folder.path || folder.name || "").trim();
+    if (path) {
+      options.set(path, path);
+    }
+  });
+  if (!options.size) {
+    options.set("Entbannungsantraege", "Entbannungsantraege");
+  }
+
+  select.innerHTML = [...options.entries()]
+    .map(([value, label]) => `<option value="${escapeAttr(value)}">${escapeHtml(label)}</option>`)
+    .join("");
+  select.value = options.has(selected) ? selected : [...options.keys()][0];
 }
 
 function applyBranding(source) {
@@ -969,6 +2341,53 @@ function setFormChecked(form, name, value) {
   if (form[name]) {
     form[name].checked = Boolean(value);
   }
+}
+
+function renderSelectedPermissionSubject() {
+  const subject = selectedPermissionSubject();
+  if (!subject) {
+    elements.permissionSelectedSummary.textContent = "Wähle links eine Gruppe oder einen Spieler aus.";
+    elements.permissionNodeList.innerHTML = "";
+    return;
+  }
+
+  elements.permissionSelectedSummary.innerHTML = `
+    <div>
+      <span class="badge ${subject.type === "GROUP" ? "badge-success" : "badge-danger"}">${escapeHtml(subject.type || "-")}</span>
+      <strong>${escapeHtml(subject.name || subject.id || "-")}</strong>
+      <span class="muted">${escapeHtml(subject.serverId || "proxy")} | ${escapeHtml(subject.source || "LuckPerms")} | ${escapeHtml(subject.lastSyncedAt || "-")}</span>
+    </div>
+  `;
+
+  const parents = (subject.parents || []).map(parent => nodeCard("parent", parent, true));
+  const permissions = (subject.permissions || []).map(permission => {
+    const parsed = parsePermissionNode(permission);
+    return nodeCard("permission", parsed.key, parsed.value);
+  });
+  const nodes = [...parents, ...permissions];
+  elements.permissionNodeList.innerHTML = nodes.length
+    ? nodes.join("")
+    : `<p class="muted">Noch keine Nodes für dieses Subject synchronisiert.</p>`;
+}
+
+function nodeCard(type, value, enabled) {
+  const action = type === "parent" ? "REMOVE_PARENT" : "REMOVE_PERMISSION";
+  const label = type === "parent" ? "Parent" : "Permission";
+  return `
+    <article class="node-card-editor ${enabled ? "" : "node-negative"}">
+      <div>
+        <span class="eyebrow">${label}</span>
+        <strong>${escapeHtml(value)}</strong>
+        <small>${type === "permission" ? (enabled ? "true / erlauben" : "false / verweigern") : "Gruppe geerbt"}</small>
+      </div>
+      <button
+        class="ghost-button"
+        data-node-action="${action}"
+        data-node-value="${escapeAttr(value)}"
+        data-node-state="${enabled ? "true" : "false"}"
+        type="button">Entfernen</button>
+    </article>
+  `;
 }
 
 async function loadConsole() {
@@ -1265,6 +2684,79 @@ async function handleCloudCommandSubmit(event) {
   }
 }
 
+async function handleTicketSubmit(event) {
+  event.preventDefault();
+  if (!hasPermission(PERMISSIONS.TICKETS_CREATE)) {
+    return;
+  }
+
+  const form = new FormData(elements.ticketForm);
+  const sourceServer = String(form.get("sourceServer") || "").trim();
+  const payload = {
+    creatorName: String(form.get("creatorName") || "").trim(),
+    creatorUniqueId: String(form.get("creatorUniqueId") || "").trim(),
+    category: String(form.get("category") || "").trim(),
+    priority: String(form.get("priority") || "").trim(),
+    subject: String(form.get("subject") || "").trim(),
+    sourceServer,
+    serviceName: sourceServer,
+    content: String(form.get("content") || "").trim(),
+  };
+
+  if (!payload.creatorUniqueId) {
+    delete payload.creatorUniqueId;
+  }
+  if (!payload.sourceServer) {
+    delete payload.sourceServer;
+    delete payload.serviceName;
+  }
+
+  try {
+    const created = await api("/api/tickets", { method: "POST", body: payload });
+    elements.ticketForm.reset();
+    populateSelect(elements.ticketCategorySelect, state.meta.ticketCategories, payload.category);
+    populateSelect(elements.ticketPrioritySelect, state.meta.ticketPriorities, payload.priority);
+    setStatus(elements.ticketStatus, `Ticket ${created.subject} erstellt.`, false);
+    await refreshAll();
+  } catch (error) {
+    handleApiError(error, elements.ticketStatus);
+  }
+}
+
+async function handleBanSubmit(event) {
+  event.preventDefault();
+  if (!hasPermission(PERMISSIONS.BANS_MANAGE)) {
+    return;
+  }
+
+  const form = new FormData(elements.banForm);
+  const payload = {
+    targetName: String(form.get("targetName") || "").trim(),
+    targetUniqueId: String(form.get("targetUniqueId") || "").trim(),
+    targetAddress: String(form.get("targetAddress") || "").trim(),
+    issuedBy: currentActor(),
+    durationMinutes: Number(form.get("durationMinutes") || 0),
+    reason: String(form.get("reason") || "").trim(),
+  };
+
+  if (!payload.targetUniqueId) {
+    delete payload.targetUniqueId;
+  }
+  if (!payload.targetAddress) {
+    delete payload.targetAddress;
+  }
+
+  try {
+    const created = await api("/api/bans", { method: "POST", body: payload });
+    elements.banForm.reset();
+    elements.banForm.elements.durationMinutes.value = 0;
+    setStatus(elements.banStatus, `Ban für ${created.targetName} angelegt.`, false);
+    await refreshAll();
+  } catch (error) {
+    handleApiError(error, elements.banStatus);
+  }
+}
+
 async function handleGroupSubmit(event) {
   event.preventDefault();
   const editingGroup = elements.groupForm.dataset.editingGroup || "";
@@ -1325,6 +2817,52 @@ async function handleUserSubmit(event) {
   }
 }
 
+async function handlePermissionActionSubmit(event) {
+  event.preventDefault();
+  if (!hasPermission(`${PERMISSIONS.PROXY_PERMISSIONS_MANAGE},${PERMISSIONS.SERVER_PERMISSIONS_MANAGE}`)) {
+    return;
+  }
+
+  const form = new FormData(elements.permissionActionForm);
+  const subject = selectedPermissionSubject();
+  const nodeType = String(form.get("nodeType") || "permission");
+  const nodeValue = String(form.get("nodeValue") || "").trim();
+  const payload = {
+    action: nodeType === "parent" ? "ADD_PARENT" : "ADD_PERMISSION",
+    serverId: subject?.serverId || state.selectedPermissionServer || "proxy",
+    subjectType: subject?.type,
+    subjectId: subject?.id,
+    permission: nodeType === "permission" ? nodeValue : "",
+    parent: nodeType === "parent" ? nodeValue : "",
+    value: String(form.get("nodeValueState") || "true") === "true",
+    actor: currentActor(),
+  };
+
+  if (!subject) {
+    setStatus(elements.permissionStatus, "Bitte zuerst links ein Subject auswählen.", true);
+    return;
+  }
+
+  if (!nodeValue) {
+    setStatus(elements.permissionStatus, "Bitte einen Node-Wert eintragen.", true);
+    return;
+  }
+
+  if (!canManagePermissionServer(payload.serverId)) {
+    setStatus(elements.permissionStatus, "Dir fehlt das passende Proxy- oder Unterserver-Recht.", true);
+    return;
+  }
+
+  try {
+    await api("/api/permissions/actions", { method: "POST", body: payload });
+    elements.permissionActionForm.elements.nodeValue.value = "";
+    setStatus(elements.permissionStatus, "Node wurde in die LuckPerms-Queue gelegt.", false);
+    await refreshAll();
+  } catch (error) {
+    handleApiError(error, elements.permissionStatus);
+  }
+}
+
 async function handleSettingsSubmit(event) {
   event.preventDefault();
   if (!hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
@@ -1335,10 +2873,40 @@ async function handleSettingsSubmit(event) {
   const payload = {
     brandName: String(form.get("brandName") || "").trim(),
     brandLogoUrl: String(form.get("brandLogoUrl") || "").trim(),
+    ticketCategories: splitLinesOrCsv(form.get("ticketCategories")),
     cloudNetScreenName: String(form.get("cloudNetScreenName") || "").trim(),
     cloudNetRestBaseUrl: String(form.get("cloudNetRestBaseUrl") || "").trim(),
     cloudNetRestUsername: String(form.get("cloudNetRestUsername") || "").trim(),
     cloudNetRestThreshold: String(form.get("cloudNetRestThreshold") || "INFO").trim(),
+    questEditorServers: readQuestServerSettings(),
+    serverShopServers: readServerShopServerSettings(),
+    appealBrandName: String(form.get("appealBrandName") || "").trim(),
+    appealTitle: String(form.get("appealTitle") || "").trim(),
+    appealStatusTitle: String(form.get("appealStatusTitle") || "").trim(),
+    appealStatusOpenLabel: String(form.get("appealStatusOpenLabel") || "").trim(),
+    appealStatusInReviewLabel: String(form.get("appealStatusInReviewLabel") || "").trim(),
+    appealStatusAcceptedLabel: String(form.get("appealStatusAcceptedLabel") || "").trim(),
+    appealStatusRejectedLabel: String(form.get("appealStatusRejectedLabel") || "").trim(),
+    appealStatusClosedLabel: String(form.get("appealStatusClosedLabel") || "").trim(),
+    appealStatusOpenText: String(form.get("appealStatusOpenText") || "").trim(),
+    appealStatusInReviewText: String(form.get("appealStatusInReviewText") || "").trim(),
+    appealStatusAcceptedText: String(form.get("appealStatusAcceptedText") || "").trim(),
+    appealStatusRejectedText: String(form.get("appealStatusRejectedText") || "").trim(),
+    appealStatusClosedText: String(form.get("appealStatusClosedText") || "").trim(),
+    appealPublicBaseUrl: String(form.get("appealPublicBaseUrl") || "").trim(),
+    appealMaxFiles: Number(form.get("appealMaxFiles") || 3),
+    appealMaxFileBytes: Number(form.get("appealMaxFileBytes") || 10485760),
+    appealEvidenceStorage: String(form.get("appealEvidenceStorage") || "LOCAL").trim(),
+    appealEvidenceLocalDirectory: String(form.get("appealEvidenceLocalDirectory") || "").trim(),
+    appealEvidenceSftpHost: String(form.get("appealEvidenceSftpHost") || "").trim(),
+    appealEvidenceSftpPort: Number(form.get("appealEvidenceSftpPort") || 22),
+    appealEvidenceSftpUsername: String(form.get("appealEvidenceSftpUsername") || "").trim(),
+    appealEvidenceSftpPrivateKeyPath: String(form.get("appealEvidenceSftpPrivateKeyPath") || "").trim(),
+    appealEvidenceSftpRemoteDirectory: String(form.get("appealEvidenceSftpRemoteDirectory") || "").trim(),
+    appealEvidenceOneDriveUploadUrlTemplate: String(form.get("appealEvidenceOneDriveUploadUrlTemplate") || "").trim(),
+    appealEvidenceOneDriveTenant: String(form.get("appealEvidenceOneDriveTenant") || "common").trim(),
+    appealEvidenceOneDriveClientId: String(form.get("appealEvidenceOneDriveClientId") || "").trim(),
+    appealEvidenceOneDriveFolderPath: String(form.get("appealEvidenceOneDriveFolderPath") || "").trim(),
     smtpEnabled: Boolean(form.get("smtpEnabled")),
     smtpHost: String(form.get("smtpHost") || "").trim(),
     smtpPort: Number(form.get("smtpPort") || 587),
@@ -1346,24 +2914,188 @@ async function handleSettingsSubmit(event) {
     smtpFrom: String(form.get("smtpFrom") || "").trim(),
     smtpStartTls: Boolean(form.get("smtpStartTls")),
     smtpSsl: Boolean(form.get("smtpSsl")),
+    liteBansDatabaseEnabled: Boolean(form.get("liteBansDatabaseEnabled")),
+    liteBansJdbcUrl: String(form.get("liteBansJdbcUrl") || "").trim(),
+    liteBansDatabaseUsername: String(form.get("liteBansDatabaseUsername") || "").trim(),
+    liteBansTablePrefix: String(form.get("liteBansTablePrefix") || "").trim(),
+    liteBansDatabaseMaxRows: Number(form.get("liteBansDatabaseMaxRows") || 1000),
+    liteBansBridgeBaseUrl: String(form.get("liteBansBridgeBaseUrl") || "").trim(),
+    liteBansBridgeConnectTimeoutMillis: Number(form.get("liteBansBridgeConnectTimeoutMillis") || 2500),
+    liteBansBridgeReadTimeoutMillis: Number(form.get("liteBansBridgeReadTimeoutMillis") || 5000),
   };
 
-  const cloudNetRestPassword = String(form.get("cloudNetRestPassword") || "");
   const smtpPassword = String(form.get("smtpPassword") || "");
+  const cloudNetRestPassword = String(form.get("cloudNetRestPassword") || "");
+  const appealEvidenceSftpPassword = String(form.get("appealEvidenceSftpPassword") || "");
+  const appealEvidenceOneDriveBearerToken = String(form.get("appealEvidenceOneDriveBearerToken") || "");
+  const liteBansDatabasePassword = String(form.get("liteBansDatabasePassword") || "");
+  const liteBansBridgeSecret = String(form.get("liteBansBridgeSecret") || "");
   if (cloudNetRestPassword) {
     payload.cloudNetRestPassword = cloudNetRestPassword;
   }
   if (smtpPassword) {
     payload.smtpPassword = smtpPassword;
   }
+  if (appealEvidenceSftpPassword) {
+    payload.appealEvidenceSftpPassword = appealEvidenceSftpPassword;
+  }
+  if (appealEvidenceOneDriveBearerToken) {
+    payload.appealEvidenceOneDriveBearerToken = appealEvidenceOneDriveBearerToken;
+  }
+  if (liteBansDatabasePassword) {
+    payload.liteBansDatabasePassword = liteBansDatabasePassword;
+  }
+  if (liteBansBridgeSecret) {
+    payload.liteBansBridgeSecret = liteBansBridgeSecret;
+  }
 
   try {
     state.settings = await api("/api/settings", { method: "PUT", body: payload });
+    syncTicketCategoriesFromSettings();
     renderSettings();
     setStatus(elements.settingsStatus, "Einstellungen gespeichert.", false);
     await refreshAll();
   } catch (error) {
     handleApiError(error, elements.settingsStatus);
+  }
+}
+
+async function handleOneDriveConnect(event) {
+  event.preventDefault();
+  if (!hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
+    return;
+  }
+
+  const form = new FormData(elements.settingsForm);
+  const clientId = String(form.get("appealEvidenceOneDriveClientId") || "").trim();
+  if (!clientId) {
+    setStatus(elements.oneDriveStatus, "Bitte zuerst die OneDrive Client ID eintragen.", true);
+    return;
+  }
+
+  try {
+    clearTimeout(state.oneDrivePollTimer);
+    state.oneDrivePollTimer = null;
+    setStatus(elements.oneDriveStatus, "Speichere OneDrive-Einstellungen und starte Microsoft-Anmeldung ...", false);
+    state.settings = await api("/api/settings", {
+      method: "PUT",
+      body: {
+        appealEvidenceStorage: String(form.get("appealEvidenceStorage") || "ONEDRIVE").trim(),
+        appealEvidenceOneDriveUploadUrlTemplate: String(form.get("appealEvidenceOneDriveUploadUrlTemplate") || "").trim(),
+        appealEvidenceOneDriveTenant: String(form.get("appealEvidenceOneDriveTenant") || "common").trim(),
+        appealEvidenceOneDriveClientId: clientId,
+        appealEvidenceOneDriveFolderPath: String(form.get("appealEvidenceOneDriveFolderPath") || "").trim(),
+      },
+    });
+    renderSettings();
+
+    const deviceCode = await api("/api/settings/onedrive/device-code", { method: "POST" });
+    const loginUrl = deviceCode.verificationUriComplete || deviceCode.verificationUri;
+    if (loginUrl) {
+      elements.oneDriveLoginLink.href = loginUrl;
+      elements.oneDriveLoginLink.classList.remove("hidden");
+    }
+    const codeHint = deviceCode.userCode ? ` Code: ${deviceCode.userCode}` : "";
+    setStatus(
+      elements.oneDriveStatus,
+      `${deviceCode.message || "Bitte Microsoft-Anmeldung über den Button öffnen und abschließen."}${codeHint}`,
+      false
+    );
+    pollOneDriveConnection(
+      deviceCode.deviceCode,
+      Number(deviceCode.interval || 5),
+      Date.now() + Number(deviceCode.expiresIn || 900) * 1000
+    );
+  } catch (error) {
+    clearTimeout(state.oneDrivePollTimer);
+    state.oneDrivePollTimer = null;
+    handleApiError(error, elements.oneDriveStatus);
+  }
+}
+
+function pollOneDriveConnection(deviceCode, intervalSeconds, expiresAt) {
+  clearTimeout(state.oneDrivePollTimer);
+  const poll = async () => {
+    if (Date.now() > expiresAt) {
+      state.oneDrivePollTimer = null;
+      setStatus(elements.oneDriveStatus, "Der Microsoft-Anmeldecode ist abgelaufen. Bitte erneut verbinden.", true);
+      return;
+    }
+
+    try {
+      const result = await api("/api/settings/onedrive/complete", {
+        method: "POST",
+        body: { deviceCode },
+      });
+      if (result.connected) {
+        state.oneDrivePollTimer = null;
+        state.settings = await api("/api/settings");
+        elements.oneDriveLoginLink.classList.add("hidden");
+        elements.oneDriveLoginLink.removeAttribute("href");
+        state.oneDriveFoldersLoaded = false;
+        renderSettings();
+        setStatus(elements.oneDriveStatus, result.message || "OneDrive wurde erfolgreich verbunden.", false);
+        await loadOneDriveFolders(false);
+        return;
+      }
+      const waitSeconds = Number(result.interval || intervalSeconds || 5);
+      setStatus(elements.oneDriveStatus, result.message || "Warte auf Abschluss der Microsoft-Anmeldung ...", false);
+      state.oneDrivePollTimer = setTimeout(poll, waitSeconds * 1000);
+    } catch (error) {
+      state.oneDrivePollTimer = null;
+      handleApiError(error, elements.oneDriveStatus);
+    }
+  };
+  state.oneDrivePollTimer = setTimeout(poll, Math.max(1, intervalSeconds || 5) * 1000);
+}
+
+async function handleOneDriveDisconnect(event) {
+  event.preventDefault();
+  if (!hasPermission(PERMISSIONS.SETTINGS_MANAGE)) {
+    return;
+  }
+
+  try {
+    clearTimeout(state.oneDrivePollTimer);
+    state.oneDrivePollTimer = null;
+    const result = await api("/api/settings/onedrive/disconnect", { method: "POST" });
+    state.settings = await api("/api/settings");
+    state.oneDriveFolders = [];
+    state.oneDriveFoldersLoaded = false;
+    elements.oneDriveLoginLink.classList.add("hidden");
+    elements.oneDriveLoginLink.removeAttribute("href");
+    renderSettings();
+    setStatus(elements.oneDriveStatus, result.message || "OneDrive-Verbindung wurde getrennt.", false);
+  } catch (error) {
+    handleApiError(error, elements.oneDriveStatus);
+  }
+}
+
+async function loadOneDriveFolders(showStatus) {
+  if (!state.settings?.appealEvidenceOneDriveRefreshTokenConfigured) {
+    if (showStatus) {
+      setStatus(elements.oneDriveStatus, "Bitte OneDrive zuerst verbinden.", true);
+    }
+    return;
+  }
+  if (state.oneDriveFoldersLoading) {
+    return;
+  }
+
+  try {
+    state.oneDriveFoldersLoading = true;
+    if (showStatus) {
+      setStatus(elements.oneDriveStatus, "OneDrive-Ordner werden geladen ...", false);
+    }
+    const result = await api("/api/settings/onedrive/folders");
+    state.oneDriveFolders = asArray(result.folders);
+    state.oneDriveFoldersLoaded = true;
+    renderOneDriveFolderOptions(elements.settingsForm.elements.appealEvidenceOneDriveFolderPath.value || state.settings.appealEvidenceOneDriveFolderPath);
+    setStatus(elements.oneDriveStatus, `${state.oneDriveFolders.length} OneDrive-Ordner geladen.`, false);
+  } catch (error) {
+    handleApiError(error, elements.oneDriveStatus);
+  } finally {
+    state.oneDriveFoldersLoading = false;
   }
 }
 
@@ -1387,6 +3119,54 @@ async function handleTestMailSubmit(event) {
     setStatus(elements.testMailStatus, result.message || "Testmail wurde versendet.", false);
   } catch (error) {
     handleApiError(error, elements.testMailStatus);
+  }
+}
+
+function handlePermissionSubjectClick(event) {
+  const button = event.target.closest("button[data-subject-value]");
+  if (!button) {
+    return;
+  }
+  state.selectedPermissionSubject = button.dataset.subjectValue;
+  localStorage.setItem("tccb-lp-subject", state.selectedPermissionSubject);
+  renderPermissionSubjects();
+}
+
+async function handlePermissionNodeClick(event) {
+  const button = event.target.closest("button[data-node-action]");
+  if (!button) {
+    return;
+  }
+
+  const subject = selectedPermissionSubject();
+  if (!subject) {
+    setStatus(elements.permissionStatus, "Bitte zuerst ein Subject auswählen.", true);
+    return;
+  }
+  if (!canManagePermissionServer(subject.serverId)) {
+    setStatus(elements.permissionStatus, "Dir fehlt das passende Proxy- oder Unterserver-Recht.", true);
+    return;
+  }
+
+  const action = button.dataset.nodeAction;
+  const value = button.dataset.nodeValue;
+  const payload = {
+    action,
+    serverId: subject.serverId || "proxy",
+    subjectType: subject.type,
+    subjectId: subject.id,
+    permission: action === "REMOVE_PERMISSION" ? value : "",
+    parent: action === "REMOVE_PARENT" ? value : "",
+    value: button.dataset.nodeState !== "false",
+    actor: currentActor(),
+  };
+
+  try {
+    await api("/api/permissions/actions", { method: "POST", body: payload });
+    setStatus(elements.permissionStatus, "Entfernen wurde in die LuckPerms-Queue gelegt.", false);
+    await refreshAll();
+  } catch (error) {
+    handleApiError(error, elements.permissionStatus);
   }
 }
 
@@ -1436,6 +3216,250 @@ async function handleServiceTableClick(event) {
   } catch (error) {
     handleApiError(error, elements.serviceCreateStatus);
   }
+}
+
+async function handleTicketTableClick(event) {
+  const button = event.target.closest("button[data-ticket-action]");
+  if (!button || !hasPermission(PERMISSIONS.TICKETS_MANAGE)) {
+    return;
+  }
+
+  const ticketId = button.dataset.ticketId;
+  const action = button.dataset.ticketAction;
+
+  try {
+    if (action === "assign") {
+      const assignedTo = prompt("An wen soll das Ticket zugewiesen werden?", currentActor());
+      if (!assignedTo) {
+        return;
+      }
+      await api(`/api/tickets/${encodeURIComponent(ticketId)}/assign`, {
+        method: "POST",
+        body: { assignedTo, actor: currentActor() },
+      });
+    } else if (action === "comment") {
+      const message = prompt("Kommentartext?");
+      const internal = confirm("Interner Kommentar?");
+      if (!message) {
+        return;
+      }
+      await api(`/api/tickets/${encodeURIComponent(ticketId)}/comments`, {
+        method: "POST",
+        body: { author: currentActor(), message, internal },
+      });
+    } else if (action === "teleport") {
+      const ticket = state.tickets.find(entry => entry.id === ticketId);
+      const staffName = currentMinecraftName();
+      if (!ticket || !staffName) {
+        setStatus(elements.ticketStatus, "Bitte hinterlege in deinem Profil deinen Minecraft-Namen.", true);
+        return;
+      }
+      await api("/api/player-actions/teleport", {
+        method: "POST",
+        body: {
+          staffName,
+          targetName: ticket.creatorName,
+          targetUniqueId: ticket.creatorUniqueId || "",
+          targetServer: ticket.sourceServer || ticket.serviceName || "",
+          ticketId,
+          actor: currentActor(),
+        },
+      });
+      setStatus(elements.ticketStatus, "Teleport wurde an Velocity übergeben.", false);
+    } else {
+      const status = action === "open" ? "OPEN" : action === "progress" ? "IN_PROGRESS" : "CLOSED";
+      await api(`/api/tickets/${encodeURIComponent(ticketId)}/status`, {
+        method: "POST",
+        body: { actor: currentActor(), status },
+      });
+    }
+
+    await refreshAll();
+  } catch (error) {
+    handleApiError(error, elements.ticketStatus);
+  }
+}
+
+function switchTicketTab(tab) {
+  document.querySelectorAll(".ticket-tab-panel").forEach(panel => {
+    panel.classList.toggle("hidden", panel.dataset.ticketPanel !== tab);
+  });
+  document.querySelectorAll("button[data-ticket-tab]").forEach(button => {
+    button.classList.toggle("active", button.dataset.ticketTab === tab);
+  });
+}
+
+function handleHomePanelClick(event) {
+  const button = event.target.closest("button[data-home-page]");
+  if (!button) {
+    return;
+  }
+
+  switchPage(button.dataset.homePage);
+  if (button.dataset.homePage === "cloudnet") {
+    switchCloudNetSection("cloud");
+  }
+  if (button.dataset.ticketTabTarget) {
+    switchTicketTab(button.dataset.ticketTabTarget);
+  }
+  if (button.dataset.banTabTarget) {
+    switchBanTab(button.dataset.banTabTarget);
+  }
+}
+
+async function handleBanTableClick(event) {
+  const button = event.target.closest("button[data-ban-action]");
+  if (!button || !hasPermission(PERMISSIONS.BANS_MANAGE)) {
+    return;
+  }
+
+  const banId = button.dataset.banId;
+  if (button.dataset.banAction !== "deactivate") {
+    return;
+  }
+
+  const reason = prompt("Notiz/Grund für das Aufheben?", "Panel-Ban aufgehoben");
+  if (reason === null) {
+    return;
+  }
+
+  try {
+    await api(`/api/bans/${encodeURIComponent(banId)}/deactivate`, {
+      method: "POST",
+      body: { reason },
+    });
+    await refreshAll();
+  } catch (error) {
+    handleApiError(error, elements.banStatus);
+  }
+}
+
+async function handleLiteBanTableClick(event) {
+  const button = event.target.closest("button[data-liteban-action]");
+  if (!button || !hasPermission(PERMISSIONS.BANS_MANAGE)) {
+    return;
+  }
+
+  const banId = button.dataset.banId;
+  const action = button.dataset.litebanAction;
+  const actor = currentActor();
+
+  try {
+    if (action === "unban") {
+      const reason = prompt("Grund für das Aufheben?", "Unban via Panel");
+      if (reason === null) {
+        return;
+      }
+      await api(`/api/bans/litebans/${encodeURIComponent(banId)}/unban`, {
+        method: "POST",
+        body: { actor, reason },
+      });
+      setStatus(elements.banStatus, "Unban wurde an Velocity übergeben.", false);
+    }
+
+    if (action === "extend") {
+      const duration = prompt("Neue/weitere Dauer für LiteBans, z.B. 7d, 30d, 1mo");
+      if (!duration) {
+        return;
+      }
+      const reason = prompt("Grund für die Verlängerung?", "Ban via Panel verlängert");
+      if (reason === null) {
+        return;
+      }
+      await api(`/api/bans/litebans/${encodeURIComponent(banId)}/extend`, {
+        method: "POST",
+        body: { actor, duration, reason },
+      });
+      setStatus(elements.banStatus, "Verlängerung wurde an Velocity übergeben.", false);
+    }
+
+    await refreshAll();
+    switchBanTab("litebans");
+  } catch (error) {
+    handleApiError(error, elements.banStatus);
+  }
+}
+
+async function handleBanAppealTableClick(event) {
+  const evidenceLink = event.target.closest("a[data-evidence-url]");
+  if (evidenceLink) {
+    event.preventDefault();
+    await openEvidenceLink(evidenceLink);
+    return;
+  }
+
+  const button = event.target.closest("button[data-appeal-action]");
+  if (!button || !hasPermission(PERMISSIONS.BANS_MANAGE)) {
+    return;
+  }
+
+  const teamNote = prompt("Team-Notiz/Grund für diese Entscheidung? Leer lassen, wenn keine Notiz gesetzt werden soll.", "");
+  if (teamNote === null) {
+    return;
+  }
+
+  try {
+    await api(`/api/ban-appeals/${encodeURIComponent(button.dataset.appealId)}/status`, {
+      method: "POST",
+      body: {
+        status: button.dataset.appealAction,
+        teamNote,
+        actor: currentActor(),
+      },
+    });
+    await refreshAll();
+    switchBanTab(isArchivedAppeal({ status: button.dataset.appealAction }) ? "appeal-archive" : "appeals");
+  } catch (error) {
+    handleApiError(error, elements.banStatus);
+  }
+}
+
+async function openEvidenceLink(link) {
+  let popup = null;
+  try {
+    popup = window.open("", "_blank", "noopener");
+    if (popup) {
+      popup.document.write("<p>Beweisdatei wird geladen...</p>");
+    }
+
+    const headers = {};
+    if (state.token) {
+      headers.Authorization = `Bearer ${state.token}`;
+    }
+    const response = await fetch(link.dataset.evidenceUrl, { headers });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    if (popup) {
+      popup.location.href = objectUrl;
+    } else {
+      const download = document.createElement("a");
+      download.href = objectUrl;
+      download.download = link.dataset.evidenceName || "beweisdatei";
+      document.body.append(download);
+      download.click();
+      download.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (error) {
+    if (popup && !popup.closed) {
+      popup.close();
+    }
+    handleApiError(error, elements.banStatus);
+  }
+}
+
+function switchBanTab(tab) {
+  document.querySelectorAll(".ban-tab-panel").forEach(panel => {
+    panel.classList.toggle("hidden", panel.dataset.banPanel !== tab);
+  });
+  document.querySelectorAll("button[data-ban-tab]").forEach(button => {
+    button.classList.toggle("active", button.dataset.banTab === tab);
+  });
 }
 
 async function handleGroupTableClick(event) {
@@ -1591,6 +3615,7 @@ function refreshServiceSelectors() {
 
   populateSelect(elements.serviceTaskSelect, state.tasks.map(task => task.name), selectedTask);
   populateSelect(elements.consoleServiceSelect, state.services.map(service => service.name), selectedConsole);
+  populateDatalist(elements.serviceNameList, state.services.map(service => service.name));
 
   if (state.services.some(service => service.name === selectedConsole)) {
     state.selectedService = selectedConsole;
@@ -1603,10 +3628,70 @@ function refreshServiceSelectors() {
   }
 }
 
-function populateSelect(select, values, preferred) {
-  if (!select) {
-    return;
+function refreshPermissionServerSelect() {
+  const servers = permissionServers();
+  if (!servers.includes(state.selectedPermissionServer)
+    || (state.selectedPermissionServer === "proxy" && !hasPermissionSubjectsForServer("proxy") && servers.some(server => hasPermissionSubjectsForServer(server)))) {
+    state.selectedPermissionServer = servers.find(server => hasPermissionSubjectsForServer(server)) || "proxy";
   }
+  populateSelect(elements.permissionServerSelect, servers, state.selectedPermissionServer);
+  state.selectedPermissionServer = elements.permissionServerSelect.value || "proxy";
+  localStorage.setItem("tccb-lp-server", state.selectedPermissionServer);
+}
+
+function permissionServers() {
+  const servers = new Set(["proxy"]);
+  state.permissionSubjects.forEach(subject => servers.add(subject.serverId || "proxy"));
+  return [...servers].sort((left, right) => left.localeCompare(right));
+}
+
+function hasPermissionSubjectsForServer(serverId) {
+  return state.permissionSubjects.some(subject => (subject.serverId || "proxy") === serverId);
+}
+
+function filteredPermissionSubjects() {
+  const query = String(elements.permissionSubjectSearch.value || "").trim().toLowerCase();
+  return state.permissionSubjects
+    .filter(subject => (subject.serverId || "proxy") === state.selectedPermissionServer)
+    .filter(subject => !query || permissionSubjectSearchText(subject).includes(query))
+    .sort((left, right) => `${left.type}:${left.name}`.localeCompare(`${right.type}:${right.name}`));
+}
+
+function permissionSubjectValue(subject) {
+  return `${subject.serverId || "proxy"}|${subject.type || ""}|${subject.id || subject.name || ""}`;
+}
+
+function selectedPermissionSubject() {
+  return state.permissionSubjects.find(subject => permissionSubjectValue(subject) === state.selectedPermissionSubject) || null;
+}
+
+function permissionSubjectSearchText(subject) {
+  return [
+    subject.serverId,
+    subject.type,
+    subject.id,
+    subject.name,
+    ...(subject.permissions || []),
+    ...(subject.parents || []),
+  ].join(" ").toLowerCase();
+}
+
+function parsePermissionNode(node) {
+  const value = String(node || "");
+  if (value.startsWith("-")) {
+    return { key: value.slice(1), value: false };
+  }
+  return { key: value, value: true };
+}
+
+function canManagePermissionServer(serverId) {
+  if (!serverId || serverId === "proxy") {
+    return hasPermission(PERMISSIONS.PROXY_PERMISSIONS_MANAGE);
+  }
+  return hasPermission(PERMISSIONS.SERVER_PERMISSIONS_MANAGE);
+}
+
+function populateSelect(select, values, preferred) {
   select.innerHTML = "";
   values.forEach(value => {
     const option = document.createElement("option");
@@ -1623,9 +3708,6 @@ function populateSelect(select, values, preferred) {
 }
 
 function populateDatalist(datalist, values) {
-  if (!datalist) {
-    return;
-  }
   datalist.innerHTML = "";
   values.forEach(value => {
     const option = document.createElement("option");
@@ -1635,18 +3717,12 @@ function populateDatalist(datalist, values) {
 }
 
 function checkedValues(container, name) {
-  if (!container) {
-    return [];
-  }
   return [...container.querySelectorAll(`input[name="${cssEscape(name)}"]:checked`)]
     .map(input => input.value)
     .filter(Boolean);
 }
 
 function setCheckedValues(container, values) {
-  if (!container) {
-    return;
-  }
   const selected = new Set(values);
   container.querySelectorAll("input[type='checkbox']").forEach(input => {
     input.checked = selected.has(input.value);
@@ -1665,6 +3741,19 @@ function splitLinesOrCsv(value) {
     .split(/[\n,]+/)
     .map(entry => entry.trim())
     .filter(Boolean);
+}
+
+function syncTicketCategoriesFromSettings() {
+  const categories = asArray(state.settings?.ticketCategories);
+  if (!categories.length) {
+    return;
+  }
+  state.meta = {
+    ...(state.meta || {}),
+    ticketCategories: categories,
+  };
+  const selected = elements.ticketCategorySelect.value || categories[0];
+  populateSelect(elements.ticketCategorySelect, categories, selected);
 }
 
 function asArray(value) {
@@ -2058,6 +4147,17 @@ function shortId(id) {
 function shortText(value, maxLength) {
   const text = String(value || "-");
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
+}
+
+function isResolvedPublicBanId(publicId, internalId) {
+  const value = String(publicId || "").trim();
+  if (!value) {
+    return false;
+  }
+  if (String(internalId || "").trim().toLowerCase() === value.toLowerCase()) {
+    return false;
+  }
+  return !/^\d+$/.test(value);
 }
 
 function formatDateTime(value) {

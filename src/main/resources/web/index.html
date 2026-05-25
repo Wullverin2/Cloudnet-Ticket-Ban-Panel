@@ -20,7 +20,7 @@
           <h1 id="brand-name">Network Control</h1>
         </div>
         <p class="hero-text">
-          Zentrales Panel für CloudNet, Tasks, Services und Konsolen.
+          Zentrales Panel für CloudNet, Service-Konsolen, Tickets, Bans und Rechteverwaltung.
         </p>
       </div>
 
@@ -101,7 +101,12 @@
     <nav id="page-nav" class="page-nav hidden" aria-label="Panel Bereiche">
       <button data-page-target="home" type="button">Startseite</button>
       <button data-page-target="cloudnet" data-permission="cloudnet.view,cloudnet.console" type="button">CloudNet</button>
+      <button data-page-target="tickets" data-permission="tickets.view" type="button">Tickets</button>
+      <button data-page-target="bans" data-permission="bans.view" type="button">Bans</button>
       <button data-page-target="security" data-permission="users.manage" type="button">Rechte</button>
+      <button data-page-target="luckperms" data-permission="permissions.proxy.manage,permissions.server.manage" type="button">LuckPerms</button>
+      <button data-page-target="quest-editor" data-permission="quests.editor.view" type="button">Quests</button>
+      <button data-page-target="serversshop" data-permission="settings.manage" type="button">Serversshop</button>
       <button data-page-target="settings" data-permission="settings.manage" type="button">Einstellungen</button>
     </nav>
 
@@ -120,7 +125,37 @@
             <article class="team-start-card">
               <span class="metric-label">Willkommen</span>
               <strong>Panel</strong>
-              <p class="muted">Deine zentrale Startseite für CloudNet, Services, Konsolen und Panel-Rechte. Sichtbar sind nur die Bereiche, für die dein Panel-Account Rechte hat.</p>
+              <p class="muted">Deine zentrale Startseite für Tickets, Bans, CloudNet und Rechte. Sichtbar sind nur die Bereiche, für die dein Panel-Account Rechte hat.</p>
+            </article>
+            <article class="team-start-card" data-permission="tickets.view">
+              <span class="metric-label">Offene Tickets</span>
+              <strong id="home-open-tickets">-</strong>
+              <p class="muted">Aktive Anliegen, die noch bearbeitet werden müssen.</p>
+              <button data-home-page="tickets" type="button">Tickets öffnen</button>
+            </article>
+            <article class="team-start-card" data-permission="tickets.view">
+              <span class="metric-label">Ticket Archiv</span>
+              <strong id="home-closed-tickets">-</strong>
+              <p class="muted">Geschlossene Tickets für Nachverfolgung und Teamübersicht.</p>
+              <button data-home-page="tickets" data-ticket-tab-target="archive" type="button">Archiv ansehen</button>
+            </article>
+            <article class="team-start-card" data-permission="bans.view">
+              <span class="metric-label">Entbannungsanträge</span>
+              <strong id="home-open-appeals">-</strong>
+              <p class="muted">Neue oder laufende Anträge, die eine Entscheidung brauchen.</p>
+              <button data-home-page="bans" data-ban-tab-target="appeals" type="button">Anträge öffnen</button>
+            </article>
+            <article class="team-start-card" data-permission="bans.view">
+              <span class="metric-label">Aktive LiteBans</span>
+              <strong id="home-active-litebans">-</strong>
+              <p class="muted">Aktive LiteBans-Einträge mit Random-ID aus der Bridge.</p>
+              <button data-home-page="bans" data-ban-tab-target="litebans" type="button">LiteBans ansehen</button>
+            </article>
+            <article class="team-start-card" data-permission="bans.view">
+              <span class="metric-label">Ban Archiv</span>
+              <strong id="home-archived-appeals">-</strong>
+              <p class="muted">Angenommene, abgelehnte und geschlossene Entbannungsanträge.</p>
+              <button data-home-page="bans" data-ban-tab-target="appeal-archive" type="button">Archiv ansehen</button>
             </article>
           </div>
         </article>
@@ -402,6 +437,262 @@
       </div>
     </section>
 
+    <section id="page-tickets" class="page-panel hidden" data-page="tickets" data-permission="tickets.view">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Tickets</p>
+              <h2>Support- und Team-Tickets</h2>
+            </div>
+          </div>
+
+          <div class="sub-nav" aria-label="Ticket Unterseiten">
+            <button data-ticket-tab="active" class="active" type="button">Aktive Tickets</button>
+            <button data-ticket-tab="archive" type="button">Archiv</button>
+          </div>
+
+          <form id="ticket-form" class="stack-form ticket-tab-panel" data-ticket-panel="active" data-permission="tickets.create">
+            <div class="form-grid">
+              <label>
+                <span>Ersteller</span>
+                <input name="creatorName" type="text" placeholder="Spielername oder Teamname">
+              </label>
+              <label>
+                <span>UUID optional</span>
+                <input name="creatorUniqueId" type="text" placeholder="optional">
+              </label>
+              <label>
+                <span>Kategorie</span>
+                <select name="category" id="ticket-category-select"></select>
+              </label>
+              <label>
+                <span>Priorität</span>
+                <select name="priority" id="ticket-priority-select"></select>
+              </label>
+              <label>
+                <span>Betreff</span>
+                <input name="subject" type="text" placeholder="Spieler meldet Proxy-Disconnects">
+              </label>
+              <label>
+                <span>Unterserver / Service</span>
+                <input name="sourceServer" list="service-name-list" type="text" placeholder="Lobby-1 oder Proxy-1">
+                <datalist id="service-name-list"></datalist>
+              </label>
+            </div>
+            <label>
+              <span>Beschreibung</span>
+              <textarea name="content" rows="4" placeholder="Vollständige Beschreibung des Problems oder Anliegens"></textarea>
+            </label>
+            <div class="action-row">
+              <button type="submit">Ticket erstellen</button>
+              <span id="ticket-status" class="muted"></span>
+            </div>
+          </form>
+
+          <div class="action-row ticket-tab-panel" data-ticket-panel="active">
+            <button id="ticket-refresh" class="ghost-button" type="button">Offene Tickets aktualisieren</button>
+          </div>
+
+          <div class="table-shell ticket-tab-panel" data-ticket-panel="active">
+            <table>
+              <thead>
+                <tr>
+                  <th>Betreff</th>
+                  <th>Ersteller</th>
+                  <th>Unterserver</th>
+                  <th>Status</th>
+                  <th>Priorität</th>
+                  <th>Zuständig</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="ticket-table"></tbody>
+            </table>
+          </div>
+
+          <div class="table-shell ticket-tab-panel hidden" data-ticket-panel="archive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Betreff</th>
+                  <th>Ersteller</th>
+                  <th>Unterserver</th>
+                  <th>Status</th>
+                  <th>Priorität</th>
+                  <th>Zuständig</th>
+                  <th>Geschlossen</th>
+                </tr>
+              </thead>
+              <tbody id="ticket-archive-table"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Tickets</p>
+              <h2>Auditlog</h2>
+            </div>
+          </div>
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Zeit</th>
+                  <th>Ticket</th>
+                  <th>Aktion</th>
+                  <th>Akteur</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="ticket-audit-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="page-bans" class="page-panel hidden" data-page="bans" data-permission="bans.view">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Cloud Bans</p>
+              <h2>Zentrale Ban-Verwaltung</h2>
+            </div>
+          </div>
+
+          <div class="sub-nav" aria-label="Ban Unterseiten">
+            <button data-ban-tab="panel" class="active" type="button">Panel-Bans</button>
+            <button data-ban-tab="litebans" type="button">LiteBans</button>
+            <button data-ban-tab="appeals" type="button">Entbannungsanträge</button>
+            <button data-ban-tab="appeal-archive" type="button">Archiv</button>
+            <button data-ban-tab="audit" type="button">Auditlog</button>
+          </div>
+
+          <form id="ban-form" class="stack-form ban-tab-panel" data-ban-panel="panel" data-permission="bans.manage">
+            <div class="form-grid">
+              <label>
+                <span>Zielname</span>
+                <input name="targetName" type="text" placeholder="Spielername">
+              </label>
+              <label>
+                <span>Ziel-UUID optional</span>
+                <input name="targetUniqueId" type="text" placeholder="optional">
+              </label>
+              <label>
+                <span>IP optional</span>
+                <input name="targetAddress" type="text" placeholder="optional">
+              </label>
+              <label>
+                <span>Dauer in Minuten</span>
+                <input name="durationMinutes" type="number" min="0" value="0">
+              </label>
+            </div>
+            <p class="muted">Ausgeführt von wird automatisch auf den eingeloggten Panel-Benutzer gesetzt.</p>
+            <label>
+              <span>Grund</span>
+              <textarea name="reason" rows="3" placeholder="z.B. Netzwerkweiter Cheat-Verdacht / Botting / schwere Störung"></textarea>
+            </label>
+            <div class="action-row">
+              <button type="submit">Ban erstellen</button>
+              <span id="ban-status" class="muted"></span>
+            </div>
+          </form>
+
+          <div class="table-shell ban-tab-panel" data-ban-panel="panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ziel</th>
+                  <th>Status</th>
+                  <th>Grund</th>
+                  <th>Ablauf</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="ban-table"></tbody>
+            </table>
+          </div>
+
+          <div class="table-shell ban-tab-panel hidden" data-ban-panel="litebans">
+            <table class="liteban-table">
+              <thead>
+                <tr>
+                  <th>Random-ID</th>
+                  <th>Ziel</th>
+                  <th>Gebannt von</th>
+                  <th>Status</th>
+                  <th>Zeitraum</th>
+                  <th>Grund</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="liteban-table"></tbody>
+            </table>
+          </div>
+
+          <div class="table-shell ban-tab-panel hidden" data-ban-panel="audit">
+            <table>
+              <thead>
+                <tr>
+                  <th>Zeit</th>
+                  <th>Quelle</th>
+                  <th>Ban-ID</th>
+                  <th>Aktion</th>
+                  <th>Akteur</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="ban-audit-table"></tbody>
+            </table>
+          </div>
+
+          <div class="action-row ban-tab-panel hidden" data-ban-panel="appeals">
+            <button id="ban-appeal-refresh" class="ghost-button" type="button">Entbannungsanträge aktualisieren</button>
+          </div>
+
+          <div class="table-shell ban-tab-panel hidden" data-ban-panel="appeals">
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Random-ID</th>
+                  <th>Spieler</th>
+                  <th>E-Mail</th>
+                  <th>Begründung</th>
+                  <th>Beweise</th>
+                  <th>Erstellt</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="ban-appeal-table"></tbody>
+            </table>
+          </div>
+
+          <div class="table-shell ban-tab-panel hidden" data-ban-panel="appeal-archive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Random-ID</th>
+                  <th>Spieler</th>
+                  <th>E-Mail</th>
+                  <th>Begründung</th>
+                  <th>Beweise</th>
+                  <th>Aktualisiert</th>
+                  <th>Bearbeitet von</th>
+                </tr>
+              </thead>
+              <tbody id="ban-appeal-archive-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <section id="page-security" class="page-panel hidden" data-page="security" data-permission="users.manage">
       <div class="panel-grid">
         <article class="panel-card panel-wide" data-permission="users.manage">
@@ -494,6 +785,342 @@
       </div>
     </section>
 
+    <section id="page-luckperms" class="page-panel hidden" data-page="luckperms" data-permission="permissions.proxy.manage,permissions.server.manage">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Proxy & Unterserver</p>
+              <h2>LuckPerms Editor</h2>
+            </div>
+            <button id="permission-refresh" class="ghost-button" type="button">Synchronisieren</button>
+          </div>
+
+          <div class="luckperms-toolbar">
+            <label>
+              <span>Zielserver</span>
+              <select id="permission-server-select"></select>
+            </label>
+            <label>
+              <span>Suche</span>
+              <input id="permission-subject-search" type="search" placeholder="Gruppe, Spieler, UUID oder Permission">
+            </label>
+          </div>
+
+          <div class="luckperms-editor">
+            <aside class="luckperms-sidebar">
+              <div class="panel-head compact-head">
+                <div>
+                  <p class="eyebrow">Subjects</p>
+                  <h2>Gruppen & Spieler</h2>
+                </div>
+              </div>
+              <div id="permission-subject-list" class="subject-list"></div>
+            </aside>
+
+            <section class="luckperms-workspace">
+              <div id="permission-selected-summary" class="selected-subject muted">
+                Wähle links eine Gruppe oder einen Spieler aus.
+              </div>
+
+              <form id="permission-action-form" class="stack-form luckperms-add-form">
+                <div class="form-grid">
+                  <label>
+                    <span>Node-Typ</span>
+                    <select name="nodeType">
+                      <option value="permission">Permission</option>
+                      <option value="parent">Parent-Gruppe</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Wert</span>
+                    <input name="nodeValue" type="text" placeholder="z.B. essentials.fly oder moderator">
+                  </label>
+                  <label>
+                    <span>Permission-Wert</span>
+                    <select name="nodeValueState">
+                      <option value="true">true / erlauben</option>
+                      <option value="false">false / verweigern</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="action-row">
+                  <button type="submit">Node hinzufügen</button>
+                  <span id="permission-status" class="muted"></span>
+                </div>
+              </form>
+
+              <div class="node-section">
+                <div>
+                  <p class="eyebrow">Nodes</p>
+                  <h2>Aktive Einträge</h2>
+                </div>
+                <div id="permission-node-list" class="node-list"></div>
+              </div>
+            </section>
+          </div>
+
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Server</th>
+                  <th>Zeit</th>
+                  <th>Subject</th>
+                  <th>Aktion</th>
+                  <th>Akteur</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="permission-audit-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="page-quest-editor" class="page-panel hidden" data-page="quest-editor" data-permission="quests.editor.view">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">CraftplayQuests</p>
+              <h2>Quest-Editor</h2>
+              <p class="muted">Quests, Kategorien und YAML-Rohdaten direkt aus dem CraftplayQuests Plugin.</p>
+            </div>
+            <button id="quest-refresh" class="ghost-button" type="button">Aktualisieren</button>
+          </div>
+
+          <div class="quest-editor-layout">
+            <aside class="quest-editor-sidebar">
+              <label>
+                <span>Server</span>
+                <select id="quest-server-select">
+                  <option value="">Kein Quest-Server</option>
+                </select>
+              </label>
+
+              <div class="quest-editor-status-card">
+                <span class="metric-label">Verbindung</span>
+                <strong id="quest-connection-state">Warte auf Verbindung</strong>
+                <small id="quest-api-base-url" class="muted">-</small>
+                <small id="quest-api-token-state" class="muted">-</small>
+              </div>
+
+              <div class="quest-stat-grid">
+                <article class="metric-card compact-metric">
+                  <span class="metric-label">Quests</span>
+                  <strong id="quest-count">0</strong>
+                </article>
+                <article class="metric-card compact-metric">
+                  <span class="metric-label">Kategorien</span>
+                  <strong id="quest-category-count">0</strong>
+                </article>
+              </div>
+
+              <label>
+                <span>Suche</span>
+                <input id="quest-search" type="search" placeholder="Quest-ID, Name oder Kategorie">
+              </label>
+              <label>
+                <span>Kategorie</span>
+                <select id="quest-category-filter">
+                  <option value="">Alle Kategorien</option>
+                </select>
+              </label>
+              <div id="quest-list" class="quest-list"></div>
+            </aside>
+
+            <section class="quest-editor-workspace">
+              <div class="panel-head compact-head">
+                <div>
+                  <p class="eyebrow">Details</p>
+                  <h2 id="quest-detail-title">Keine Quest ausgewählt</h2>
+                  <p id="quest-detail-subtitle" class="muted">Wähle links eine Quest aus.</p>
+                </div>
+                <div class="action-row">
+                  <button id="quest-load-raw" class="ghost-button" type="button" disabled>YAML laden</button>
+                  <button id="quest-save" type="button" disabled>Speichern</button>
+                </div>
+              </div>
+
+              <div class="form-grid quest-detail-grid">
+                <label>
+                  <span>ID</span>
+                  <input id="quest-field-id" type="text" readonly>
+                </label>
+                <label>
+                  <span>Name</span>
+                  <input id="quest-field-name" type="text" readonly>
+                </label>
+                <label>
+                  <span>Typ</span>
+                  <select id="quest-field-type" disabled></select>
+                </label>
+                <label>
+                  <span>Kategorie</span>
+                  <select id="quest-field-category" disabled></select>
+                </label>
+                <label>
+                  <span>Java-Icon</span>
+                  <input id="quest-field-icon" type="text" readonly>
+                </label>
+                <label>
+                  <span>Bedrock-Name</span>
+                  <input id="quest-field-bedrock-name" type="text" readonly>
+                </label>
+                <label>
+                  <span>Bedrock-Icon</span>
+                  <input id="quest-field-bedrock-icon" type="text" readonly>
+                </label>
+                <label>
+                  <span>Resetprofil</span>
+                  <select id="quest-field-reset-profile" disabled></select>
+                </label>
+              </div>
+
+              <div class="quest-editor-section">
+                <div>
+                  <p class="eyebrow">Aufgaben</p>
+                  <h2>Tasks</h2>
+                </div>
+                <div class="table-shell quest-table-shell">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Typ</th>
+                        <th>Ziel</th>
+                        <th>Menge</th>
+                        <th>Text</th>
+                      </tr>
+                    </thead>
+                    <tbody id="quest-task-table"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="quest-editor-section">
+                <div>
+                  <p class="eyebrow">Belohnungen</p>
+                  <h2>Rewards</h2>
+                </div>
+                <div class="table-shell quest-table-shell">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Typ</th>
+                        <th>Wert</th>
+                        <th>Text</th>
+                      </tr>
+                    </thead>
+                    <tbody id="quest-reward-table"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="quest-editor-section">
+                <div>
+                  <p class="eyebrow">Rohdaten</p>
+                  <h2>YAML</h2>
+                </div>
+                <textarea id="quest-raw-yaml" class="quest-raw-yaml" spellcheck="false" placeholder="YAML wird hier geladen."></textarea>
+                <p class="muted">Schreiben und Veröffentlichen bleibt deaktiviert, bis die CraftplayQuests Plugin-API Schreib-Endpunkte bereitstellt.</p>
+              </div>
+            </section>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="page-serversshop" class="page-panel hidden" data-page="serversshop" data-permission="settings.manage">
+      <div class="panel-grid">
+        <article class="panel-card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">CraftplayShop</p>
+              <h2>Serversshop</h2>
+              <p class="muted">Adminshop-Editor mit Serverauswahl. IP, Port und Plugin-Token werden in den Panel-Einstellungen gepflegt.</p>
+            </div>
+            <button id="serversshop-refresh" class="ghost-button" type="button">Aktualisieren</button>
+          </div>
+
+          <div class="quest-editor-layout">
+            <aside class="quest-editor-sidebar">
+              <label>
+                <span>Minecraft-Server</span>
+                <select id="serversshop-server-select">
+                  <option value="">Kein Server konfiguriert</option>
+                </select>
+              </label>
+
+              <div class="quest-editor-status-card">
+                <span class="metric-label">Verbindung</span>
+                <strong id="serversshop-connection-state">Nicht verbunden</strong>
+                <small id="serversshop-api-base-url" class="muted">-</small>
+                <small id="serversshop-api-token-state" class="muted">-</small>
+              </div>
+
+              <div class="quest-stat-grid">
+                <article class="metric-card compact-metric">
+                  <span class="metric-label">Kategorien</span>
+                  <strong id="serversshop-category-count">0</strong>
+                </article>
+                <article class="metric-card compact-metric">
+                  <span class="metric-label">Produkte</span>
+                  <strong id="serversshop-item-count">0</strong>
+                </article>
+              </div>
+            </aside>
+
+            <section class="quest-editor-workspace">
+              <div class="panel-head compact-head">
+                <div>
+                  <p class="eyebrow">Editor</p>
+                  <h2 id="serversshop-detail-title">Kein Server ausgewählt</h2>
+                  <p id="serversshop-detail-subtitle" class="muted">Wähle links einen CraftplayShop-Server aus.</p>
+                </div>
+                <div class="action-row">
+                  <button id="serversshop-load" class="ghost-button" type="button" disabled>Shop laden</button>
+                  <button id="serversshop-save" type="button" disabled>Speichern</button>
+                </div>
+              </div>
+
+              <div class="quest-editor-section">
+                <div>
+                  <p class="eyebrow">AdminShop</p>
+                  <h2>Kategorien</h2>
+                </div>
+                <div class="table-shell quest-table-shell">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Slot</th>
+                        <th>Items</th>
+                      </tr>
+                    </thead>
+                    <tbody id="serversshop-category-table">
+                      <tr><td colspan="4" class="muted">Noch keine CraftplayShop Panel-API verbunden.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="quest-editor-section">
+                <div>
+                  <p class="eyebrow">Status</p>
+                  <h2>Phase 1</h2>
+                </div>
+                <p id="serversshop-status" class="muted">Der Tab ist vorbereitet. Lesen und Schreiben wird aktiv, sobald CraftplayShop eine gesicherte Panel-API bereitstellt.</p>
+              </div>
+            </section>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <section id="page-settings" class="page-panel hidden" data-page="settings" data-permission="settings.manage">
       <div class="panel-grid">
         <article class="panel-card panel-wide">
@@ -517,6 +1144,17 @@
                   <input name="brandLogoUrl" type="url" placeholder="https://example.com/logo.png">
                 </label>
                 <p class="muted">Titel und Logo werden sofort nach dem Speichern im Panel angezeigt. Das Logo sollte per HTTPS erreichbar sein.</p>
+              </fieldset>
+
+              <fieldset>
+                <legend>Ticket-Arten</legend>
+                <p class="muted">Diese Arten werden im Panel und als Tab-Vervollständigung für /ticket create verwendet.</p>
+                <div id="ticket-category-settings-list" class="category-pill-list"></div>
+                <label>
+                  <span>Arten</span>
+                  <textarea name="ticketCategories" rows="5" placeholder="SUPPORT&#10;BUG&#10;MELDEN&#10;SONSTIGES"></textarea>
+                </label>
+                <p class="muted">Eine Art pro Zeile oder per Komma getrennt. Sonderzeichen werden automatisch bereinigt.</p>
               </fieldset>
 
               <fieldset>
@@ -553,6 +1191,184 @@
                   <input name="cloudNetScreenName" type="text" placeholder="z.B. cloudnet">
                 </label>
                 <p class="muted">Der Screen wird nur verwendet, wenn CloudNet REST nicht konfiguriert ist. So bleibt ein Fallback erhalten, falls das Rest-Modul nicht erreichbar ist.</p>
+              </fieldset>
+
+              <fieldset class="settings-wide">
+                <legend>CraftplayQuests Server</legend>
+                <p class="muted">Hier hinterlegst du jeden Minecraft-Server, dessen CraftplayQuests-Quests im Browser-Editor gelesen werden sollen. Der Token muss dem `web-editor.token` des jeweiligen Plugins entsprechen.</p>
+                <div id="quest-server-settings-list" class="quest-server-settings-list"></div>
+                <div class="action-row">
+                  <button id="quest-server-add" class="ghost-button" type="button">Quest-Server hinzufügen</button>
+                </div>
+              </fieldset>
+
+              <fieldset class="settings-wide">
+                <legend>CraftplayShop Server</legend>
+                <p class="muted">Diese Server erscheinen im Serversshop-Tab. Trage hier IP, Port und exakt den Token aus der CraftplayShop config.yml ein. Die Server-ID muss zur Plugin-Config passen, zum Beispiel Testserver-1.</p>
+                <div id="serversshop-server-settings-list" class="quest-server-settings-list"></div>
+                <div class="action-row">
+                  <button id="serversshop-server-add" class="ghost-button" type="button">Shop-Server hinzufügen</button>
+                </div>
+              </fieldset>
+
+              <fieldset class="settings-wide">
+                <legend>Entbannungsseite</legend>
+                <p class="muted">Diese Titel gelten nur für das Entbannungsformular, die Statusseite und die E-Mails, unabhängig vom Panel-Titel.</p>
+                <div class="form-grid">
+                  <label>
+                    <span>Titel neben Logo</span>
+                    <input name="appealBrandName" type="text" placeholder="Craftplay.de">
+                  </label>
+                  <label>
+                    <span>Titel Entbannungsseite</span>
+                    <input name="appealTitle" type="text" placeholder="Entbannungsantrag">
+                  </label>
+                  <label>
+                    <span>Statusseiten Überschrift</span>
+                    <input name="appealStatusTitle" type="text" placeholder="Dein Entbannungsantrag">
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset class="settings-wide">
+                <legend>Entbannungsstatus</legend>
+                <p class="muted">Die kurzen Namen werden im Panel, auf der Statusseite und in Status-Mails angezeigt.</p>
+                <div class="form-grid">
+                  <label>
+                    <span>Offen Name</span>
+                    <input name="appealStatusOpenLabel" type="text" placeholder="Offen">
+                  </label>
+                  <label>
+                    <span>In Prüfung Name</span>
+                    <input name="appealStatusInReviewLabel" type="text" placeholder="In Prüfung">
+                  </label>
+                  <label>
+                    <span>Angenommen Name</span>
+                    <input name="appealStatusAcceptedLabel" type="text" placeholder="Angenommen">
+                  </label>
+                  <label>
+                    <span>Abgelehnt Name</span>
+                    <input name="appealStatusRejectedLabel" type="text" placeholder="Abgelehnt">
+                  </label>
+                  <label>
+                    <span>Geschlossen Name</span>
+                    <input name="appealStatusClosedLabel" type="text" placeholder="Geschlossen">
+                  </label>
+                </div>
+                <p class="muted">Die langen Texte erscheinen als Erklärung auf der Statusseite und in Status-Mails.</p>
+                <label>
+                  <span>Offen Text</span>
+                  <textarea name="appealStatusOpenText" rows="2"></textarea>
+                </label>
+                <label>
+                  <span>In Prüfung Text</span>
+                  <textarea name="appealStatusInReviewText" rows="2"></textarea>
+                </label>
+                <label>
+                  <span>Angenommen Text</span>
+                  <textarea name="appealStatusAcceptedText" rows="2"></textarea>
+                </label>
+                <label>
+                  <span>Abgelehnt Text</span>
+                  <textarea name="appealStatusRejectedText" rows="2"></textarea>
+                </label>
+                <label>
+                  <span>Geschlossen Text</span>
+                  <textarea name="appealStatusClosedText" rows="2"></textarea>
+                </label>
+              </fieldset>
+
+              <fieldset class="settings-wide">
+                <legend>Entbannungs-Beweise</legend>
+                <p class="muted">Hier legst du fest, wohin hochgeladene Beweisdateien gespeichert werden. Diese Werte werden auch für die klickbaren Beweisdateien im Teampanel genutzt.</p>
+                <div class="form-grid">
+                  <label>
+                    <span>Öffentliche Statusseiten URL</span>
+                    <input name="appealPublicBaseUrl" type="url" placeholder="https://entbannung.craftplay.de">
+                  </label>
+                  <label>
+                    <span>Speicherart</span>
+                    <select name="appealEvidenceStorage">
+                      <option value="LOCAL">Lokal</option>
+                      <option value="SFTP">SFTP</option>
+                      <option value="ONEDRIVE">OneDrive</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Max. Dateien pro Antrag</span>
+                    <input name="appealMaxFiles" type="number" min="1" max="10">
+                  </label>
+                  <label>
+                    <span>Max. Dateigröße in Bytes</span>
+                    <input name="appealMaxFileBytes" type="number" min="1" max="104857600">
+                  </label>
+                </div>
+                <label>
+                  <span>Lokaler Ordner</span>
+                  <input name="appealEvidenceLocalDirectory" type="text" placeholder="appeal-evidence">
+                </label>
+                <div class="form-grid">
+                  <label>
+                    <span>SFTP Host</span>
+                    <input name="appealEvidenceSftpHost" type="text">
+                  </label>
+                  <label>
+                    <span>SFTP Port</span>
+                    <input name="appealEvidenceSftpPort" type="number" min="1" max="65535">
+                  </label>
+                  <label>
+                    <span>SFTP Benutzer</span>
+                    <input name="appealEvidenceSftpUsername" type="text">
+                  </label>
+                  <label>
+                    <span>SFTP Passwort</span>
+                    <input name="appealEvidenceSftpPassword" type="password" placeholder="leer lassen = behalten">
+                  </label>
+                  <label>
+                    <span>SFTP Private-Key Pfad</span>
+                    <input name="appealEvidenceSftpPrivateKeyPath" type="text">
+                  </label>
+                  <label>
+                    <span>SFTP Remote Ordner</span>
+                    <input name="appealEvidenceSftpRemoteDirectory" type="text" placeholder="/appeals">
+                  </label>
+                </div>
+                <label>
+                  <span>OneDrive Upload URL Template</span>
+                  <input name="appealEvidenceOneDriveUploadUrlTemplate" type="text" placeholder="https://graph.microsoft.com/v1.0/me/drive/root:/appeals/{filename}:/content">
+                </label>
+                <div class="form-grid">
+                  <label>
+                    <span>OneDrive Tenant</span>
+                    <input name="appealEvidenceOneDriveTenant" type="text" placeholder="common">
+                  </label>
+                  <label>
+                    <span>OneDrive Client ID</span>
+                    <input name="appealEvidenceOneDriveClientId" type="text" placeholder="Azure App Client ID">
+                  </label>
+                  <label>
+                    <span>OneDrive Ordner</span>
+                    <select name="appealEvidenceOneDriveFolderPath" id="onedrive-folder-select">
+                      <option value="Entbannungsantraege">Entbannungsantraege</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>OneDrive Verbindung</span>
+                    <input name="appealEvidenceOneDriveConnection" type="text" readonly>
+                  </label>
+                </div>
+                <div class="action-row">
+                  <button id="onedrive-connect" type="button">OneDrive verbinden</button>
+                  <a id="onedrive-login-link" class="button-link ghost-button hidden" href="#" target="_blank" rel="noreferrer">Microsoft Anmeldung öffnen</a>
+                  <button id="onedrive-folders-refresh" class="ghost-button" type="button">Ordner laden</button>
+                  <button id="onedrive-disconnect" class="ghost-button" type="button">OneDrive trennen</button>
+                </div>
+                <p id="onedrive-status" class="muted"></p>
+                <label>
+                  <span>OneDrive Bearer Token Fallback</span>
+                  <input name="appealEvidenceOneDriveBearerToken" type="password" placeholder="leer lassen = behalten">
+                </label>
+                <p class="muted">Empfohlen ist die OneDrive-Verbindung über Microsoft-Code. Das URL Template ist optional; ohne Template nutzt das Panel automatisch Microsoft Graph und den OneDrive Ordner.</p>
               </fieldset>
 
               <fieldset>
@@ -605,6 +1421,52 @@
                 <div class="toggle-row">
                   <label><input name="smtpStartTls" type="checkbox"> STARTTLS</label>
                   <label><input name="smtpSsl" type="checkbox"> SSL</label>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>LiteBans Datenbank</legend>
+                <label class="inline-label">
+                  <input name="liteBansDatabaseEnabled" type="checkbox">
+                  <span>LiteBans MySQL aktiv</span>
+                </label>
+                <label>
+                  <span>JDBC URL</span>
+                  <input name="liteBansJdbcUrl" type="text" placeholder="jdbc:mysql://127.0.0.1:3306/litebans...">
+                </label>
+                <label>
+                  <span>Datenbank Benutzer</span>
+                  <input name="liteBansDatabaseUsername" type="text">
+                </label>
+                <label>
+                  <span>Datenbank Passwort</span>
+                  <input name="liteBansDatabasePassword" type="password" placeholder="leer lassen = behalten">
+                </label>
+                <label>
+                  <span>Tabellenprefix</span>
+                  <input name="liteBansTablePrefix" type="text" placeholder="litebans_">
+                </label>
+                <label>
+                  <span>Max. Bans lesen</span>
+                  <input name="liteBansDatabaseMaxRows" type="number" min="50" max="10000">
+                </label>
+                <label>
+                  <span>Velocity Bridge URL</span>
+                  <input name="liteBansBridgeBaseUrl" type="text" placeholder="http://127.0.0.1:9095">
+                </label>
+                <label>
+                  <span>Bridge Secret</span>
+                  <input name="liteBansBridgeSecret" type="password" placeholder="leer lassen = behalten/API Token">
+                </label>
+                <div class="form-grid">
+                  <label>
+                    <span>Connect Timeout ms</span>
+                    <input name="liteBansBridgeConnectTimeoutMillis" type="number" min="500" max="30000">
+                  </label>
+                  <label>
+                    <span>Read Timeout ms</span>
+                    <input name="liteBansBridgeReadTimeoutMillis" type="number" min="500" max="30000">
+                  </label>
                 </div>
               </fieldset>
             </div>

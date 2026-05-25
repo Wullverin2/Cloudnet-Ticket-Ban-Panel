@@ -728,9 +728,17 @@ public final class PanelUserStore {
       new PanelGroup("admin", List.of(PanelPermission.ALL), true, now, now),
       new PanelGroup("team", List.of(
         PanelPermission.CLOUDNET_VIEW,
-        PanelPermission.CLOUDNET_CONSOLE), false, now, now),
+        PanelPermission.CLOUDNET_CONSOLE,
+        PanelPermission.TICKETS_VIEW,
+        PanelPermission.TICKETS_CREATE,
+        PanelPermission.TICKETS_MANAGE,
+        PanelPermission.BANS_VIEW,
+        PanelPermission.BANS_MANAGE,
+        PanelPermission.QUEST_EDITOR_VIEW), false, now, now),
       new PanelGroup("viewer", List.of(
-        PanelPermission.CLOUDNET_VIEW), false, now, now));
+        PanelPermission.CLOUDNET_VIEW,
+        PanelPermission.TICKETS_VIEW,
+        PanelPermission.BANS_VIEW), false, now, now));
   }
 
   private void save() {

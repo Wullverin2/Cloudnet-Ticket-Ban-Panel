@@ -6,10 +6,14 @@ import de.speed.ticketconsolecloudban.auth.PanelPermission;
 import de.speed.ticketconsolecloudban.auth.PanelPrincipal;
 import de.speed.ticketconsolecloudban.auth.PanelSecurityService;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.quest.CraftplayQuestEditorClient;
 import de.speed.ticketconsolecloudban.service.CloudNetFacade;
+import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -23,6 +27,7 @@ public final class PanelHttpServer {
   private final PanelConfiguration configuration;
   private final CloudNetFacade facade;
   private final PanelSecurityService security;
+  private final CraftplayQuestEditorClient questEditorClient;
 
   private HttpServer server;
   private ExecutorService executor;
@@ -30,11 +35,13 @@ public final class PanelHttpServer {
   public PanelHttpServer(
     PanelConfiguration configuration,
     CloudNetFacade facade,
-    PanelSecurityService security
+    PanelSecurityService security,
+    PanelSettingsStore settingsStore
   ) {
     this.configuration = configuration;
     this.facade = facade;
     this.security = security;
+    this.questEditorClient = new CraftplayQuestEditorClient(configuration, settingsStore);
   }
 
   public void start() {
@@ -172,8 +179,18 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() >= 2 && "permissions".equals(segments.get(1))) {
+      this.handlePermissionApi(exchange, segments, principal);
+      return;
+    }
+
     if (segments.size() >= 2 && "settings".equals(segments.get(1))) {
       this.handleSettingsApi(exchange, segments, principal);
+      return;
+    }
+
+    if (segments.size() >= 2 && "quest-editor".equals(segments.get(1))) {
+      this.handleQuestEditorApi(exchange, segments, principal);
       return;
     }
 
@@ -331,7 +348,347 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() == 2 && "tickets".equals(segments.get(1))) {
+      if (HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_VIEW)) {
+          return;
+        }
+        var query = HttpExchangeUtils.queryParameters(exchange);
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.listTickets(
+          query.get("creatorUniqueId"),
+          query.get("creatorName"),
+          query.get("status")));
+        return;
+      }
+      if (HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_CREATE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 201, this.facade.createTicket(HttpExchangeUtils.readJson(exchange)));
+        return;
+      }
+    }
+
+    if (segments.size() == 3
+      && "tickets".equals(segments.get(1))
+      && "audit".equals(segments.get(2))
+      && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_VIEW)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.ticketAuditLog());
+      return;
+    }
+
+    if (segments.size() == 3 && "tickets".equals(segments.get(1)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_VIEW)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.getTicket(segments.get(2)));
+      return;
+    }
+
+    if (segments.size() == 4 && "tickets".equals(segments.get(1))) {
+      var ticketId = segments.get(2);
+      var action = segments.get(3);
+
+      if ("status".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.updateTicketStatus(ticketId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
+        return;
+      }
+      if ("assign".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.assignTicket(ticketId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
+        return;
+      }
+      if (this.isTicketCommentAction(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_VIEW)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.getTicket(ticketId).comments());
+        return;
+      }
+      if ("comments".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.addTicketComment(ticketId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
+        return;
+      }
+      if (("reply".equals(action) || "replies".equals(action)) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.addTicketComment(ticketId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
+        return;
+      }
+    }
+
+    if (segments.size() == 2 && "player-actions".equals(segments.get(1)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.pendingPlayerActions());
+      return;
+    }
+
+    if (segments.size() == 3
+      && "player-actions".equals(segments.get(1))
+      && "teleport".equals(segments.get(2))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestTeleportToPlayer(HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
+      return;
+    }
+
+    if (segments.size() == 4
+      && "player-actions".equals(segments.get(1))
+      && "complete".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.TICKETS_MANAGE)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.completePlayerAction(segments.get(2), HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
+    if (segments.size() == 2 && "bans".equals(segments.get(1))) {
+      if (HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_VIEW)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.listBans());
+        return;
+      }
+      if (HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 201, this.facade.createBan(HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
+        return;
+      }
+    }
+
+    if (segments.size() == 3 && "bans".equals(segments.get(1))) {
+      var action = segments.get(2);
+      if ("litebans".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_VIEW)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.listLiteBans());
+        return;
+      }
+      if ("litebans-sync".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.syncLiteBans(HttpExchangeUtils.readJson(exchange)));
+        return;
+      }
+      if ("actions".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.pendingBanActions());
+        return;
+      }
+      if ("audit".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_VIEW)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.banAuditLog());
+        return;
+      }
+    }
+
+    if (segments.size() == 5 && "bans".equals(segments.get(1)) && "litebans".equals(segments.get(2))) {
+      var banId = segments.get(3);
+      var action = segments.get(4);
+      if ("unban".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestLiteBanUnban(banId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
+        return;
+      }
+      if ("extend".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestLiteBanExtend(banId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
+        return;
+      }
+    }
+
+    if (segments.size() == 5
+      && "bans".equals(segments.get(1))
+      && "actions".equals(segments.get(2))
+      && "complete".equals(segments.get(4))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.completeBanAction(segments.get(3), HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
+    if (segments.size() == 2 && "ban-appeals".equals(segments.get(1)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.BANS_VIEW)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.listBanAppeals());
+      return;
+    }
+
+    if (segments.size() == 5
+      && "ban-appeals".equals(segments.get(1))
+      && "attachments".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.BANS_VIEW)) {
+        return;
+      }
+      var download = this.facade.downloadBanAppealAttachment(segments.get(2), segments.get(4));
+      exchange.getResponseHeaders().set("Content-Disposition", this.inlineContentDisposition(download.fileName()));
+      exchange.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
+      HttpExchangeUtils.writeBinary(exchange, 200, download.bytes(), download.contentType());
+      return;
+    }
+
+    if (segments.size() == 4
+      && "ban-appeals".equals(segments.get(1))
+      && "status".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+        return;
+      }
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.updateBanAppealStatus(segments.get(2), HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
+      return;
+    }
+
+    if (segments.size() == 4 && "bans".equals(segments.get(1))) {
+      var banId = segments.get(2);
+      var action = segments.get(3);
+
+      if ("deactivate".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        if (!this.requirePermission(exchange, principal, PanelPermission.BANS_MANAGE)) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.deactivateBan(banId, HttpExchangeUtils.readJson(exchange), this.actorName(principal)));
+        return;
+      }
+    }
+
     HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("API-Endpunkt nicht gefunden"));
+  }
+
+  private void handleQuestEditorApi(HttpExchange exchange, List<String> segments, PanelPrincipal principal) throws IOException {
+    if (!this.requirePermission(exchange, principal, PanelPermission.QUEST_EDITOR_VIEW)) {
+      return;
+    }
+
+    if (segments.size() == 3 && "config".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.questEditorClient.configView());
+      return;
+    }
+
+    if (segments.size() == 3 && "servers".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.questEditorClient.servers());
+      return;
+    }
+
+    if (segments.size() == 3 && "status".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      if (!this.questEditorClient.enabled()) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.questEditorClient.configView());
+        return;
+      }
+      this.proxyQuestEditor(exchange, "/status");
+      return;
+    }
+
+    if (segments.size() == 3 && "schema".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      this.proxyQuestEditor(exchange, "/schema");
+      return;
+    }
+
+    if (segments.size() == 3 && "categories".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      this.proxyQuestEditor(exchange, "/categories");
+      return;
+    }
+
+    if (segments.size() == 3 && "quests".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      this.proxyQuestEditor(exchange, "/quests");
+      return;
+    }
+
+    if (segments.size() == 4 && "quests".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      this.proxyQuestEditor(exchange, "/quests/" + CraftplayQuestEditorClient.pathSegment(segments.get(3)));
+      return;
+    }
+
+    if (segments.size() == 5
+      && "raw".equals(segments.get(2))
+      && "quests".equals(segments.get(3))
+      && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      this.proxyQuestEditor(exchange, "/raw/quests/" + CraftplayQuestEditorClient.pathSegment(segments.get(4)));
+      return;
+    }
+
+    if (segments.size() >= 4) {
+      var serverId = segments.get(2);
+      var action = segments.get(3);
+
+      if (segments.size() == 4 && "status".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/status");
+        return;
+      }
+
+      if (segments.size() == 4 && "schema".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/schema");
+        return;
+      }
+
+      if (segments.size() == 4 && "categories".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/categories");
+        return;
+      }
+
+      if (segments.size() == 4 && "quests".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/quests");
+        return;
+      }
+
+      if (segments.size() == 5 && "quests".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/quests/" + CraftplayQuestEditorClient.pathSegment(segments.get(4)));
+        return;
+      }
+
+      if (segments.size() == 6
+        && "raw".equals(action)
+        && "quests".equals(segments.get(4))
+        && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        this.proxyQuestEditor(exchange, serverId, "/raw/quests/" + CraftplayQuestEditorClient.pathSegment(segments.get(5)));
+        return;
+      }
+    }
+
+    HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Quest-Editor-Endpunkt nicht gefunden"));
+  }
+
+  private void proxyQuestEditor(HttpExchange exchange, String remotePath) throws IOException {
+    var response = this.questEditorClient.getFirstEnabled(remotePath);
+    HttpExchangeUtils.writeText(exchange, response.statusCode(), response.body(), "application/json; charset=utf-8");
+  }
+
+  private void proxyQuestEditor(HttpExchange exchange, String serverId, String remotePath) throws IOException {
+    var response = this.questEditorClient.get(serverId, remotePath);
+    HttpExchangeUtils.writeText(exchange, response.statusCode(), response.body(), "application/json; charset=utf-8");
   }
 
   private void handleSecurityApi(HttpExchange exchange, List<String> segments, PanelPrincipal principal) throws IOException {
@@ -395,6 +752,53 @@ public final class PanelHttpServer {
     HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Security-Endpunkt nicht gefunden"));
   }
 
+  private void handlePermissionApi(HttpExchange exchange, List<String> segments, PanelPrincipal principal) throws IOException {
+    if (!this.requireAnyPermission(exchange, principal, PanelPermission.PROXY_PERMISSIONS_MANAGE, PanelPermission.SERVER_PERMISSIONS_MANAGE)) {
+      return;
+    }
+
+    if (segments.size() == 3 && "subjects".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.listPermissionSubjects());
+      return;
+    }
+
+    if (segments.size() == 3 && "sync".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.syncPermissionSubjects(HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
+    if (segments.size() == 3 && "actions".equals(segments.get(2))) {
+      if (HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        var query = HttpExchangeUtils.queryParameters(exchange);
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.pendingPermissionActions(query.get("serverId")));
+        return;
+      }
+      if (HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        var request = HttpExchangeUtils.readJson(exchange);
+        if (!this.requirePermissionForServer(exchange, principal, request.getString("serverId"))) {
+          return;
+        }
+        HttpExchangeUtils.writeJson(exchange, 202, this.facade.requestPermissionAction(request));
+        return;
+      }
+    }
+
+    if (segments.size() == 5
+      && "actions".equals(segments.get(2))
+      && "complete".equals(segments.get(4))
+      && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.completePermissionAction(segments.get(3), HttpExchangeUtils.readJson(exchange)));
+      return;
+    }
+
+    if (segments.size() == 3 && "audit".equals(segments.get(2)) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+      HttpExchangeUtils.writeJson(exchange, 200, this.facade.permissionAuditLog());
+      return;
+    }
+
+    HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Permission-Endpunkt nicht gefunden"));
+  }
+
   private void handleSettingsApi(HttpExchange exchange, List<String> segments, PanelPrincipal principal) throws IOException {
     if (!this.requirePermission(exchange, principal, PanelPermission.SETTINGS_MANAGE)) {
       return;
@@ -416,7 +820,39 @@ public final class PanelHttpServer {
       return;
     }
 
+    if (segments.size() == 4 && "onedrive".equals(segments.get(2))) {
+      var action = segments.get(3);
+      if ("device-code".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.startOneDriveDeviceCode());
+        return;
+      }
+      if ("complete".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        var result = this.facade.completeOneDriveDeviceCode(HttpExchangeUtils.readJson(exchange));
+        HttpExchangeUtils.writeJson(exchange, result.connected() ? 200 : 202, result);
+        return;
+      }
+      if ("disconnect".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "POST")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.disconnectOneDrive());
+        return;
+      }
+      if ("folders".equals(action) && HttpExchangeUtils.matchesMethod(exchange, "GET")) {
+        HttpExchangeUtils.writeJson(exchange, 200, this.facade.oneDriveFolders());
+        return;
+      }
+    }
+
     HttpExchangeUtils.writeJson(exchange, 404, new HttpExchangeUtils.ApiError("Settings-Endpunkt nicht gefunden"));
+  }
+
+  private boolean requirePermissionForServer(HttpExchange exchange, PanelPrincipal principal, String serverId) throws IOException {
+    var permission = serverId == null || serverId.isBlank() || "proxy".equalsIgnoreCase(serverId)
+      ? PanelPermission.PROXY_PERMISSIONS_MANAGE
+      : PanelPermission.SERVER_PERMISSIONS_MANAGE;
+    return this.requirePermission(exchange, principal, permission);
+  }
+
+  private boolean isTicketCommentAction(String action) {
+    return "comments".equals(action) || "replies".equals(action) || "answers".equals(action);
   }
 
   private boolean requireAnyPermission(HttpExchange exchange, PanelPrincipal principal, String... permissions) throws IOException {
@@ -435,6 +871,24 @@ public final class PanelHttpServer {
       return false;
     }
     return true;
+  }
+
+  private String actorName(PanelPrincipal principal) {
+    if (principal == null) {
+      return "Panel";
+    }
+    if (principal.displayName() != null && !principal.displayName().isBlank()) {
+      return principal.displayName();
+    }
+    return principal.username() == null || principal.username().isBlank() ? "Panel" : principal.username();
+  }
+
+  private String inlineContentDisposition(String fileName) {
+    var safeName = fileName == null || fileName.isBlank()
+      ? "beweisdatei"
+      : fileName.replace("\r", "").replace("\n", "").replace("\"", "'");
+    var encodedName = URLEncoder.encode(safeName, StandardCharsets.UTF_8).replace("+", "%20");
+    return "inline; filename=\"" + safeName + "\"; filename*=UTF-8''" + encodedName;
   }
 
   private void handleStatic(HttpExchange exchange, List<String> segments) throws IOException {

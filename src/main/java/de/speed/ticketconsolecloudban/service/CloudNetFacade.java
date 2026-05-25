@@ -2,9 +2,32 @@ package de.speed.ticketconsolecloudban.service;
 
 import de.speed.ticketconsolecloudban.auth.PanelPermission;
 import de.speed.ticketconsolecloudban.auth.SmtpMailService;
+import de.speed.ticketconsolecloudban.appeal.AppealEvidenceConfiguration;
+import de.speed.ticketconsolecloudban.appeal.BanAppealAttachment;
+import de.speed.ticketconsolecloudban.appeal.BanAppealEntry;
+import de.speed.ticketconsolecloudban.appeal.OneDriveOAuthClient;
+import de.speed.ticketconsolecloudban.ban.BanActionRequest;
+import de.speed.ticketconsolecloudban.ban.BanAuditEntry;
+import de.speed.ticketconsolecloudban.ban.CloudBanEntry;
+import de.speed.ticketconsolecloudban.ban.LiteBansDatabaseSyncService;
+import de.speed.ticketconsolecloudban.ban.LiteBanEntry;
 import de.speed.ticketconsolecloudban.config.PanelConfiguration;
+import de.speed.ticketconsolecloudban.permission.PermissionActionRequest;
+import de.speed.ticketconsolecloudban.permission.PermissionAuditEntry;
+import de.speed.ticketconsolecloudban.permission.PermissionSubject;
+import de.speed.ticketconsolecloudban.quest.QuestEditorServerView;
+import de.speed.ticketconsolecloudban.player.PlayerActionRequest;
+import de.speed.ticketconsolecloudban.shop.ServerShopServerView;
+import de.speed.ticketconsolecloudban.store.BanStore;
+import de.speed.ticketconsolecloudban.store.BanAppealStore;
+import de.speed.ticketconsolecloudban.store.PermissionBridgeStore;
+import de.speed.ticketconsolecloudban.store.PlayerActionStore;
+import de.speed.ticketconsolecloudban.store.TicketStore;
 import de.speed.ticketconsolecloudban.settings.PanelSettings;
 import de.speed.ticketconsolecloudban.settings.PanelSettingsStore;
+import de.speed.ticketconsolecloudban.ticket.TicketComment;
+import de.speed.ticketconsolecloudban.ticket.TicketAuditEntry;
+import de.speed.ticketconsolecloudban.ticket.TicketEntry;
 import eu.cloudnetservice.driver.cluster.NodeInfoSnapshot;
 import eu.cloudnetservice.driver.cluster.NetworkClusterNode;
 import eu.cloudnetservice.driver.document.Document;
@@ -21,19 +44,31 @@ import eu.cloudnetservice.driver.service.ServiceLifeCycle;
 import eu.cloudnetservice.driver.service.ServiceTask;
 import eu.cloudnetservice.node.command.CommandProvider;
 import eu.cloudnetservice.node.command.source.CommandSource;
+import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.Session;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.charset.CodingErrorAction;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Queue;
 import java.util.TreeMap;
 import java.util.concurrent.CompletionException;
@@ -58,7 +93,14 @@ public final class CloudNetFacade {
   private final ClusterNodeProvider clusterNodeProvider;
   private final CommandProvider commandProvider;
   private final PanelConfiguration configuration;
+  private final Path dataDirectory;
+  private final TicketStore ticketStore;
+  private final BanStore banStore;
+  private final BanAppealStore banAppealStore;
+  private final LiteBansDatabaseSyncService liteBansDatabaseSyncService;
   private final PanelSettingsStore settingsStore;
+  private final PermissionBridgeStore permissionBridgeStore;
+  private final PlayerActionStore playerActionStore;
   private final CloudNetRestConsoleClient cloudNetRestConsoleClient;
 
   public CloudNetFacade(
@@ -68,7 +110,14 @@ public final class CloudNetFacade {
     ClusterNodeProvider clusterNodeProvider,
     CommandProvider commandProvider,
     PanelConfiguration configuration,
-    PanelSettingsStore settingsStore
+    Path dataDirectory,
+    TicketStore ticketStore,
+    BanStore banStore,
+    BanAppealStore banAppealStore,
+    LiteBansDatabaseSyncService liteBansDatabaseSyncService,
+    PanelSettingsStore settingsStore,
+    PermissionBridgeStore permissionBridgeStore,
+    PlayerActionStore playerActionStore
   ) {
     this.cloudServiceProvider = cloudServiceProvider;
     this.serviceTaskProvider = serviceTaskProvider;
@@ -76,7 +125,14 @@ public final class CloudNetFacade {
     this.clusterNodeProvider = clusterNodeProvider;
     this.commandProvider = commandProvider;
     this.configuration = configuration;
+    this.dataDirectory = dataDirectory;
+    this.ticketStore = ticketStore;
+    this.banStore = banStore;
+    this.banAppealStore = banAppealStore;
+    this.liteBansDatabaseSyncService = liteBansDatabaseSyncService;
     this.settingsStore = settingsStore;
+    this.permissionBridgeStore = permissionBridgeStore;
+    this.playerActionStore = playerActionStore;
     this.cloudNetRestConsoleClient = new CloudNetRestConsoleClient(settingsStore, configuration.consoleLineLimit());
   }
 
@@ -86,6 +142,9 @@ public final class CloudNetFacade {
       this.brandLogoUrl(),
       ENVIRONMENT_CHOICES,
       List.of("jvm"),
+      List.of("OPEN", "IN_PROGRESS", "CLOSED"),
+      List.of("LOW", "NORMAL", "HIGH", "URGENT"),
+      this.settingsStore.current().ticketCategories(),
       PanelPermission.catalog(),
       Instant.now().toString());
   }
@@ -325,12 +384,304 @@ public final class CloudNetFacade {
       .toList();
   }
 
+  public List<TicketView> listTickets() {
+    return this.ticketStore.list().stream()
+      .map(this::ticketView)
+      .toList();
+  }
+
+  public List<TicketView> listTickets(String creatorUniqueId, String creatorName, String status) {
+    var normalizedUniqueId = this.nullableText(creatorUniqueId);
+    var normalizedName = this.nullableText(creatorName);
+    var normalizedStatus = this.nullableText(status);
+
+    return this.ticketStore.list().stream()
+      .filter(ticket -> normalizedUniqueId == null
+        || (ticket.creatorUniqueId() != null && ticket.creatorUniqueId().equalsIgnoreCase(normalizedUniqueId)))
+      .filter(ticket -> normalizedName == null
+        || (ticket.creatorName() != null && ticket.creatorName().equalsIgnoreCase(normalizedName)))
+      .filter(ticket -> normalizedStatus == null
+        || (ticket.status() != null && ticket.status().equalsIgnoreCase(normalizedStatus)))
+      .map(this::ticketView)
+      .toList();
+  }
+
+  public List<TicketAuditEntry> ticketAuditLog() {
+    return this.ticketStore.auditLog();
+  }
+
+  public TicketView getTicket(String id) {
+    return this.ticketView(this.ticketStore.get(id));
+  }
+
+  public TicketView createTicket(Document request) {
+    var creatorName = this.requiredText(request, "creatorName");
+    var subject = this.requiredText(request, "subject");
+    var content = this.requiredText(request, "content");
+    var category = this.textOrDefault(request, "category", "SUPPORT").toUpperCase();
+    var priority = this.textOrDefault(request, "priority", "NORMAL").toUpperCase();
+    var serviceName = this.nullableText(request.getString("sourceServer"));
+    if (serviceName == null) {
+      serviceName = this.nullableText(request.getString("serviceName"));
+    }
+    var creatorUniqueId = this.nullableText(request.getString("creatorUniqueId"));
+
+    return this.ticketView(this.ticketStore.create(
+      creatorName,
+      creatorUniqueId,
+      category,
+      priority,
+      subject,
+      content,
+      serviceName));
+  }
+
+  public TicketView updateTicketStatus(String id, Document request, String actor) {
+    var status = this.requiredText(request, "status").toUpperCase();
+    return this.ticketView(this.ticketStore.updateStatus(id, status, actor));
+  }
+
+  public TicketView assignTicket(String id, Document request, String actor) {
+    var assignedTo = this.requiredText(request, "assignedTo");
+    return this.ticketView(this.ticketStore.assign(id, assignedTo, actor));
+  }
+
+  public TicketView addTicketComment(String id, Document request, String author) {
+    var message = this.requiredText(request, "message");
+    var internal = request.getBoolean("internal", false);
+    return this.ticketView(this.ticketStore.addComment(id, author, message, internal));
+  }
+
+  public PlayerActionRequest requestTeleportToPlayer(Document request, String actor) {
+    var staffName = this.requiredText(request, "staffName");
+    return this.playerActionStore.requestTeleport(
+      staffName,
+      this.requiredText(request, "targetName"),
+      this.nullableText(request.getString("targetUniqueId")),
+      this.nullableText(request.getString("targetServer")),
+      this.nullableText(request.getString("ticketId")),
+      actor == null || actor.isBlank() ? staffName : actor);
+  }
+
+  public List<PlayerActionRequest> pendingPlayerActions() {
+    return this.playerActionStore.pendingActionRequests();
+  }
+
+  public PlayerActionRequest completePlayerAction(String actionId, Document request) {
+    return this.playerActionStore.completeActionRequest(
+      actionId,
+      request.getBoolean("success", true),
+      this.textOrDefault(request, "message", "Aktion verarbeitet"));
+  }
+
+  public List<BanView> listBans() {
+    return this.banStore.list().stream()
+      .map(this::banView)
+      .toList();
+  }
+
+  public BanView createBan(Document request, String issuedBy) {
+    var targetName = this.requiredText(request, "targetName");
+    var reason = this.requiredText(request, "reason");
+    var targetUniqueId = this.nullableText(request.getString("targetUniqueId"));
+    var targetAddress = this.nullableText(request.getString("targetAddress"));
+    var durationMinutes = request.getLong("durationMinutes", 0);
+    var expiresAt = durationMinutes > 0
+      ? Instant.now().plus(durationMinutes, ChronoUnit.MINUTES).toString()
+      : null;
+
+    return this.banView(this.banStore.create(
+      targetName,
+      targetUniqueId,
+      targetAddress,
+      reason,
+      issuedBy,
+      expiresAt));
+  }
+
+  public BanView deactivateBan(String id, Document request, String removedBy) {
+    return this.banView(this.banStore.deactivate(id, removedBy, this.nullableText(request.getString("reason"))));
+  }
+
+  public List<LiteBanEntry> listLiteBans() {
+    this.liteBansDatabaseSyncService.syncNow("litebans-mysql");
+    return this.banStore.listLiteBans();
+  }
+
+  public List<LiteBanEntry> syncLiteBans(Document request) {
+    var entries = request.readObject("bans", LiteBanEntry[].class, new LiteBanEntry[0]);
+    var actor = this.textOrDefault(request, "actor", "velocity-sync");
+    return this.banStore.syncLiteBans(List.of(entries), actor);
+  }
+
+  public BanActionRequest requestLiteBanUnban(String banId, Document request, String actor) {
+    return this.banStore.requestLiteBanUnban(
+      banId,
+      actor == null || actor.isBlank() ? "Panel" : actor,
+      this.textOrDefault(request, "reason", "Unban via Panel"));
+  }
+
+  public BanActionRequest requestLiteBanExtend(String banId, Document request, String actor) {
+    return this.banStore.requestLiteBanExtend(
+      banId,
+      actor == null || actor.isBlank() ? "Panel" : actor,
+      this.requiredText(request, "duration"),
+      this.textOrDefault(request, "reason", "Ban via Panel verlaengert"));
+  }
+
+  public List<BanActionRequest> pendingBanActions() {
+    return this.banStore.pendingActionRequests();
+  }
+
+  public BanActionRequest completeBanAction(String actionId, Document request) {
+    return this.banStore.completeActionRequest(
+      actionId,
+      request.getBoolean("success", true),
+      this.textOrDefault(request, "message", "Aktion verarbeitet"));
+  }
+
+  public List<BanAuditEntry> banAuditLog() {
+    return this.banStore.auditLog();
+  }
+
+  public List<BanAppealEntry> listBanAppeals() {
+    return this.banAppealStore.list();
+  }
+
+  public EvidenceDownload downloadBanAppealAttachment(String appealId, String attachmentId) {
+    var appeal = this.banAppealStore.findById(appealId)
+      .orElseThrow(() -> new IllegalArgumentException("Der Entbannungsantrag wurde nicht gefunden."));
+    var attachment = appeal.attachments() == null
+      ? null
+      : appeal.attachments().stream()
+        .filter(entry -> entry.id().equals(attachmentId))
+        .findFirst()
+        .orElse(null);
+    if (attachment == null) {
+      throw new IllegalArgumentException("Die Beweisdatei wurde nicht gefunden.");
+    }
+
+    var bytes = switch (String.valueOf(attachment.storageType()).trim().toUpperCase()) {
+      case "LOCAL" -> this.readLocalEvidence(attachment);
+      case "SFTP" -> this.readSftpEvidence(attachment);
+      case "ONEDRIVE" -> this.readOneDriveEvidence(attachment);
+      default -> {
+        if (this.isHttpUrl(attachment.storageReference())) {
+          throw new IllegalArgumentException("Diese Beweisdatei ist als externer Link gespeichert und kann direkt geöffnet werden.");
+        }
+        throw new IllegalArgumentException("Der Speichertyp der Beweisdatei wird nicht unterstützt: " + attachment.storageType());
+      }
+    };
+    return new EvidenceDownload(
+      this.downloadFileName(attachment),
+      this.attachmentContentType(attachment),
+      bytes);
+  }
+
+  public BanAppealEntry updateBanAppealStatus(String appealId, Document request, String actor) {
+    var requestedStatus = this.requiredText(request, "status").toUpperCase();
+    var existing = this.banAppealStore.findById(appealId)
+      .orElseThrow(() -> new IllegalArgumentException("Der Entbannungsantrag wurde nicht gefunden."));
+    var queueUnban = this.isAcceptedStatus(requestedStatus) && !this.isAcceptedStatus(existing.status());
+    var unbanBanId = queueUnban ? this.resolveAppealLiteBanId(existing) : null;
+
+    var updated = this.banAppealStore.updateStatus(
+      appealId,
+      requestedStatus,
+      this.nullableText(request.getString("teamNote")),
+      actor == null || actor.isBlank() ? "Panel" : actor);
+    if (queueUnban) {
+      this.banStore.requestLiteBanUnban(
+        unbanBanId,
+        actor == null || actor.isBlank() ? "Panel" : actor,
+        this.acceptedAppealUnbanReason(updated));
+    }
+    this.sendBanAppealStatusMail(updated);
+    return updated;
+  }
+
+  public List<PermissionSubject> listPermissionSubjects() {
+    return this.permissionBridgeStore.listSubjects();
+  }
+
+  public List<PermissionSubject> syncPermissionSubjects(Document request) {
+    var subjects = request.readObject("subjects", PermissionSubject[].class, new PermissionSubject[0]);
+    return this.permissionBridgeStore.syncSubjects(
+      List.of(subjects),
+      this.textOrDefault(request, "actor", "velocity-sync"),
+      this.textOrDefault(request, "serverId", "proxy"));
+  }
+
+  public PermissionActionRequest requestPermissionAction(Document request) {
+    return this.permissionBridgeStore.requestAction(
+      this.textOrDefault(request, "serverId", "proxy"),
+      this.requiredText(request, "action"),
+      this.requiredText(request, "subjectType"),
+      this.requiredText(request, "subjectId"),
+      this.nullableText(request.getString("permission")),
+      this.nullableText(request.getString("parent")),
+      request.contains("value") ? request.getBoolean("value") : null,
+      this.textOrDefault(request, "actor", "Panel"));
+  }
+
+  public List<PermissionActionRequest> pendingPermissionActions(String serverId) {
+    return this.permissionBridgeStore.pendingActionRequests(serverId);
+  }
+
+  public PermissionActionRequest completePermissionAction(String actionId, Document request) {
+    return this.permissionBridgeStore.completeActionRequest(
+      actionId,
+      request.getBoolean("success", true),
+      this.textOrDefault(request, "message", "Aktion verarbeitet"));
+  }
+
+  public List<PermissionAuditEntry> permissionAuditLog() {
+    return this.permissionBridgeStore.auditLog();
+  }
+
   public SettingsView settings() {
     return this.settingsView(this.settingsStore.current());
   }
 
   public SettingsView updateSettings(Document request) {
     return this.settingsView(this.settingsStore.update(request));
+  }
+
+  public OneDriveOAuthClient.DeviceCodeView startOneDriveDeviceCode() {
+    var settings = this.settingsStore.current();
+    return new OneDriveOAuthClient().startDeviceCode(
+      settings.appealEvidenceOneDriveTenant(),
+      settings.appealEvidenceOneDriveClientId());
+  }
+
+  public OneDriveConnectionView completeOneDriveDeviceCode(Document request) {
+    var settings = this.settingsStore.current();
+    var result = new OneDriveOAuthClient().completeDeviceCode(
+      settings.appealEvidenceOneDriveTenant(),
+      settings.appealEvidenceOneDriveClientId(),
+      this.requiredText(request, "deviceCode"));
+    if (!"CONNECTED".equalsIgnoreCase(result.status())) {
+      return new OneDriveConnectionView(result.status(), result.message(), false, result.interval());
+    }
+    if (result.refreshToken() == null || result.refreshToken().isBlank()) {
+      throw new IllegalArgumentException("Microsoft hat keinen Refresh Token geliefert. Bitte prüfe, ob offline_access erlaubt ist.");
+    }
+    this.settingsStore.updateOneDriveRefreshToken(result.refreshToken());
+    return new OneDriveConnectionView("CONNECTED", "OneDrive wurde erfolgreich verbunden.", true, 0);
+  }
+
+  public OneDriveConnectionView disconnectOneDrive() {
+    this.settingsStore.updateOneDriveRefreshToken("");
+    return new OneDriveConnectionView("DISCONNECTED", "OneDrive-Verbindung wurde getrennt.", false, 0);
+  }
+
+  public OneDriveFoldersView oneDriveFolders() {
+    var evidenceConfiguration = this.evidenceConfiguration();
+    if (evidenceConfiguration.oneDriveRefreshToken().isBlank()) {
+      throw new IllegalArgumentException("OneDrive ist noch nicht verbunden.");
+    }
+    var accessToken = this.oneDriveBearerToken(evidenceConfiguration);
+    return new OneDriveFoldersView(new OneDriveOAuthClient().listFolders(accessToken));
   }
 
   public TestMailView sendTestMail(Document request) {
@@ -357,11 +708,48 @@ public final class CloudNetFacade {
     return new SettingsView(
       settings.brandName(),
       settings.brandLogoUrl(),
+      settings.ticketCategories(),
       settings.cloudNetScreenName(),
       settings.cloudNetRestBaseUrl(),
       settings.cloudNetRestUsername(),
       settings.cloudNetRestPassword() != null && !settings.cloudNetRestPassword().isBlank(),
       settings.cloudNetRestThreshold(),
+      settings.questEditorServers().stream()
+        .map(server -> server.normalize(0).toView())
+        .toList(),
+      settings.serverShopServers().stream()
+        .map(server -> server.normalize(0).toView())
+        .toList(),
+      settings.appealBrandName(),
+      settings.appealTitle(),
+      settings.appealStatusTitle(),
+      settings.appealStatusOpenLabel(),
+      settings.appealStatusInReviewLabel(),
+      settings.appealStatusAcceptedLabel(),
+      settings.appealStatusRejectedLabel(),
+      settings.appealStatusClosedLabel(),
+      settings.appealStatusOpenText(),
+      settings.appealStatusInReviewText(),
+      settings.appealStatusAcceptedText(),
+      settings.appealStatusRejectedText(),
+      settings.appealStatusClosedText(),
+      settings.appealPublicBaseUrl(),
+      settings.appealMaxFiles(),
+      settings.appealMaxFileBytes(),
+      settings.appealEvidenceStorage(),
+      settings.appealEvidenceLocalDirectory(),
+      settings.appealEvidenceSftpHost(),
+      settings.appealEvidenceSftpPort(),
+      settings.appealEvidenceSftpUsername(),
+      settings.appealEvidenceSftpPassword() != null && !settings.appealEvidenceSftpPassword().isBlank(),
+      settings.appealEvidenceSftpPrivateKeyPath(),
+      settings.appealEvidenceSftpRemoteDirectory(),
+      settings.appealEvidenceOneDriveUploadUrlTemplate(),
+      settings.appealEvidenceOneDriveBearerToken() != null && !settings.appealEvidenceOneDriveBearerToken().isBlank(),
+      settings.appealEvidenceOneDriveTenant(),
+      settings.appealEvidenceOneDriveClientId(),
+      settings.appealEvidenceOneDriveFolderPath(),
+      settings.appealEvidenceOneDriveRefreshToken() != null && !settings.appealEvidenceOneDriveRefreshToken().isBlank(),
       this.configuration.panelStorageBackend(),
       this.configuration.panelSqlJdbcUrl(),
       this.configuration.panelSqlUsername(),
@@ -374,7 +762,101 @@ public final class CloudNetFacade {
       settings.smtpPassword() != null && !settings.smtpPassword().isBlank(),
       settings.smtpFrom(),
       settings.smtpStartTls(),
-      settings.smtpSsl());
+      settings.smtpSsl(),
+      settings.liteBansDatabaseEnabled(),
+      settings.liteBansJdbcUrl(),
+      settings.liteBansDatabaseUsername(),
+      settings.liteBansDatabasePassword() != null && !settings.liteBansDatabasePassword().isBlank(),
+      settings.liteBansTablePrefix(),
+      settings.liteBansDatabaseMaxRows(),
+      settings.liteBansBridgeBaseUrl(),
+      settings.liteBansBridgeSecret() != null && !settings.liteBansBridgeSecret().isBlank(),
+      settings.liteBansBridgeConnectTimeoutMillis(),
+      settings.liteBansBridgeReadTimeoutMillis());
+  }
+
+  private void sendBanAppealStatusMail(BanAppealEntry appeal) {
+    if (appeal == null || appeal.email() == null || appeal.email().isBlank()) {
+      return;
+    }
+
+    var mailService = new SmtpMailService(this.configuration, this.settingsStore);
+    if (!mailService.enabled()) {
+      return;
+    }
+
+    var statusUrl = this.appealPublicBaseUrl() + "/status?token=" + appeal.statusToken();
+    var settings = this.settingsStore.current();
+    var appealTitle = this.appealTitle();
+    var statusLabel = settings.appealStatusLabel(appeal.status());
+    var statusText = settings.appealStatusText(appeal.status());
+    var text = "Hallo " + appeal.playerName() + ",\r\n\r\n"
+      + "der Status zu deinem " + appealTitle + " für Ban-ID " + appeal.publicBanId() + " wurde aktualisiert.\r\n"
+      + "Status: " + statusLabel + "\r\n"
+      + statusText + "\r\n"
+      + "Statusseite: " + statusUrl + "\r\n";
+    if (appeal.teamNote() != null && !appeal.teamNote().isBlank()) {
+      text += "\r\nTeam-Notiz: " + appeal.teamNote() + "\r\n";
+    }
+
+    var body = "<p style=\"margin:0 0 14px;color:#d7e2ea;\">Hallo <strong>"
+      + escapeHtml(appeal.playerName())
+      + "</strong>, der Status zu deinem "
+      + escapeHtml(appealTitle)
+      + " wurde aktualisiert.</p>"
+      + "<div style=\"margin:18px 0;padding:16px;border-radius:18px;background:rgba(255,255,255,.045);border:1px solid rgba(244,188,70,.2);\">"
+      + "<p style=\"margin:0 0 8px;color:#f4bc46;font-weight:800;letter-spacing:.08em;text-transform:uppercase;\">"
+      + escapeHtml(statusLabel)
+      + "</p><p style=\"margin:0;color:#d7e2ea;line-height:1.55;\">"
+      + escapeHtml(statusText)
+      + "</p></div>"
+      + "<p style=\"margin:0 0 14px;color:#9eb0bc;\">Random Ban-ID: <strong style=\"color:#f5f0e7;\">"
+      + escapeHtml(appeal.publicBanId())
+      + "</strong></p>";
+    if (appeal.teamNote() != null && !appeal.teamNote().isBlank()) {
+      body += "<p style=\"margin:0 0 14px;color:#d7e2ea;\">Team-Notiz: "
+        + escapeHtml(appeal.teamNote())
+        + "</p>";
+    }
+
+    mailService.sendHtml(
+      appeal.email(),
+      appealTitle + " aktualisiert: " + statusLabel,
+      text,
+      this.craftplayMailHtml(
+        this.appealBrandName(),
+        appealTitle,
+        appealTitle + " aktualisiert",
+        body,
+        statusUrl,
+        "Status ansehen",
+        "Craftplay Support"));
+  }
+
+  private boolean isAcceptedStatus(String status) {
+    return "ACCEPTED".equalsIgnoreCase(this.nullableText(status));
+  }
+
+  private String resolveAppealLiteBanId(BanAppealEntry appeal) {
+    var liteBanId = this.nullableText(appeal.liteBanId());
+    if (liteBanId != null) {
+      return liteBanId;
+    }
+    return this.banStore.findLiteBanByPublicIdAndTargetName(appeal.publicBanId(), appeal.playerName())
+      .map(LiteBanEntry::id)
+      .orElseThrow(() -> new IllegalArgumentException(
+        "Für diesen Entbannungsantrag wurde kein aktiver LiteBans-Ban mit passender Random Ban-ID gefunden."));
+  }
+
+  private String acceptedAppealUnbanReason(BanAppealEntry appeal) {
+    var reason = "Entbannungsantrag angenommen";
+    if (appeal.publicBanId() != null && !appeal.publicBanId().isBlank()) {
+      reason += " (Ban-ID " + appeal.publicBanId() + ")";
+    }
+    if (appeal.teamNote() != null && !appeal.teamNote().isBlank()) {
+      reason += ": " + appeal.teamNote();
+    }
+    return reason.replace('\r', ' ').replace('\n', ' ');
   }
 
   private String craftplayMailHtml(String eyebrow, String title, String bodyHtml, String buttonUrl, String buttonLabel, String footer) {
@@ -511,6 +993,53 @@ public final class CloudNetFacade {
         null,
         false);
     };
+  }
+
+  private TicketView ticketView(TicketEntry ticket) {
+    return new TicketView(
+      ticket.id(),
+      ticket.creatorName(),
+      ticket.creatorUniqueId(),
+      ticket.category(),
+      ticket.priority(),
+      ticket.status(),
+      ticket.subject(),
+      ticket.content(),
+      ticket.assignedTo(),
+      ticket.serviceName(),
+      ticket.serviceName(),
+      ticket.createdAt(),
+      ticket.updatedAt(),
+      ticket.comments() == null
+        ? List.of()
+        : ticket.comments().stream().map(this::ticketCommentView).toList());
+  }
+
+  private TicketCommentView ticketCommentView(TicketComment comment) {
+    return new TicketCommentView(
+      comment.author(),
+      comment.message(),
+      comment.internal(),
+      comment.createdAt());
+  }
+
+  private BanView banView(CloudBanEntry entry) {
+    var expired = entry.expiresAt() != null && Instant.parse(entry.expiresAt()).isBefore(Instant.now());
+    var effectiveActive = entry.active() && !expired;
+
+    return new BanView(
+      entry.id(),
+      entry.targetName(),
+      entry.targetUniqueId(),
+      entry.targetAddress(),
+      entry.reason(),
+      entry.issuedBy(),
+      entry.createdAt(),
+      entry.expiresAt(),
+      effectiveActive,
+      expired,
+      entry.removedBy(),
+      entry.removedAt());
   }
 
   private ServiceTask buildTask(ServiceTask baseTask, Document request, String fallbackName) {
@@ -681,6 +1210,16 @@ public final class CloudNetFacade {
     return settings.brandLogoUrl() == null ? "" : settings.brandLogoUrl();
   }
 
+  private String appealTitle() {
+    var value = this.settingsStore.current().appealTitle();
+    return value == null || value.isBlank() ? PanelSettings.DEFAULT_APPEAL_TITLE : value.trim();
+  }
+
+  private String appealBrandName() {
+    var value = this.settingsStore.current().appealBrandName();
+    return value == null || value.isBlank() ? this.brandName() : value.trim();
+  }
+
   private static String escapeHtml(String value) {
     return String.valueOf(value)
       .replace("&", "&amp;")
@@ -706,6 +1245,155 @@ public final class CloudNetFacade {
       }
     }
     return "CloudNet-Befehl konnte nicht ausgeführt werden.";
+  }
+
+  private byte[] readLocalEvidence(BanAppealAttachment attachment) {
+    try {
+      var baseDirectory = this.localEvidenceDirectory();
+      var target = baseDirectory.resolve(String.valueOf(attachment.storageReference())).normalize();
+      if (!target.startsWith(baseDirectory)) {
+        throw new IllegalArgumentException("Ungültiger lokaler Beweispfad.");
+      }
+      if (!Files.isRegularFile(target)) {
+        throw new IllegalArgumentException("Die lokale Beweisdatei wurde nicht gefunden.");
+      }
+      return Files.readAllBytes(target);
+    } catch (IOException exception) {
+      throw new IllegalArgumentException("Die lokale Beweisdatei konnte nicht gelesen werden: " + this.exceptionMessage(exception), exception);
+    }
+  }
+
+  private byte[] readSftpEvidence(BanAppealAttachment attachment) {
+    var evidenceConfiguration = this.evidenceConfiguration();
+    if (evidenceConfiguration.sftpHost().isBlank() || evidenceConfiguration.sftpUsername().isBlank()) {
+      throw new IllegalArgumentException("SFTP-Speicher ist nicht vollständig konfiguriert.");
+    }
+
+    Session session = null;
+    ChannelSftp channel = null;
+    try {
+      var jsch = new JSch();
+      if (!evidenceConfiguration.sftpPrivateKeyPath().isBlank()) {
+        jsch.addIdentity(evidenceConfiguration.sftpPrivateKeyPath());
+      }
+      session = jsch.getSession(
+        evidenceConfiguration.sftpUsername(),
+        evidenceConfiguration.sftpHost(),
+        evidenceConfiguration.sftpPort());
+      if (!evidenceConfiguration.sftpPassword().isBlank()) {
+        session.setPassword(evidenceConfiguration.sftpPassword());
+      }
+      var properties = new Properties();
+      properties.setProperty("StrictHostKeyChecking", "no");
+      session.setConfig(properties);
+      session.connect(10_000);
+      channel = (ChannelSftp) session.openChannel("sftp");
+      channel.connect(10_000);
+
+      var output = new ByteArrayOutputStream();
+      channel.get(attachment.storageReference(), output);
+      return output.toByteArray();
+    } catch (Exception exception) {
+      throw new IllegalArgumentException("Die SFTP-Beweisdatei konnte nicht gelesen werden: " + this.exceptionMessage(exception), exception);
+    } finally {
+      if (channel != null) {
+        channel.disconnect();
+      }
+      if (session != null) {
+        session.disconnect();
+      }
+    }
+  }
+
+  private byte[] readOneDriveEvidence(BanAppealAttachment attachment) {
+    var evidenceConfiguration = this.evidenceConfiguration();
+    var reference = String.valueOf(attachment.storageReference());
+    var downloadUrl = this.oneDriveContentUrl(evidenceConfiguration, reference);
+    if (downloadUrl.isBlank()) {
+      throw new IllegalArgumentException("OneDrive-Speicher ist nicht vollständig konfiguriert.");
+    }
+
+    try {
+      var builder = HttpRequest.newBuilder()
+        .uri(URI.create(downloadUrl))
+        .timeout(Duration.ofSeconds(30))
+        .GET();
+      var bearerToken = this.oneDriveBearerToken(evidenceConfiguration);
+      if (!bearerToken.isBlank()) {
+        builder.header("Authorization", "Bearer " + bearerToken);
+      }
+      var response = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .build()
+        .send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
+      if (response.statusCode() < 200 || response.statusCode() >= 300) {
+        throw new IllegalArgumentException("OneDrive HTTP " + response.statusCode());
+      }
+      return response.body();
+    } catch (IllegalArgumentException exception) {
+      throw exception;
+    } catch (Exception exception) {
+      throw new IllegalArgumentException("Die OneDrive-Beweisdatei konnte nicht gelesen werden: " + this.exceptionMessage(exception), exception);
+    }
+  }
+
+  private Path localEvidenceDirectory() {
+    var configured = Path.of(this.evidenceConfiguration().localDirectory());
+    return (configured.isAbsolute() ? configured : this.dataDirectory.resolve(configured))
+      .toAbsolutePath()
+      .normalize();
+  }
+
+  private AppealEvidenceConfiguration evidenceConfiguration() {
+    return AppealEvidenceConfiguration.from(this.configuration, this.settingsStore.current());
+  }
+
+  private String oneDriveContentUrl(AppealEvidenceConfiguration evidenceConfiguration, String reference) {
+    if (this.isHttpUrl(reference)) {
+      return reference;
+    }
+    if (!evidenceConfiguration.oneDriveUploadUrlTemplate().isBlank()) {
+      return evidenceConfiguration.oneDriveUploadUrlTemplate()
+        .replace("{filename}", URLEncoder.encode(reference, StandardCharsets.UTF_8));
+    }
+    return OneDriveOAuthClient.graphContentUrl(evidenceConfiguration.oneDriveFolderPath(), reference);
+  }
+
+  private String oneDriveBearerToken(AppealEvidenceConfiguration evidenceConfiguration) {
+    if (!evidenceConfiguration.oneDriveRefreshToken().isBlank()) {
+      var token = new OneDriveOAuthClient().refreshAccessToken(
+        evidenceConfiguration.oneDriveTenant(),
+        evidenceConfiguration.oneDriveClientId(),
+        evidenceConfiguration.oneDriveRefreshToken());
+      if (!token.refreshToken().isBlank() && !token.refreshToken().equals(evidenceConfiguration.oneDriveRefreshToken())) {
+        this.settingsStore.updateOneDriveRefreshToken(token.refreshToken());
+      }
+      return token.accessToken();
+    }
+    return evidenceConfiguration.oneDriveBearerToken();
+  }
+
+  private String appealPublicBaseUrl() {
+    var value = this.settingsStore.current().appealPublicBaseUrl();
+    return value == null || value.isBlank()
+      ? this.configuration.appealPublicBaseUrl()
+      : value.trim().replaceAll("/+$", "");
+  }
+
+  private String downloadFileName(BanAppealAttachment attachment) {
+    var fileName = this.nullableText(attachment.fileName());
+    return fileName == null ? "beweisdatei" : fileName;
+  }
+
+  private String attachmentContentType(BanAppealAttachment attachment) {
+    var contentType = this.nullableText(attachment.contentType());
+    return contentType == null ? "application/octet-stream" : contentType;
+  }
+
+  private boolean isHttpUrl(String value) {
+    return value != null
+      && (value.regionMatches(true, 0, "https://", 0, 8)
+        || value.regionMatches(true, 0, "http://", 0, 7));
   }
 
   private ScreenCapture cloudNetScreenOutput(String screenName, int limit) {
@@ -910,6 +1598,13 @@ public final class CloudNetFacade {
   ) {
   }
 
+  public record EvidenceDownload(
+    String fileName,
+    String contentType,
+    byte[] bytes
+  ) {
+  }
+
   private record ScreenCapture(
     boolean success,
     List<String> lines,
@@ -931,6 +1626,9 @@ public final class CloudNetFacade {
     String brandLogoUrl,
     List<String> environments,
     List<String> runtimes,
+    List<String> ticketStatuses,
+    List<String> ticketPriorities,
+    List<String> ticketCategories,
     List<PanelPermission.PermissionView> availablePermissions,
     String generatedAt
   ) {
@@ -1039,14 +1737,89 @@ public final class CloudNetFacade {
   ) {
   }
 
+  public record TicketView(
+    String id,
+    String creatorName,
+    String creatorUniqueId,
+    String category,
+    String priority,
+    String status,
+    String subject,
+    String content,
+    String assignedTo,
+    String serviceName,
+    String sourceServer,
+    String createdAt,
+    String updatedAt,
+    List<TicketCommentView> comments
+  ) {
+  }
+
+  public record TicketCommentView(
+    String author,
+    String message,
+    boolean internal,
+    String createdAt
+  ) {
+  }
+
+  public record BanView(
+    String id,
+    String targetName,
+    String targetUniqueId,
+    String targetAddress,
+    String reason,
+    String issuedBy,
+    String createdAt,
+    String expiresAt,
+    boolean active,
+    boolean expired,
+    String removedBy,
+    String removedAt
+  ) {
+  }
+
   public record SettingsView(
     String brandName,
     String brandLogoUrl,
+    List<String> ticketCategories,
     String cloudNetScreenName,
     String cloudNetRestBaseUrl,
     String cloudNetRestUsername,
     boolean cloudNetRestPasswordConfigured,
     String cloudNetRestThreshold,
+    List<QuestEditorServerView> questEditorServers,
+    List<ServerShopServerView> serverShopServers,
+    String appealBrandName,
+    String appealTitle,
+    String appealStatusTitle,
+    String appealStatusOpenLabel,
+    String appealStatusInReviewLabel,
+    String appealStatusAcceptedLabel,
+    String appealStatusRejectedLabel,
+    String appealStatusClosedLabel,
+    String appealStatusOpenText,
+    String appealStatusInReviewText,
+    String appealStatusAcceptedText,
+    String appealStatusRejectedText,
+    String appealStatusClosedText,
+    String appealPublicBaseUrl,
+    int appealMaxFiles,
+    long appealMaxFileBytes,
+    String appealEvidenceStorage,
+    String appealEvidenceLocalDirectory,
+    String appealEvidenceSftpHost,
+    int appealEvidenceSftpPort,
+    String appealEvidenceSftpUsername,
+    boolean appealEvidenceSftpPasswordConfigured,
+    String appealEvidenceSftpPrivateKeyPath,
+    String appealEvidenceSftpRemoteDirectory,
+    String appealEvidenceOneDriveUploadUrlTemplate,
+    boolean appealEvidenceOneDriveBearerTokenConfigured,
+    String appealEvidenceOneDriveTenant,
+    String appealEvidenceOneDriveClientId,
+    String appealEvidenceOneDriveFolderPath,
+    boolean appealEvidenceOneDriveRefreshTokenConfigured,
     String panelStorageBackend,
     String panelSqlJdbcUrl,
     String panelSqlUsername,
@@ -1059,7 +1832,17 @@ public final class CloudNetFacade {
     boolean smtpPasswordConfigured,
     String smtpFrom,
     boolean smtpStartTls,
-    boolean smtpSsl
+    boolean smtpSsl,
+    boolean liteBansDatabaseEnabled,
+    String liteBansJdbcUrl,
+    String liteBansDatabaseUsername,
+    boolean liteBansDatabasePasswordConfigured,
+    String liteBansTablePrefix,
+    int liteBansDatabaseMaxRows,
+    String liteBansBridgeBaseUrl,
+    boolean liteBansBridgeSecretConfigured,
+    int liteBansBridgeConnectTimeoutMillis,
+    int liteBansBridgeReadTimeoutMillis
   ) {
   }
 
@@ -1069,4 +1852,16 @@ public final class CloudNetFacade {
   ) {
   }
 
+  public record OneDriveConnectionView(
+    String status,
+    String message,
+    boolean connected,
+    int interval
+  ) {
+  }
+
+  public record OneDriveFoldersView(
+    List<OneDriveOAuthClient.OneDriveFolderView> folders
+  ) {
+  }
 }
